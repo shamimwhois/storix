@@ -88,7 +88,7 @@ Indexes: `(tenant_id, owner_id, driver)`, `parent_id`, `status`. Do not create a
 | created_at / updated_at | timestamps | Required |
 | deleted_at | timestamp nullable | Soft delete |
 
-Indexes: `(tenant_id, owner_id, created_at)`, `directory_id`, `(driver, status)`, `(sha256, size_bytes)`. Repository queries must always apply the relevant owner/tenant scope; the checksum index is not permission to deduplicate across security scopes.
+Indexes: `(tenant_id, owner_id, created_at)`, `directory_id`, `(driver, status)`, `(sha256, size_bytes)`. Repository queries must always apply the relevant owner/tenant scope; the checksum index is not permission to deduplicate across tenant, owner, driver, or target-directory scopes.
 
 ### 4.3 `storix_transfers`
 
@@ -164,7 +164,7 @@ Define repository contracts under `Contracts/Repositories` and Eloquent implemen
 Minimum operations:
 
 - Directories: create, find by ID within scope, find child by normalized name/path within scope, list children, save, soft delete.
-- Files: create, find by ID within scope, find by scoped fingerprint when available, save, soft delete.
+- Files: create, find by ID within scope, find by scoped fingerprint when available, including driver and target directory, save, soft delete.
 - Transfers: create, find by ID within scope, find by scoped idempotency key, save, atomically create-or-return idempotent transfer, list stale/eligible records with bounded pagination.
 - Chunks: create, find by transfer/index, list by transfer ordered by index, save, delete by transfer when retention explicitly requests it.
 
