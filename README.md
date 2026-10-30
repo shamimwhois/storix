@@ -13,20 +13,20 @@ Storix is a backend-only, API-first Laravel storage package. It provides a unifi
 
 | File | Purpose |
 |---|---|
-| `01-product-requirements.md` | Product scope, personas, requirements, acceptance criteria |
-| `02-system-architecture.md` | Components, data flow, lifecycle, architecture decisions |
-| `03-database-design.md` | Tables, columns, indexes, relationships, state models |
-| `04-package-structure.md` | Composer package layout and class responsibilities |
-| `05-core-api-and-rest-api.md` | PHP API, optional REST endpoints, response contracts |
-| `06-transfer-engine.md` | Upload/download, chunks, progress, retry, resume, speed |
-| `07-storage-drivers.md` | Local and Telegram driver contracts and limits |
-| `08-security-design.md` | Threat model, authorization, validation, encryption |
-| `09-testing-strategy.md` | Unit, integration, contract, security and performance tests |
-| `10-implementation-roadmap.md` | 14 epics, deliverables, dependencies and definition of done |
-| `11-ai-coding-instructions.md` | Rules and staged workflow for AI coding agents |
-| `12-configuration-and-operations.md` | Configuration, deployment, queues, monitoring, troubleshooting |
-| `13-acceptance-checklist.md` | Release gate and end-to-end verification |
-| `DECISIONS.md` | Confirmed decisions and unresolved technical decisions |
+| [`01-product-requirements.md`](docs/01-product-requirements.md) | Product scope, personas, requirements, acceptance criteria |
+| [`02-system-architecture.md`](docs/02-system-architecture.md) | Components, data flow, lifecycle, architecture decisions |
+| [`03-database-design.md`](docs/03-database-design.md) | Tables, columns, indexes, relationships, state models |
+| [`04-package-structure.md`](docs/04-package-structure.md) | Composer package layout and class responsibilities |
+| [`05-core-api-and-rest-api.md`](docs/05-core-api-and-rest-api.md) | PHP API, optional REST endpoints, response contracts |
+| [`06-transfer-engine.md`](docs/06-transfer-engine.md) | Upload/download, chunks, progress, retry, resume, speed |
+| [`07-storage-drivers.md`](docs/07-storage-drivers.md) | Local and Telegram driver contracts and limits |
+| [`08-security-design.md`](docs/08-security-design.md) | Threat model, authorization, validation, encryption |
+| [`09-testing-strategy.md`](docs/09-testing-strategy.md) | Unit, integration, contract, security and performance tests |
+| [`10-implementation-roadmap.md`](docs/10-implementation-roadmap.md) | 14 epics, deliverables, dependencies and definition of done |
+| [`11-ai-coding-instructions.md`](docs/11-ai-coding-instructions.md) | Rules and staged workflow for AI coding agents |
+| [`12-configuration-and-operations.md`](docs/12-configuration-and-operations.md) | Configuration, deployment, queues, monitoring, troubleshooting |
+| [`13-acceptance-checklist.md`](docs/13-acceptance-checklist.md) | Release gate and end-to-end verification |
+| [`DECISIONS.md`](docs/DECISIONS.md) | Confirmed decisions and unresolved technical decisions |
 
 ## Confirmed product decisions
 
