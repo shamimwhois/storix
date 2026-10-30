@@ -61,7 +61,7 @@ The local driver rejects:
 - Segments ending in a dot or space.
 - The reserved .storix-tmp- namespace used for internal staging files.
 
-The driver builds paths only below the configured root and checks existing path components for symbolic links. It rejects an existing path segment that differs only by letter case from the requested segment, preventing distinct keys from silently aliasing on case-insensitive filesystems. It does not follow symbolic links during directory listing or recursive deletion, and it refuses to delete the configured root. Public exception messages do not disclose absolute filesystem paths.
+The driver builds paths only below the configured root and checks existing path components for symbolic links. It rejects an existing path segment that differs only by letter case from the requested segment, preventing distinct keys from silently aliasing on case-insensitive filesystems. It does not follow symbolic links during directory listing or recursive deletion, and it refuses to delete the configured root. Public exception messages do not disclose absolute filesystem paths. Case-collision detection currently enumerates sibling names for each path segment; benchmark large flat directories and tune this cost in E11 before claiming high-cardinality directory performance.
 
 These checks mitigate traversal and static symlink escapes. They do not guarantee race-free protection against a hostile local process concurrently replacing filesystem entries between checks and I/O. The configured storage root must be writable only by trusted application processes.
 
@@ -73,9 +73,9 @@ These checks mitigate traversal and static symlink escapes. They do not guarante
 - Do not rewind or close the caller-owned input resource.
 - Copy bytes in fixed 1 MiB chunks; do not accumulate the complete object in PHP memory.
 - Calculate SHA-256 incrementally while writing.
-- Reserve a staging file in the destination directory with tempnam.
+- On POSIX systems, reserve a staging file in the destination directory with tempnam; on Windows, generate a unique .storix-tmp- name and create it with exclusive mode so the full reserved prefix is preserved.
 - Require the temporary file to remain in the destination directory; reject a system-temp fallback outside it.
-- Use the private permissions provided at temporary-file creation (0600 on POSIX systems).
+- POSIX tempnam creation provides private 0600 permissions. On Windows, the staging file inherits the destination directory's access-control list (ACL).
 - Flush and close the staging file before renaming it to the final key.
 - Remove the temporary file on failure. Do not replace an existing destination until the new stream has been written successfully.
 
