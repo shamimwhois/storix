@@ -1,6 +1,6 @@
 # E03 — Persistence Layer
 
-**Status:** In progress  
+**Status:** Complete — merged into `main` via PR #3  
 **Epic:** E03 — Persistence  
 **Depends on:** E01 Foundation, E02 Contracts & Public API  
 **Target:** PHP 8.5+, Laravel 13.x  
@@ -235,27 +235,27 @@ Rules:
 ### Feature / database
 
 - All four migrations load successfully; migration rollback is tested in reverse dependency order.
-- Model relationships and soft-delete behavior.
+- Model relationships, UUID/casts, and soft-delete behavior.
 - Required columns, defaults, foreign keys, and indexes.
 - Scoped directory/file/transfer lookups.
 - Duplicate idempotency key reuse in both repository create paths, scope isolation, blank-key rejection, and database uniqueness behavior.
 - Unique directory scope/name, transfer idempotency, and transfer/chunk index enforcement, including duplicate-key rejection.
-- Chunk ordering and bounded stale-record query.
+- Chunk ordering, bounded expired-transfer query, and transaction rollback.
 - Transaction rollback leaves no partial metadata.
 - SQLite CI must pass; no unsupported database is claimed.
 
 ## 11. Acceptance criteria
 
-- [ ] Four reversible migrations exist and load through the package service provider.
-- [ ] UUID-backed Eloquent models and relationships are implemented.
-- [ ] Repository contracts and Eloquent implementations cover the required operations.
-- [ ] Owner/tenant scoping is enforced in database queries.
-- [ ] Idempotency and chunk uniqueness are protected by database constraints.
-- [ ] Transfer state machine enforces the documented transition graph.
-- [ ] No transaction is held during storage/network I/O.
-- [ ] Unit and database feature tests cover success and failure paths.
-- [ ] Composer validation, Pint, and PHPUnit pass in CI.
-- [ ] Root README, database design, roadmap, and changelog reflect only implemented behavior.
+- [x] Four reversible migrations exist and load through the package service provider.
+- [x] UUID-backed Eloquent models and relationships are implemented.
+- [x] Repository contracts and Eloquent implementations cover the required operations.
+- [x] Owner/tenant scoping is enforced in database queries.
+- [x] Idempotency and chunk uniqueness are protected by database constraints.
+- [x] Transfer state machine enforces the documented transition graph.
+- [x] No transaction is held during storage/network I/O.
+- [x] Unit and database feature tests cover success and failure paths.
+- [x] Composer validation, Pint, and PHPUnit pass in CI.
+- [x] Root README, database design, roadmap, and changelog reflect only implemented behavior.
 
 ## 12. Explicit non-claims
 
