@@ -13,10 +13,11 @@ Use UUID primary keys consistently for Storix-owned records; never expose sequen
 - `parent_id` nullable FK to directories
 - `name` varchar(255)
 - `path_key` varchar(1024) normalized path
+- `scope_hash` char(64), `name_hash` char(64) generated scope/name fingerprints
 - `driver` varchar(64)
 - `status` varchar(24): active/deleting/deleted
 - timestamps, soft delete timestamp
-- composite lookup index on `(tenant_id, owner_id, driver, parent_id, name)`; atomic directory-name uniqueness is deferred to the directory service.
+- unique `(scope_hash, name_hash)` to prevent duplicate case-insensitive names within a tenant/owner/driver/parent scope; lookup index on `(tenant_id, owner_id, driver, parent_id, name)`. Soft-deleted directories reserve their names until restored or purged.
 
 ### `storix_files`
 - `id` UUID/ULID primary key
@@ -48,7 +49,7 @@ Use UUID primary keys consistently for Storix-owned records; never expose sequen
 - `last_error_code`, `last_error_message` sanitized
 - `started_at`, `finished_at`, `expires_at`
 - timestamps
-- unique `(idempotency_scope, idempotency_key)` when key is non-null; `idempotency_scope` is a SHA-256 hash of the normalized tenant/owner pair so nullable identity columns cannot weaken uniqueness. Empty/whitespace-only keys are rejected.
+- unique `(idempotency_scope, idempotency_key)` when key is non-null; `idempotency_scope` is a SHA-256 hash of the normalized tenant/owner pair so nullable identity columns cannot weaken uniqueness. Empty/whitespace-only keys are rejected. Both repository create paths compute the same scope hash.
 
 ### `storix_chunks`
 - `id` UUID/ULID
@@ -90,7 +91,7 @@ erDiagram
 
 ## 4. State constraints
 
-A transfer may become `completed` only from `verifying`. A terminal transfer cannot return to `transferring`; create a new transfer or an explicitly supported recovery attempt. Chunk `verified` requires size and hash verification. Use service-level transition validation and database constraints where portable.
+A transfer may become `completed` only from `verifying`. Persisted state changes must pass through `TransferStateMachine`; repository `save()` rejects a dirty state field. A terminal transfer cannot return to `transferring`; create a new transfer or an explicitly supported recovery attempt. Chunk `verified` requires size and hash verification. Use service-level transition validation and database constraints where portable.
 
 ## 5. Migration and indexing notes
 
