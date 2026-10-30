@@ -33,7 +33,7 @@ final class TransferStateMachine
             $locked = Transfer::query()->lockForUpdate()->findOrFail($id);
             $from = $locked->state;
 
-            if (! in_array($to, self::TRANSITIONS[$from->value], true)) {
+            if (in_array($to, self::TRANSITIONS[$from->value], true) === false) {
                 throw new InvalidTransferStateTransition($from, $to);
             }
 
