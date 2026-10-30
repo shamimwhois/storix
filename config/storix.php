@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 return [
-    // E01 configuration defaults; driver resolution is introduced in E02/E04.
+    // Default driver resolution is provided by E02; the Local adapter is registered in E04.
     'default' => env('STORIX_DRIVER', 'local'),
 
     'drivers' => [
