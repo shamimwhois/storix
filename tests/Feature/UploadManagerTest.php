@@ -77,6 +77,28 @@ final class UploadManagerTest extends TestCase
         }
     }
 
+    public function test_it_accepts_unusual_display_filename_suffixes_without_using_them_as_storage_suffixes(): void
+    {
+        foreach (['Meeting notes 2026.05 draft', '文件.中文'] as $originalName) {
+            $stream = $this->stream('payload');
+
+            try {
+                $result = Storix::uploads()->upload(new UploadRequest(
+                    stream: $stream,
+                    originalName: $originalName,
+                ));
+
+                self::assertNull($result->file->extension);
+                self::assertStringNotContainsString('.05 draft', $result->file->storage_key);
+                self::assertStringNotContainsString('.中文', $result->file->storage_key);
+            } finally {
+                fclose($stream);
+            }
+        }
+
+        self::assertSame(2, StoredFile::query()->count());
+    }
+
     public function test_it_accepts_an_empty_file(): void
     {
         $stream = $this->stream('');
@@ -139,13 +161,42 @@ final class UploadManagerTest extends TestCase
                 idempotencyKey: 'same-request',
             ));
 
-            $this->expectException(IdempotencyConflictException::class);
-            Storix::uploads()->upload(new UploadRequest(
+            $this->assertThrows(IdempotencyConflictException::class, fn () => Storix::uploads()->upload(new UploadRequest(
                 stream: $secondStream,
                 originalName: 'same.txt',
                 ownerId: 'owner-a',
                 idempotencyKey: 'same-request',
+            )));
+        } finally {
+            fclose($firstStream);
+            fclose($secondStream);
+        }
+
+        self::assertSame(1, StoredFile::query()->count());
+        self::assertSame(1, Transfer::query()->count());
+    }
+
+    public function test_it_rejects_idempotent_reuse_when_only_metadata_changes(): void
+    {
+        $firstStream = $this->stream('same-payload');
+        $secondStream = $this->stream('same-payload');
+
+        try {
+            Storix::uploads()->upload(new UploadRequest(
+                stream: $firstStream,
+                originalName: 'same.txt',
+                ownerId: 'owner-a',
+                idempotencyKey: 'metadata-request',
+                metadata: ['source' => 'first'],
             ));
+
+            $this->assertThrows(IdempotencyConflictException::class, fn () => Storix::uploads()->upload(new UploadRequest(
+                stream: $secondStream,
+                originalName: 'same.txt',
+                ownerId: 'owner-a',
+                idempotencyKey: 'metadata-request',
+                metadata: ['source' => 'second'],
+            )));
         } finally {
             fclose($firstStream);
             fclose($secondStream);
@@ -161,11 +212,10 @@ final class UploadManagerTest extends TestCase
         $stream = $this->stream('12345');
 
         try {
-            $this->expectException(UploadTooLargeException::class);
-            Storix::uploads()->upload(new UploadRequest(
+            $this->assertThrows(UploadTooLargeException::class, fn () => Storix::uploads()->upload(new UploadRequest(
                 stream: $stream,
                 originalName: 'large.txt',
-            ));
+            )));
         } finally {
             self::assertTrue(is_resource($stream));
             fclose($stream);
@@ -180,12 +230,11 @@ final class UploadManagerTest extends TestCase
         $stream = $this->stream('payload');
 
         try {
-            $this->expectException(UploadValidationException::class);
-            Storix::uploads()->upload(new UploadRequest(
+            $this->assertThrows(UploadValidationException::class, fn () => Storix::uploads()->upload(new UploadRequest(
                 stream: $stream,
                 originalName: 'payload.txt',
                 expectedSizeBytes: 8,
-            ));
+            )));
         } finally {
             fclose($stream);
         }
@@ -206,14 +255,13 @@ final class UploadManagerTest extends TestCase
         $stream = $this->stream('payload');
 
         try {
-            $this->expectException(UploadValidationException::class);
-            Storix::uploads()->upload(new UploadRequest(
+            $this->assertThrows(UploadValidationException::class, fn () => Storix::uploads()->upload(new UploadRequest(
                 stream: $stream,
                 originalName: 'payload.txt',
                 tenantId: 'tenant-a',
                 ownerId: 'owner-b',
                 directoryId: $directory->id,
-            ));
+            )));
         } finally {
             fclose($stream);
         }
@@ -255,12 +303,11 @@ final class UploadManagerTest extends TestCase
         $source = $this->stream('original');
 
         try {
-            $this->expectException(UploadIntegrityException::class);
-            Storix::uploads()->upload(new UploadRequest(
+            $this->assertThrows(UploadIntegrityException::class, fn () => Storix::uploads()->upload(new UploadRequest(
                 stream: $source,
                 originalName: 'integrity.txt',
                 driver: 'test',
-            ));
+            )));
         } finally {
             fclose($source);
         }
@@ -269,6 +316,22 @@ final class UploadManagerTest extends TestCase
         self::assertSame('failed', StoredFile::query()->firstOrFail()->status);
         self::assertSame(1, Transfer::query()->count());
         self::assertSame(TransferState::FAILED, Transfer::query()->firstOrFail()->state);
+    }
+
+    /**
+     * @param  class-string<\Throwable>  $exceptionClass
+     */
+    private function assertThrows(string $exceptionClass, callable $callback): \Throwable
+    {
+        try {
+            $callback();
+        } catch (\Throwable $exception) {
+            self::assertInstanceOf($exceptionClass, $exception);
+
+            return $exception;
+        }
+
+        self::fail("Expected exception {$exceptionClass} was not thrown.");
     }
 
     /** @return resource */
