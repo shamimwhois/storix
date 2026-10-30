@@ -8,4 +8,5 @@ enum ObjectVisibility: string
 {
     case PRIVATE = 'private';
     case PUBLIC = 'public';
+    case LIMITED = 'limited';
 }
