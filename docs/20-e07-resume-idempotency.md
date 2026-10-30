@@ -59,9 +59,10 @@ Unknown, duplicate, out-of-range or mismatched chunk records make the session no
 
 - Serialize idempotency acquisition using a database transaction and row-level lock where supported.
 - Keep the unique database constraint as the race-safe invariant.
-- Use a transfer-level lease/lock before mutating session/chunk state.
+- Use a transfer-level lease before mutating session/chunk state. The repository now exposes an atomic conditional lease claim and token-checked release; expired leases may be claimed by a new worker.
 - A second matching request must receive an in-progress response while a valid lease is held; it must not create another provider session.
-- Lease expiry and abandoned-session recovery are E08 responsibilities.
+- Lease acquisition primitives are implemented and tested, but UploadManager does not yet acquire/release them. End-to-end enforcement remains an integration task.
+- Lease expiry policy and abandoned-session recovery are E08 responsibilities.
 
 ## Persistence additions
 
@@ -86,7 +87,7 @@ Unknown, duplicate, out-of-range or mismatched chunk records make the session no
 
 1. Add durable session and verification timestamps.
 2. Include tenant/owner security scope in the canonical request fingerprint.
-3. Add repository-level atomic idempotency acquisition and locking.
-4. Implement a pure chunk-reconciliation service with fail-closed validation.
-5. Integrate resumable multipart session reuse into UploadManager.
-6. Add restart, concurrency and regression tests; update docs and roadmap.
+3. Add repository-level atomic idempotency acquisition and transfer lease claim/release operations.
+4. Implement chunk and provider-session reconciliation with fail-closed validation.
+5. Integrate lease acquisition, resumable multipart session reuse and progress recomputation into UploadManager.
+6. Add process-restart, concurrent-worker and regression tests; update docs and roadmap.
