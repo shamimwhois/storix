@@ -69,6 +69,22 @@ final class LocalStorageDriverTest extends TestCase
         fclose($input);
     }
 
+    public function test_writes_from_the_current_input_position_without_closing_the_source(): void
+    {
+        $driver = $this->driver();
+        $input = $this->inputStream('prefix-payload');
+
+        fseek($input, strlen('prefix-'));
+
+        $result = $driver->writeStream(new WriteStreamRequest('position.txt', $input));
+
+        self::assertSame(strlen('payload'), $result->object->sizeBytes);
+        self::assertSame('payload', file_get_contents($this->temporaryRoots[array_key_last($this->temporaryRoots)].DIRECTORY_SEPARATOR.'position.txt'));
+        self::assertIsResource($input);
+
+        fclose($input);
+    }
+
     public function test_it_replaces_an_existing_object_and_cleans_temporary_files(): void
     {
         $driver = $this->driver();
