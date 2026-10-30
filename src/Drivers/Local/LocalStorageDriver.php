@@ -491,7 +491,7 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
     }
 
     /**
-     * Validate a relative storage key and split it into safe POSIX-style path segments, including Windows device-name aliases.
+     * Validate a relative storage key and split it into safe POSIX-style path segments, including Windows device and console aliases.
      * @return list<string>
      */
     private function segments(string $key): array
@@ -512,7 +512,7 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
                 || $segment === '..'
                 || strncasecmp($segment, '.storix-tmp-', 12) === 0
                 || rtrim($segment, '. ') !== $segment
-                || preg_match('/^(CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\\..*)?$/iu', $segment) === 1) {
+                || preg_match('/^(CON|PRN|AUX|NUL|CONIN[$]|CONOUT[$]|COM[1-9¹²³]|LPT[1-9¹²³])(?:\\..*)?$/iu', $segment) === 1) {
                 throw new InvalidArgumentException('Storage keys contain an invalid path segment.');
             }
         }
