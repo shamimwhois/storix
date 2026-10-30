@@ -35,6 +35,7 @@ final class LocalStorageDriverTest extends TestCase
     {
         $root = $this->temporaryDirectory();
         config(['storix.drivers.local.root' => $root]);
+        $this->app->forgetInstance(LocalStorageDriver::class);
         $this->app->forgetInstance(DriverManager::class);
         $this->app->forgetInstance('storix');
 
