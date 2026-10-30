@@ -68,7 +68,7 @@ final class LocalStorageDriverTest extends TestCase
         self::assertSame('backups/large.bin', $result->object->key);
         self::assertTrue($driver->exists('backups/large.bin'));
 
-        if (DIRECTORY_SEPARATOR !== chr(92)) {
+        if (DIRECTORY_SEPARATOR === '/') {
             $permissions = fileperms($this->temporaryRoots[array_key_last($this->temporaryRoots)].DIRECTORY_SEPARATOR.'backups'.DIRECTORY_SEPARATOR.'large.bin');
             self::assertNotFalse($permissions);
             self::assertSame(0600, $permissions & 0777);
@@ -223,7 +223,7 @@ final class LocalStorageDriverTest extends TestCase
 
     public function test_it_does_not_follow_symbolic_links_inside_the_storage_root(): void
     {
-        if (! function_exists('symlink')) {
+        if (function_exists('symlink') === false) {
             self::markTestSkipped('Symbolic links are not available in this environment.');
         }
 
@@ -307,7 +307,7 @@ final class LocalStorageDriverTest extends TestCase
             return;
         }
 
-        if (! is_dir($path)) {
+        if (is_dir($path) === false) {
             return;
         }
 
