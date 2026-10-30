@@ -382,6 +382,8 @@ final class UploadManagerTest extends TestCase
             'attempts' => 0,
         ]);
 
+        config(['storix.transfers.chunk_size' => 1]);
+
         try {
             $result = Storix::uploads()->upload(new UploadRequest(
                 stream: $stream,
