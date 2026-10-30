@@ -80,7 +80,7 @@ The local driver rejects:
 - absolute paths and leading/trailing separators;
 - empty segments, . and .. traversal segments;
 - backslashes, null bytes, control characters, and platform-reserved filename characters;
-- Windows device names (including names with extensions), segments ending in a dot or space, and the reserved `.storix-tmp-` internal namespace.
+- Windows device names (including names with extensions and superscript aliases such as `COM¹` and `LPT³`), segments ending in a dot or space, and the reserved `.storix-tmp-` internal namespace.
 
 The driver builds paths only below the configured root, checks existing path components for symbolic links, does not follow symlinks during directory listing or recursive deletion, reserves the `.storix-tmp-` namespace for private temporary files, and refuses to delete the root directory. Error messages use stable package exceptions and do not include absolute filesystem paths.
 
