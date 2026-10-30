@@ -184,7 +184,14 @@ final class UploadManager
             $ownsTransfer = true;
             $renewLease = fn (): void => $this->renewResumeLease($transfer, $resumeLeaseToken, $leaseSeconds);
 
-            if ($multipartDriver !== null && $staged['size'] > 0) {
+            if ($isResume) {
+                $persistedChunks = $this->chunks->forTransfer((string) $transfer->id);
+                $chunkPlan = $this->chunkPlanFromPersisted($persistedChunks, $staged['size']);
+
+                if (count($chunkPlan) !== $transfer->total_chunks) {
+                    throw new UploadIntegrityException;
+                }
+            } elseif ($multipartDriver !== null && $staged['size'] > 0) {
                 $chunkPlan = $this->chunkPlanner->plan(
                     $staged['size'],
                     $capabilities,
@@ -192,60 +199,64 @@ final class UploadManager
                 );
             }
 
-            $transfer->total_chunks = count($chunkPlan);
-            $transfer = $this->transfers->save($transfer);
-
-            [$file, $transfer] = DB::transaction(function () use (
-                $request,
-                $directory,
-                $driverName,
-                $storageKey,
-                $extension,
-                $staged,
-                $transfer,
-                $chunkPlan,
-            ): array {
-                $file = $this->files->create([
-                    'tenant_id' => $request->tenantId,
-                    'owner_id' => $request->ownerId,
-                    'directory_id' => $directory?->id,
-                    'driver' => $driverName,
-                    'name' => $request->originalName,
-                    'original_name' => $request->originalName,
-                    'extension' => $extension,
-                    'mime_type' => $request->mimeType,
-                    'size_bytes' => $staged['size'],
-                    'sha256' => $staged['sha256'],
-                    'storage_key' => $storageKey,
-                    'status' => 'pending',
-                    'visibility' => $request->visibility,
-                    'metadata' => $request->metadata,
-                ]);
-
-                $transfer->file_id = $file->id;
+            if (! $isResume) {
+                $transfer->total_chunks = count($chunkPlan);
                 $transfer = $this->transfers->save($transfer);
 
-                foreach ($chunkPlan as $descriptor) {
-                    $this->chunks->create([
-                        'transfer_id' => $transfer->id,
-                        'chunk_index' => $descriptor->index,
-                        'offset_bytes' => $descriptor->offsetBytes,
-                        'size_bytes' => $descriptor->sizeBytes,
-                        'sha256' => null,
-                        'state' => ChunkState::PENDING,
-                        'driver_reference' => null,
-                        'attempts' => 0,
-                        'last_error_code' => null,
+                [$file, $transfer] = DB::transaction(function () use (
+                    $request,
+                    $directory,
+                    $driverName,
+                    $storageKey,
+                    $extension,
+                    $staged,
+                    $transfer,
+                    $chunkPlan,
+                ): array {
+                    $file = $this->files->create([
+                        'tenant_id' => $request->tenantId,
+                        'owner_id' => $request->ownerId,
+                        'directory_id' => $directory?->id,
+                        'driver' => $driverName,
+                        'name' => $request->originalName,
+                        'original_name' => $request->originalName,
+                        'extension' => $extension,
+                        'mime_type' => $request->mimeType,
+                        'size_bytes' => $staged['size'],
+                        'sha256' => $staged['sha256'],
+                        'storage_key' => $storageKey,
+                        'status' => 'pending',
+                        'visibility' => $request->visibility,
+                        'metadata' => $request->metadata,
                     ]);
-                }
 
-                return [$file, $transfer];
-            });
+                    $transfer->file_id = $file->id;
+                    $transfer = $this->transfers->save($transfer);
+
+                    foreach ($chunkPlan as $descriptor) {
+                        $this->chunks->create([
+                            'transfer_id' => $transfer->id,
+                            'chunk_index' => $descriptor->index,
+                            'offset_bytes' => $descriptor->offsetBytes,
+                            'size_bytes' => $descriptor->sizeBytes,
+                            'sha256' => null,
+                            'state' => ChunkState::PENDING,
+                            'driver_reference' => null,
+                            'attempts' => 0,
+                            'last_error_code' => null,
+                        ]);
+                    }
+
+                    return [$file, $transfer];
+                });
+            } else {
+                $this->states->transition($transfer->id, TransferState::PAUSED);
+            }
 
             $transfer = $this->states->transition($transfer->id, TransferState::PREPARING);
             $file->status = 'processing';
             $file = $this->files->save($file);
-            $transfer->attempts = 1;
+            $transfer->attempts++;
             $transfer = $this->transfers->save($transfer);
             $transfer = $this->states->transition($transfer->id, TransferState::TRANSFERRING);
 
