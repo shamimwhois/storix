@@ -16,7 +16,7 @@ Storix is an **API-first, backend-only Laravel package** designed to give applic
 
 Instead of coupling application code to a single provider, Storix places a stable PHP API over a capability-aware driver system. Its engineering design covers streaming I/O, large-file chunking, resumable transfers, retries, integrity verification, transfer observability, and tenant-aware access control.
 
-> **Project status:** E01 Foundation, E02 Contracts & API, E03 Persistence, and E04 Local Driver are merged into `main`. E04 provides the first local filesystem adapter with bounded streaming, checksums, safe key handling, range reads, and directory operations. E05 — Basic Upload is the next development epic; chunked/resumable transfers and recovery remain later epics. Storix is not yet a production release.
+> **Project status:** E01–E04 are merged into `main`. E05 Basic Upload is implemented on `feature/e05-basic-upload`; CI verification and review are pending before merge. The implementation adds bounded-size stream uploads, durable metadata, scoped idempotency and independent SHA-256 read-back verification. Chunked/resumable transfers and automatic recovery remain later epics. Storix is not yet a production release.
 
 ## At a glance
 
@@ -240,6 +240,7 @@ The documentation portal is available at **[docs/index.html](docs/index.html)**.
 | [E02 Contracts & API](docs/15-e02-contracts-and-api.md) | Public driver contract, DTOs, capabilities, exceptions, registration, facade, and acceptance criteria |
 | [E03 Persistence](docs/16-e03-persistence.md) | Database schema, Eloquent models, repositories, UUID policy, and transfer state machine |
 | [E04 Local Storage Driver](docs/17-e04-local-driver.md) | Local streaming I/O, safe keys, range reads, metadata, and directories |
+| [E05 Basic Upload](docs/18-e05-basic-upload.md) | Stream-first single-object uploads, validation, idempotency and SHA-256 verification |
 
 ## Implementation roadmap
 

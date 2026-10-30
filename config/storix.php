@@ -12,7 +12,12 @@ return [
         ],
     ],
 
-    // Reserved defaults; E01 does not execute transfers or chunking.
+    'uploads' => [
+        'max_file_size_bytes' => 64 * 1024 * 1024,
+        'spool_memory_bytes' => 8 * 1024 * 1024,
+    ],
+
+    // Reserved defaults; chunking and automatic retries are implemented in later epics.
     'transfers' => [
         'chunk_size' => 8 * 1024 * 1024,
         'max_parallel_chunks' => 3,
