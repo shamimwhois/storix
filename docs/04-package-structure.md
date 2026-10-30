@@ -16,7 +16,8 @@ storix/
 │   ├── StorixServiceProvider.php
 │   ├── StorixManager.php
 │   ├── Facades/Storix.php
-│   ├── Contracts/StorageDriver.php
+│   ├── Contracts/
+│   │   ├── StorageDriver.php
 │   │   └── Repositories/
 │   │       ├── DirectoryRepository.php
 │   │       ├── StoredFileRepository.php
