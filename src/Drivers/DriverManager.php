@@ -36,7 +36,7 @@ final class DriverManager
     /** @return list<string> */
     public function names(): array
     {
-        $names = array_keys($this->drivers);
+        $names = array_map('strval', array_keys($this->drivers));
         sort($names);
 
         return $names;
