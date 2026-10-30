@@ -20,8 +20,14 @@ final readonly class StorageObjectMetadata
         public ObjectVisibility $visibility = ObjectVisibility::PRIVATE,
         public array $metadata = [],
     ) {
-        if ($this->key === '' || $this->sizeBytes < 0) {
-            throw new InvalidArgumentException('Object metadata requires a key and non-negative size.');
+        if ($this->key === '' || str_contains($this->key, "\0") || $this->sizeBytes < 0) {
+            throw new InvalidArgumentException('Object metadata requires a non-empty key without null bytes and a non-negative size.');
+        }
+
+        foreach ($this->metadata as $key => $value) {
+            if (! is_string($key) || (! is_scalar($value) && $value !== null)) {
+                throw new InvalidArgumentException('Object metadata keys must be strings and values must be scalar or null.');
+            }
         }
 
         if ($this->checksumSha256 !== null && ! preg_match('/^[a-f0-9]{64}$/i', $this->checksumSha256)) {
