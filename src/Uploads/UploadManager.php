@@ -260,6 +260,8 @@ final class UploadManager
             $file->status = 'processing';
             $file = $this->files->save($file);
             $transfer->attempts++;
+            $transfer->last_error_code = null;
+            $transfer->last_error_message = null;
             $transfer = $this->transfers->save($transfer);
             $transfer = $this->states->transition($transfer->id, TransferState::TRANSFERRING);
 
