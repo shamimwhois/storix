@@ -241,6 +241,7 @@ final class UploadManager
             $transfer->transferred_bytes = $staged['size'];
             $transfer->completed_chunks = count($chunkPlan);
             $transfer = $this->transfers->save($transfer);
+            $renewLease();
             $transfer = $this->states->transition($transfer->id, TransferState::VERIFYING);
 
             $storedMetadata = $driver->stat(new StatObjectRequest($storageKey));
@@ -249,6 +250,7 @@ final class UploadManager
                 throw new UploadIntegrityException;
             }
 
+            $renewLease();
             $readBack = $driver->readStream(new ReadStreamRequest($storageKey));
 
             if (is_resource($readBack) === false || get_resource_type($readBack) !== 'stream') {
@@ -262,6 +264,8 @@ final class UploadManager
                     fclose($readBack);
                 }
             }
+
+            $renewLease();
 
             if ($verified['size'] !== $staged['size'] || $verified['sha256'] !== $staged['sha256']) {
                 throw new UploadIntegrityException;
