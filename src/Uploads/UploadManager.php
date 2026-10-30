@@ -367,24 +367,42 @@ final class UploadManager
                     throw $exception;
                 }
 
-                $cleanupFailed = false;
-
-                if ($objectMayExist && $storageKey !== null) {
+                if ($isResume && $transfer->multipart_upload_id !== null) {
                     try {
-                        $driver->delete(new DeleteObjectRequest($storageKey));
-                    } catch (Throwable $cleanupException) {
-                        $cleanupFailed = true;
-                        Log::warning('Storix upload cleanup failed.', [
+                        $transfer = $this->states->transition($transfer->id, TransferState::RETRY_WAIT);
+                        $transfer->last_error_code = $exception instanceof StorixException
+                            ? $exception->errorCode->value
+                            : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
+                        $transfer->last_error_message = 'Multipart upload paused after an interrupted resume attempt.';
+                        $this->transfers->save($transfer);
+                    } catch (Throwable $persistenceException) {
+                        Log::error('Storix could not persist resumable upload state.', [
                             'transfer_id' => $transfer?->id,
-                            'driver' => $driverName,
-                            'error_code' => $cleanupException instanceof StorixException
-                                ? $cleanupException->errorCode->value
+                            'error_code' => $persistenceException instanceof StorixException
+                                ? $persistenceException->errorCode->value
                                 : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
                         ]);
                     }
-                }
+                } else {
+                    $cleanupFailed = false;
 
-                $this->markFailed($transfer, $file, $request, $exception, $cleanupFailed);
+                    if ($objectMayExist && $storageKey !== null) {
+                        try {
+                            $driver->delete(new DeleteObjectRequest($storageKey));
+                        } catch (Throwable $cleanupException) {
+                            $cleanupFailed = true;
+                            Log::warning('Storix upload cleanup failed.', [
+                                'transfer_id' => $transfer?->id,
+                                'driver' => $driverName,
+                                'error_code' => $cleanupException instanceof StorixException
+                                    ? $cleanupException->errorCode->value
+                                    : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                            ]);
+                        }
+                    }
+
+                    $this->markFailed($transfer, $file, $request, $exception, $cleanupFailed);
+                }
             }
 
             throw $exception;
@@ -608,11 +626,13 @@ final class UploadManager
                     : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
 
                 try {
-                    foreach ($this->chunks->forTransfer((string) $transfer->id) as $chunk) {
-                        if ($chunk->state !== ChunkState::VERIFIED) {
-                            $chunk->state = ChunkState::FAILED;
-                            $chunk->last_error_code = $errorCode;
-                            $this->chunks->save($chunk);
+                    if ($resume === false) {
+                        foreach ($this->chunks->forTransfer((string) $transfer->id) as $chunk) {
+                            if ($chunk->state !== ChunkState::VERIFIED) {
+                                $chunk->state = ChunkState::FAILED;
+                                $chunk->last_error_code = $errorCode;
+                                $this->chunks->save($chunk);
+                            }
                         }
                     }
                 } catch (Throwable $persistenceException) {
@@ -625,7 +645,7 @@ final class UploadManager
                     ]);
                 }
             } finally {
-                if ($uploadId !== null) {
+                if ($uploadId !== null && $resume === false) {
                     try {
                         $driver->abortMultipartWrite($uploadId);
                         $transfer->multipart_upload_id = null;
