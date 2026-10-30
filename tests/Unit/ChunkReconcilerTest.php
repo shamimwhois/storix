@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace ShamimStack\Storix\Tests\Unit;
 
 use Illuminate\Support\Collection;
-use PHPUnit\Framework\TestCase;
+use ShamimStack\Storix\Tests\TestCase;
 use ShamimStack\Storix\DTOs\ChunkDescriptor;
 use ShamimStack\Storix\Enums\ChunkState;
 use ShamimStack\Storix\Exceptions\UploadIntegrityException;
