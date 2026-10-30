@@ -96,8 +96,8 @@ Indexes: `(tenant_id, owner_id, created_at)`, `directory_id`, `(driver, status)`
 |---|---|---|
 | id | UUID | Primary key |
 | file_id | UUID nullable | FK to files, restrictive delete |
-| tenant_id | UUID/string nullable | Indexed |
-| owner_id | UUID/string nullable | Indexed |
+| tenant_id | varchar(64) nullable | Indexed |
+| owner_id | varchar(64) nullable | Indexed |
 | direction | varchar(16) | upload/download |
 | driver | varchar(64) | Required |
 | state | varchar(24) | TransferState enum values |
