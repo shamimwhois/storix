@@ -93,6 +93,7 @@ final class UploadManager
         $storageKey = null;
         $ownsTransfer = false;
         $objectMayExist = false;
+        $resumeLeaseToken = null;
 
         try {
             $directory = $this->resolveDirectory($request, $driverName);
@@ -120,6 +121,18 @@ final class UploadManager
 
             if ($transfer->wasRecentlyCreated === false) {
                 return $this->resolveExisting($transfer, $fingerprint);
+            }
+
+            $resumeLeaseToken = Str::random(64);
+            $leaseSeconds = max(30, (int) $this->config->get('storix.transfers.resume_lease_seconds', 300));
+
+            if ($this->transfers->claimResumeLease(
+                (string) $transfer->id,
+                $resumeLeaseToken,
+                now(),
+                now()->addSeconds($leaseSeconds),
+            ) === false) {
+                throw new UploadInProgressException;
             }
 
             $ownsTransfer = true;
@@ -292,6 +305,19 @@ final class UploadManager
 
             throw $exception;
         } finally {
+            if ($resumeLeaseToken !== null && $transfer !== null) {
+                try {
+                    $this->transfers->releaseResumeLease((string) $transfer->id, $resumeLeaseToken);
+                } catch (Throwable $leaseException) {
+                    Log::warning('Storix resume lease release failed.', [
+                        'transfer_id' => $transfer->id,
+                        'error_code' => $leaseException instanceof StorixException
+                            ? $leaseException->errorCode->value
+                            : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                    ]);
+                }
+            }
+
             if (is_resource($staged['stream'])) {
                 fclose($staged['stream']);
             }
