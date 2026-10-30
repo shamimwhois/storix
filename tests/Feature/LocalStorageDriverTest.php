@@ -202,6 +202,8 @@ final class LocalStorageDriverTest extends TestCase
             'C:/windows/system.ini',
             'trailing-dot./file.txt',
             'reserved/CON',
+            'reserved/CON.txt',
+            'reserved/NUL.log',
         ] as $key) {
             try {
                 $driver->exists($key);
