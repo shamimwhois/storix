@@ -34,6 +34,14 @@ interface TransferRepository
         DateTimeInterface $expiresAt,
     ): bool;
 
+    /** Extend an unexpired lease only while the caller still owns its token. */
+    public function renewResumeLease(
+        string $transferId,
+        string $token,
+        DateTimeInterface $now,
+        DateTimeInterface $expiresAt,
+    ): bool;
+
     /** Release a lease only when the caller still owns its token. */
     public function releaseResumeLease(string $transferId, string $token): bool;
 
