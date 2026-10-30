@@ -51,7 +51,7 @@ final class ChunkReconciler
         $persistedByIndex = [];
 
         foreach ($chunks as $chunk) {
-            $index = $chunk->chunk_index;
+            $index = (int) $chunk->getRawOriginal('chunk_index');
 
             if (
                 isset($persistedByIndex[$index])
@@ -71,17 +71,17 @@ final class ChunkReconciler
             $chunk = $persistedByIndex[$descriptor->index];
 
             if (
-                $chunk->offset_bytes !== $descriptor->offsetBytes
-                || $chunk->size_bytes !== $descriptor->sizeBytes
+                (int) $chunk->getRawOriginal('offset_bytes') !== $descriptor->offsetBytes
+                || (int) $chunk->getRawOriginal('size_bytes') !== $descriptor->sizeBytes
             ) {
                 throw new UploadIntegrityException;
             }
 
             if (
-                $chunk->state !== ChunkState::VERIFIED
-                || $chunk->verified_at === null
-                || is_string($chunk->sha256) === false
-                || preg_match('/^[a-f0-9]{64}$/iD', $chunk->sha256) !== 1
+                $chunk->getRawOriginal('state') !== ChunkState::VERIFIED->value
+                || $chunk->getRawOriginal('verified_at') === null
+                || is_string($chunk->getRawOriginal('sha256')) === false
+                || preg_match('/^[a-f0-9]{64}$/iD', $chunk->getRawOriginal('sha256')) !== 1
             ) {
                 $invalidated[] = $chunk;
 
@@ -92,7 +92,7 @@ final class ChunkReconciler
 
             if (
                 preg_match('/^[a-f0-9]{64}$/D', $stagedDigest) !== 1
-                || hash_equals(strtolower($chunk->sha256), $stagedDigest) === false
+                || hash_equals(strtolower((string) $chunk->getRawOriginal('sha256')), $stagedDigest) === false
             ) {
                 $invalidated[] = $chunk;
 
