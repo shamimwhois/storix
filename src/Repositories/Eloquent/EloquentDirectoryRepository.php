@@ -21,6 +21,19 @@ final class EloquentDirectoryRepository implements DirectoryRepository
         return $this->applyScope(Directory::query(), $tenantId, $ownerId)->find($id);
     }
 
+    public function findChild(?string $parentId, string $name, string $driver, ?string $tenantId, ?string $ownerId): ?Directory
+    {
+        $query = $this->applyScope(Directory::query(), $tenantId, $ownerId)
+            ->where('driver', $driver)
+            ->where('name', $name);
+
+        $parentId === null
+            ? $query->whereNull('parent_id')
+            : $query->where('parent_id', $parentId);
+
+        return $query->first();
+    }
+
     public function children(?string $parentId, string $driver, ?string $tenantId, ?string $ownerId): Collection
     {
         $query = $this->applyScope(Directory::query(), $tenantId, $ownerId)
