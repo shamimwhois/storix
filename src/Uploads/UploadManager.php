@@ -416,7 +416,7 @@ final class UploadManager
         }
 
         if (preg_match('/^[A-Za-z0-9_-]{1,32}$/D', $extension) !== 1) {
-            throw new UploadValidationException('The file extension is invalid or too long.');
+            return null;
         }
 
         return strtolower($extension);
