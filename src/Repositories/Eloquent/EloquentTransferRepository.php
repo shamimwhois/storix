@@ -8,6 +8,7 @@ use DateTimeInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
+use LogicException;
 use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
 use ShamimStack\Storix\Enums\TransferState;
 use ShamimStack\Storix\Models\Transfer;
@@ -16,7 +17,7 @@ final class EloquentTransferRepository implements TransferRepository
 {
     public function create(array $attributes): Transfer
     {
-        return Transfer::query()->create($attributes);
+        return Transfer::query()->create($this->normalizeIdempotencyAttributes($attributes));
     }
 
     public function findScoped(string $id, ?string $tenantId, ?string $ownerId): ?Transfer
@@ -33,33 +34,30 @@ final class EloquentTransferRepository implements TransferRepository
 
     public function firstOrCreateIdempotent(array $attributes): Transfer
     {
+        $attributes = $this->normalizeIdempotencyAttributes($attributes);
         $key = $attributes['idempotency_key'] ?? null;
 
         if ($key === null) {
-            return $this->create($attributes);
+            return Transfer::query()->create($attributes);
         }
-
-        if (is_string($key) === false || trim($key) === '') {
-            throw new InvalidArgumentException('Idempotency key must be a non-empty string.');
-        }
-
-        if (strlen($key) > 128) {
-            throw new InvalidArgumentException('Idempotency key must not exceed 128 bytes.');
-        }
-
-        $tenantId = isset($attributes['tenant_id']) ? (string) $attributes['tenant_id'] : null;
-        $ownerId = isset($attributes['owner_id']) ? (string) $attributes['owner_id'] : null;
-        $scopeHash = hash('sha256', json_encode([$tenantId, $ownerId], JSON_THROW_ON_ERROR));
-        $attributes['idempotency_scope'] = $scopeHash;
 
         return Transfer::query()->firstOrCreate(
-            ['idempotency_scope' => $scopeHash, 'idempotency_key' => $key],
+            [
+                'idempotency_scope' => $attributes['idempotency_scope'],
+                'idempotency_key' => $key,
+            ],
             $attributes,
         );
     }
 
     public function save(Transfer $transfer): Transfer
     {
+        if ($transfer->exists && $transfer->isDirty('state')) {
+            throw new LogicException(
+                'Transfer state changes must go through TransferStateMachine::transition().',
+            );
+        }
+
         $transfer->save();
 
         return $transfer->refresh();
@@ -79,6 +77,38 @@ final class EloquentTransferRepository implements TransferRepository
             ->orderBy('expires_at')
             ->limit(max(1, min($limit, 1000)))
             ->get();
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    private function normalizeIdempotencyAttributes(array $attributes): array
+    {
+        $key = $attributes['idempotency_key'] ?? null;
+
+        if ($key === null) {
+            $attributes['idempotency_scope'] = null;
+
+            return $attributes;
+        }
+
+        if (is_string($key) === false || trim($key) === '') {
+            throw new InvalidArgumentException('Idempotency key must be a non-empty string.');
+        }
+
+        if (strlen($key) > 128) {
+            throw new InvalidArgumentException('Idempotency key must not exceed 128 bytes.');
+        }
+
+        $tenantId = isset($attributes['tenant_id']) ? (string) $attributes['tenant_id'] : null;
+        $ownerId = isset($attributes['owner_id']) ? (string) $attributes['owner_id'] : null;
+        $attributes['idempotency_scope'] = hash(
+            'sha256',
+            json_encode([$tenantId, $ownerId], JSON_THROW_ON_ERROR),
+        );
+
+        return $attributes;
     }
 
     /**
