@@ -1,0 +1,49 @@
+{
+  "name": "shamimstack/storix",
+  "description": "A driver-based storage and resilient transfer layer for Laravel.",
+  "keywords": [
+    "laravel",
+    "storage",
+    "filesystem",
+    "uploads",
+    "transfers"
+  ],
+  "license": "MIT",
+  "type": "library",
+  "require": {
+    "php": "^8.5",
+    "illuminate/support": "^13.0"
+  },
+  "require-dev": {
+    "laravel/pint": "^1.29",
+    "orchestra/testbench": "^11.3",
+    "phpunit/phpunit": "^12.5"
+  },
+  "autoload": {
+    "psr-4": {
+      "ShamimStack\\Storix\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "ShamimStack\\Storix\\Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "ShamimStack\\Storix\\StorixServiceProvider"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "phpunit",
+    "format": "pint",
+    "format:test": "pint --test"
+  },
+  "config": {
+    "sort-packages": true
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
