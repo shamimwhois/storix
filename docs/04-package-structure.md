@@ -17,6 +17,11 @@ storix/
 │   ├── StorixManager.php
 │   ├── Facades/Storix.php
 │   ├── Contracts/StorageDriver.php
+│   │   └── Repositories/
+│   │       ├── DirectoryRepository.php
+│   │       ├── StoredFileRepository.php
+│   │       ├── TransferRepository.php
+│   │       └── ChunkRepository.php
 │   ├── DTOs/
 │   │   ├── DriverCapabilities.php
 │   │   ├── WriteStreamRequest.php
@@ -27,8 +32,23 @@ storix/
 │   │   └── WriteResult.php
 │   ├── Enums/
 │   │   ├── ObjectVisibility.php
+│   │   ├── TransferDirection.php
+│   │   ├── TransferState.php
+│   │   ├── ChunkState.php
 │   │   └── StorixErrorCode.php
+│   ├── Models/
+│   │   ├── Directory.php
+│   │   ├── StoredFile.php
+│   │   ├── Transfer.php
+│   │   └── Chunk.php
+│   ├── Repositories/Eloquent/
+│   │   ├── EloquentDirectoryRepository.php
+│   │   ├── EloquentStoredFileRepository.php
+│   │   ├── EloquentTransferRepository.php
+│   │   └── EloquentChunkRepository.php
+│   ├── Services/TransferStateMachine.php
 │   ├── Exceptions/
+│   │   ├── InvalidTransferStateTransition.php
 │   │   ├── StorixException.php
 │   │   ├── DriverNotFoundException.php
 │   │   └── UnsupportedCapabilityException.php
@@ -38,6 +58,13 @@ storix/
 │   └── Feature/
 └── docs/
 ```
+
+## E03 responsibilities
+
+- Four package migrations persist directories, files, transfers, and chunks.
+- UUID-backed Eloquent models expose relationships and explicit casts.
+- Repository contracts and Eloquent adapters enforce owner/tenant scope in SQL.
+- TransferStateMachine validates lifecycle transitions inside database transactions.
 
 ## E02 responsibilities
 
