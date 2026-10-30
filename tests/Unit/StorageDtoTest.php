@@ -34,6 +34,32 @@ final class StorageDtoTest extends TestCase
         new WriteStreamRequest('documents/report.pdf', 'not-a-stream');
     }
 
+    public function test_metadata_rejects_null_byte_keys(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        new StorageObjectMetadata(key: "documents/\0report.pdf", sizeBytes: 10);
+    }
+
+    public function test_write_request_rejects_nested_metadata_values(): void
+    {
+        $stream = fopen('php://temp', 'r+');
+
+        try {
+            $this->expectException(InvalidArgumentException::class);
+            new WriteStreamRequest('documents/report.pdf', $stream, metadata: ['nested' => ['value']]);
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    public function test_metadata_rejects_nested_metadata_values(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        new StorageObjectMetadata(key: 'documents/report.pdf', sizeBytes: 10, metadata: ['nested' => ['value']]);
+    }
+
     public function test_metadata_rejects_invalid_sha256_checksum(): void
     {
         $this->expectException(InvalidArgumentException::class);
