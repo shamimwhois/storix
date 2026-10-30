@@ -2,25 +2,25 @@
 
 ## 1. Principles
 
-Use UUID primary keys consistently for Storix-owned records; never expose sequential database IDs. E03 does not mix UUID and ULID. Store sizes as unsigned big integers. Store timestamps in UTC. Add nullable `tenant_id` and `owner_id` scope identifiers without foreign keys to host-application identity tables. Avoid storing credentials or encryption keys in plaintext.
+Use UUID primary keys consistently for Storix-owned records; never expose sequential database IDs. E03 does not mix UUID and ULID. Store sizes as unsigned big integers. Store timestamps in UTC. Add nullable `tenant_id` and `owner_id` `varchar(64)` scope identifiers without foreign keys to host-application identity tables; this avoids assuming a host app's primary-key type. Avoid storing credentials or encryption keys in plaintext.
 
 ## 2. Tables
 
 ### `storix_directories`
 - `id` UUID/ULID primary key
-- `tenant_id` nullable indexed
-- `owner_id` nullable indexed
+- `tenant_id` varchar(64) nullable indexed
+- `owner_id` varchar(64) nullable indexed
 - `parent_id` nullable FK to directories
 - `name` varchar(255)
 - `path_key` varchar(1024) normalized path
 - `driver` varchar(64)
 - `status` varchar(24): active/deleting/deleted
 - timestamps, soft delete timestamp
-- unique scope constraint on `(tenant_id, owner_id, driver, parent_id, name)` as supported by target DB.
+- composite lookup index on `(tenant_id, owner_id, driver, parent_id, name)`; atomic directory-name uniqueness is deferred to the directory service.
 
 ### `storix_files`
 - `id` UUID/ULID primary key
-- `tenant_id`, `owner_id`, `directory_id` nullable FK
+- `tenant_id`, `owner_id` nullable `varchar(64)` scope fields; `directory_id` nullable FK
 - `driver` varchar(64)
 - `name`, `original_name`, `extension`, `mime_type`
 - `size_bytes` unsigned bigint
@@ -30,7 +30,7 @@ Use UUID primary keys consistently for Storix-owned records; never expose sequen
 - `visibility`: private/public/limited
 - `metadata` JSON nullable
 - timestamps, soft delete timestamp
-- indexes: owner+created, tenant+created, directory+name, sha256+size+scope, status.
+- indexes: scoped owner/tenant creation order, directory, driver+status, and scoped checksum lookup.
 
 ### `storix_transfers`
 - `id` UUID/ULID primary key
@@ -48,7 +48,7 @@ Use UUID primary keys consistently for Storix-owned records; never expose sequen
 - `last_error_code`, `last_error_message` sanitized
 - `started_at`, `finished_at`, `expires_at`
 - timestamps
-- unique `(idempotency_scope, idempotency_key)` when key is non-null; `idempotency_scope` is a SHA-256 hash of the normalized tenant/owner pair so nullable identity columns cannot weaken uniqueness.
+- unique `(idempotency_scope, idempotency_key)` when key is non-null; `idempotency_scope` is a SHA-256 hash of the normalized tenant/owner pair so nullable identity columns cannot weaken uniqueness. Empty/whitespace-only keys are rejected.
 
 ### `storix_chunks`
 - `id` UUID/ULID
@@ -98,6 +98,7 @@ A transfer may become `completed` only from `verifying`. A terminal transfer can
 - Use composite indexes matching actual query filters.
 - JSON columns are for non-critical extensible metadata, not core query fields.
 - E03 initially validates SQLite through Testbench; do not claim MySQL/PostgreSQL support until those engines are included in CI.
+- Host `tenant_id` and `owner_id` values are stored as strings (64 characters max), with no host-table foreign keys.
 - See [E03 Persistence specification](16-e03-persistence.md) for the implementation-ready schema, repository boundaries, and state machine.
 - If cross-database partial unique indexes differ, enforce idempotency in a transaction with a unique key strategy compatible with the supported engines.
 
