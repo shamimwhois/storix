@@ -43,6 +43,7 @@ use ShamimStack\Storix\Models\Directory;
 use ShamimStack\Storix\Models\StoredFile;
 use ShamimStack\Storix\Models\Transfer;
 use ShamimStack\Storix\Services\ChunkPlanner;
+use ShamimStack\Storix\Services\MultipartSessionReconciler;
 use ShamimStack\Storix\Services\TransferStateMachine;
 use Throwable;
 
@@ -57,6 +58,7 @@ final class UploadManager
         private readonly DirectoryRepository $directories,
         private readonly ChunkRepository $chunks,
         private readonly ChunkPlanner $chunkPlanner,
+        private readonly MultipartSessionReconciler $multipartSessions,
         private readonly TransferStateMachine $states,
         private readonly ConfigRepository $config,
     ) {}
@@ -94,6 +96,8 @@ final class UploadManager
         $ownsTransfer = false;
         $objectMayExist = false;
         $resumeLeaseToken = null;
+        $isResume = false;
+        $preserveSessionOnFailure = false;
 
         try {
             $directory = $this->resolveDirectory($request, $driverName);
@@ -120,7 +124,49 @@ final class UploadManager
             ]);
 
             if ($transfer->wasRecentlyCreated === false) {
-                return $this->resolveExisting($transfer, $fingerprint);
+                if ($transfer->fingerprint !== $fingerprint) {
+                    throw new IdempotencyConflictException;
+                }
+
+                if ($transfer->state === TransferState::COMPLETED) {
+                    return $this->resolveExisting($transfer, $fingerprint);
+                }
+
+                if (
+                    $multipartDriver === null
+                    || $transfer->state->isTerminal()
+                    || ! in_array($transfer->state, [
+                        TransferState::PREPARING,
+                        TransferState::TRANSFERRING,
+                        TransferState::PAUSED,
+                        TransferState::RETRY_WAIT,
+                    ], true)
+                    || ! is_string($transfer->multipart_upload_id)
+                    || $transfer->multipart_upload_id === ''
+                    || $transfer->file_id === null
+                ) {
+                    throw new UploadInProgressException;
+                }
+
+                $file = $this->files->findScoped(
+                    (string) $transfer->file_id,
+                    $request->tenantId,
+                    $request->ownerId,
+                );
+
+                if (
+                    $file === null
+                    || $file->driver !== $driverName
+                    || ! in_array($file->status, ['pending', 'processing'], true)
+                    || ! is_string($file->storage_key)
+                    || $file->storage_key === ''
+                ) {
+                    throw new IdempotencyConflictException;
+                }
+
+                $storageKey = $file->storage_key;
+                $isResume = true;
+                $preserveSessionOnFailure = true;
             }
 
             $resumeLeaseToken = Str::random(64);
