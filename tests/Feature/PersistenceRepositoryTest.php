@@ -2,26 +2,26 @@
 
 declare(strict_types=1);
 
-namespace ShamimStack\\Storix\\Tests\\Feature;
+namespace ShamimStack\Storix\Tests\Feature;
 
-use Illuminate\\Database\\QueryException;
-use Illuminate\\Foundation\\Testing\\RefreshDatabase;
-use Illuminate\\Support\\Facades\\DB;
+use Illuminate\Database\QueryException;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
-use ShamimStack\\Storix\\Contracts\\Repositories\\ChunkRepository;
-use ShamimStack\\Storix\\Contracts\\Repositories\\DirectoryRepository;
-use ShamimStack\\Storix\\Contracts\\Repositories\\StoredFileRepository;
-use ShamimStack\\Storix\\Contracts\\Repositories\\TransferRepository;
-use ShamimStack\\Storix\\Enums\\ChunkState;
-use ShamimStack\\Storix\\Enums\\ObjectVisibility;
-use ShamimStack\\Storix\\Enums\\TransferDirection;
-use ShamimStack\\Storix\\Enums\\TransferState;
-use ShamimStack\\Storix\\Models\\Directory;
-use ShamimStack\\Storix\\Models\\StoredFile;
-use ShamimStack\\Storix\\Models\\Transfer;
-use ShamimStack\\Storix\\Tests\\TestCase;
+use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
+use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
+use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
+use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
+use ShamimStack\Storix\Enums\ChunkState;
+use ShamimStack\Storix\Enums\ObjectVisibility;
+use ShamimStack\Storix\Enums\TransferDirection;
+use ShamimStack\Storix\Enums\TransferState;
+use ShamimStack\Storix\Models\Directory;
+use ShamimStack\Storix\Models\StoredFile;
+use ShamimStack\Storix\Models\Transfer;
+use ShamimStack\Storix\Tests\TestCase;
 
 final class PersistenceRepositoryTest extends TestCase
 {
