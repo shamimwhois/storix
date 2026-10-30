@@ -95,14 +95,6 @@ final class UploadManager
         $objectMayExist = false;
 
         try {
-            if ($multipartDriver !== null && $staged['size'] > 0) {
-                $chunkPlan = $this->chunkPlanner->plan(
-                    $staged['size'],
-                    $capabilities,
-                    (int) $this->config->get('storix.transfers.chunk_size', $capabilities->preferredChunkSizeBytes),
-                );
-            }
-
             $directory = $this->resolveDirectory($request, $driverName);
             $fingerprint = $this->requestFingerprint($request, $driverName, $directory, $staged);
             $extension = $this->extension($request->originalName);
@@ -118,7 +110,7 @@ final class UploadManager
                 'source_name' => $request->originalName,
                 'total_bytes' => $staged['size'],
                 'transferred_bytes' => 0,
-                'total_chunks' => count($chunkPlan),
+                'total_chunks' => 0,
                 'completed_chunks' => 0,
                 'fingerprint' => $fingerprint,
                 'idempotency_key' => $request->idempotencyKey,
@@ -131,6 +123,17 @@ final class UploadManager
             }
 
             $ownsTransfer = true;
+
+            if ($multipartDriver !== null && $staged['size'] > 0) {
+                $chunkPlan = $this->chunkPlanner->plan(
+                    $staged['size'],
+                    $capabilities,
+                    (int) $this->config->get('storix.transfers.chunk_size', $capabilities->preferredChunkSizeBytes),
+                );
+            }
+
+            $transfer->total_chunks = count($chunkPlan);
+            $transfer = $this->transfers->save($transfer);
 
             [$file, $transfer] = DB::transaction(function () use (
                 $request,
