@@ -46,8 +46,9 @@ final class EloquentStoredFileRepository implements StoredFileRepository
         return (bool) $file->delete();
     }
 
-    /** @param Builder<StoredFile> $query
-     *  @return Builder<StoredFile>
+    /**
+     * @param  Builder<StoredFile>  $query
+     * @return Builder<StoredFile>
      */
     private function applyScope(Builder $query, ?string $tenantId, ?string $ownerId): Builder
     {
