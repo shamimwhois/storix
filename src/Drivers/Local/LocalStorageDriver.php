@@ -68,10 +68,23 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
             throw new StorageOperationFailedException('write');
         }
 
-        $temporaryPath = $directory.DIRECTORY_SEPARATOR.'.storix-'.bin2hex(random_bytes(16)).'.tmp';
-        $destination = @fopen($temporaryPath, 'x+b');
+        $temporaryPath = @tempnam($directory, '.storix-tmp-');
+
+        if ($temporaryPath === false) {
+            throw new StorageOperationFailedException('write');
+        }
+
+        if (dirname($temporaryPath) !== $directory) {
+            @unlink($temporaryPath);
+
+            throw new StorageOperationFailedException('write');
+        }
+
+        $destination = @fopen($temporaryPath, 'r+b');
 
         if ($destination === false) {
+            @unlink($temporaryPath);
+
             throw new StorageOperationFailedException('write');
         }
 
@@ -79,10 +92,6 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         $hash = hash_init('sha256');
 
         try {
-            if (@chmod($temporaryPath, 0600) === false) {
-                throw new StorageOperationFailedException('write');
-            }
-
             while (feof($request->stream) === false) {
                 $chunk = @fread($request->stream, self::IO_CHUNK_BYTES);
 
@@ -296,7 +305,7 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
             foreach (new FilesystemIterator($path, FilesystemIterator::SKIP_DOTS) as $item) {
                 $name = $item->getFilename();
 
-                if ($item->isLink() || preg_match('/^\.storix-[a-f0-9]{32}\.tmp$/', $name) === 1) {
+                if ($item->isLink() || strncasecmp($name, '.storix-tmp-', 12) === 0) {
                     continue;
                 }
 
@@ -463,6 +472,7 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
             if ($segment === ''
                 || $segment === '.'
                 || $segment === '..'
+                || strncasecmp($segment, '.storix-tmp-', 12) === 0
                 || rtrim($segment, '. ') !== $segment
                 || preg_match('/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\\..*)?$/i', $segment) === 1) {
                 throw new InvalidArgumentException('Storage keys contain an invalid path segment.');
