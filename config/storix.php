@@ -22,5 +22,6 @@ return [
         'chunk_size' => 8 * 1024 * 1024,
         'max_parallel_chunks' => 3,
         'max_attempts' => 5,
+        'resume_lease_seconds' => 300,
     ],
 ];
