@@ -6,6 +6,14 @@ namespace ShamimStack\Storix\Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
+use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
+use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
+use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
+use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
+use ShamimStack\Storix\Repositories\Eloquent\EloquentChunkRepository;
+use ShamimStack\Storix\Repositories\Eloquent\EloquentDirectoryRepository;
+use ShamimStack\Storix\Repositories\Eloquent\EloquentStoredFileRepository;
+use ShamimStack\Storix\Repositories\Eloquent\EloquentTransferRepository;
 use ShamimStack\Storix\Tests\TestCase;
 
 final class PersistenceSchemaTest extends TestCase
@@ -23,20 +31,20 @@ final class PersistenceSchemaTest extends TestCase
     public function test_package_repository_contracts_are_bound(): void
     {
         self::assertInstanceOf(
-            \ShamimStack\Storix\Repositories\Eloquent\EloquentDirectoryRepository::class,
-            $this->app->make(\ShamimStack\Storix\Contracts\Repositories\DirectoryRepository::class),
+            EloquentDirectoryRepository::class,
+            $this->app->make(DirectoryRepository::class),
         );
         self::assertInstanceOf(
-            \ShamimStack\Storix\Repositories\Eloquent\EloquentStoredFileRepository::class,
-            $this->app->make(\ShamimStack\Storix\Contracts\Repositories\StoredFileRepository::class),
+            EloquentStoredFileRepository::class,
+            $this->app->make(StoredFileRepository::class),
         );
         self::assertInstanceOf(
-            \ShamimStack\Storix\Repositories\Eloquent\EloquentTransferRepository::class,
-            $this->app->make(\ShamimStack\Storix\Contracts\Repositories\TransferRepository::class),
+            EloquentTransferRepository::class,
+            $this->app->make(TransferRepository::class),
         );
         self::assertInstanceOf(
-            \ShamimStack\Storix\Repositories\Eloquent\EloquentChunkRepository::class,
-            $this->app->make(\ShamimStack\Storix\Contracts\Repositories\ChunkRepository::class),
+            EloquentChunkRepository::class,
+            $this->app->make(ChunkRepository::class),
         );
     }
 }
