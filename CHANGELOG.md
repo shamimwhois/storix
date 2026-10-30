@@ -8,7 +8,6 @@ All notable changes to Storix are documented in this file.
 - E06 capability-gated multipart chunk uploads with deterministic planning, durable per-chunk state, SHA-256 part verification, bounded temporary staging, and atomic final-object publication on the Local driver.
 - E06 regression coverage for chunk planning, multipart DTO validation, local finalization, workspace isolation, and cleanup.
 
-### Added
 - E01 Composer package foundation for PHP 8.5 and Laravel 13.
 - Laravel package auto-discovery and publishable configuration.
 - E01 PHPUnit and Orchestra Testbench foundation with GitHub Actions CI.
