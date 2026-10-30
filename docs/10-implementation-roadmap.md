@@ -34,10 +34,12 @@ Implement sequentially; do not start provider-specific work before core contract
 - Implement facade and service bindings.
 
 ### E03 Persistence
-- Implement migrations/models/repositories.
-- Implement transfer state machine.
-- Add tenant/owner scope hooks.
-- Test indexes, uniqueness and rollback.
+- Implement the four core migrations: directories, files, transfers, and chunks.
+- Implement UUID-backed Eloquent models and relationships.
+- Define repository contracts and Eloquent implementations with SQL-level tenant/owner scoping.
+- Implement the transfer state machine and atomic idempotency constraints.
+- Test indexes, uniqueness, rollback, and supported database behavior.
+- Follow [E03 Persistence specification](16-e03-persistence.md).
 
 ### E04 Local Driver
 - Implement stream-based write/read.

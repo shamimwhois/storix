@@ -33,6 +33,8 @@ Build output:
 - [AI Coding Instructions](11-ai-coding-instructions.md)
 - [Configuration and Operations](12-configuration-and-operations.md)
 - [Acceptance Checklist](13-acceptance-checklist.md)
+- [E02 Contracts & API](15-e02-contracts-and-api.md)
+- [E03 Persistence Layer](16-e03-persistence.md)
 - [Architecture Decisions](DECISIONS.md)
 
 > Documentation describes the intended engineering design. Feature availability must be confirmed from implementation, tests, and release notes.
