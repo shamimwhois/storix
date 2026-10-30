@@ -6,6 +6,8 @@ namespace ShamimStack\Storix\Repositories\Eloquent;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
+use InvalidArgumentException;
 use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
 use ShamimStack\Storix\Models\Directory;
 
@@ -23,9 +25,16 @@ final class EloquentDirectoryRepository implements DirectoryRepository
 
     public function findChild(?string $parentId, string $name, string $driver, ?string $tenantId, ?string $ownerId): ?Directory
     {
+        $normalizedName = trim($name);
+
+        if ($normalizedName === '') {
+            throw new InvalidArgumentException('Directory name must be a non-empty string.');
+        }
+
+        $nameHash = hash('sha256', Str::lower($normalizedName));
         $query = $this->applyScope(Directory::query(), $tenantId, $ownerId)
             ->where('driver', $driver)
-            ->where('name', $name);
+            ->where('name_hash', $nameHash);
 
         $parentId === null
             ? $query->whereNull('parent_id')
