@@ -15,6 +15,7 @@ use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
 use ShamimStack\Storix\Contracts\StorageDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
+use ShamimStack\Storix\DTOs\CompleteMultipartWriteRequest;
 use ShamimStack\Storix\DTOs\DriverCapabilities;
 use ShamimStack\Storix\DTOs\ReadStreamRequest;
 use ShamimStack\Storix\DTOs\StatObjectRequest;
@@ -282,7 +283,6 @@ final class UploadManagerTest extends TestCase
         $tenantId = 'tenant-resume';
         $ownerId = 'owner-resume';
         $idempotencyKey = 'resume-existing-session';
-        $stream = $this->stream($payload);
         $metadata = [];
         $fingerprint = hash('sha256', json_encode([
             'sha256' => hash('sha256', $payload),
@@ -382,7 +382,63 @@ final class UploadManagerTest extends TestCase
             'attempts' => 0,
         ]);
 
+        $failingDriver = $this->createMock(MultipartStorageDriver::class);
+        $failingDriver->method('name')->willReturn('local');
+        $failingDriver->method('capabilities')->willReturn($driver->capabilities());
+        $failingDriver->method('inspectMultipartPart')->willReturnCallback(
+            fn (string $sessionId, int $partNumber) => $driver->inspectMultipartPart($sessionId, $partNumber),
+        );
+        $failingDriver->method('discardMultipartPart')->willReturnCallback(
+            fn (string $sessionId, int $partNumber) => $driver->discardMultipartPart($sessionId, $partNumber),
+        );
+        $failSecondPartOnce = true;
+        $failingDriver->method('writeMultipartPart')->willReturnCallback(
+            function (WriteMultipartPartRequest $request) use ($driver, &$failSecondPartOnce) {
+                if ($request->partNumber === 2 && $failSecondPartOnce) {
+                    $failSecondPartOnce = false;
+                    throw new StorageOperationFailedException('multipart_write');
+                }
+
+                return $driver->writeMultipartPart($request);
+            },
+        );
+        $failingDriver->method('completeMultipartWrite')->willReturnCallback(
+            fn (CompleteMultipartWriteRequest $request) => $driver->completeMultipartWrite($request),
+        );
+        $failingDriver->method('stat')->willReturnCallback(
+            fn (StatObjectRequest $request) => $driver->stat($request),
+        );
+        $failingDriver->method('readStream')->willReturnCallback(
+            fn (ReadStreamRequest $request) => $driver->readStream($request),
+        );
+        $failingDriver->expects(self::never())->method('abortMultipartWrite');
+        $this->app->make(DriverManager::class)->register('local', $failingDriver);
+
         config(['storix.transfers.chunk_size' => 1]);
+        $failedAttemptStream = $this->stream($payload);
+
+        try {
+            $this->assertUploadException(
+                StorageOperationFailedException::class,
+                fn () => Storix::uploads()->upload(new UploadRequest(
+                    stream: $failedAttemptStream,
+                    originalName: $originalName,
+                    tenantId: $tenantId,
+                    ownerId: $ownerId,
+                    idempotencyKey: $idempotencyKey,
+                )),
+            );
+        } finally {
+            fclose($failedAttemptStream);
+        }
+
+        $interrupted = Transfer::query()->findOrFail($transfer->id);
+        self::assertSame(TransferState::RETRY_WAIT, $interrupted->state);
+        self::assertSame($uploadId, $interrupted->multipart_upload_id);
+        self::assertNull($interrupted->resume_lease_token);
+        self::assertSame('processing', StoredFile::query()->findOrFail($file->id)->status);
+
+        $stream = $this->stream($payload);
 
         try {
             $result = Storix::uploads()->upload(new UploadRequest(
