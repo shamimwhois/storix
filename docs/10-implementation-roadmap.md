@@ -47,6 +47,16 @@ Implement sequentially; do not start provider-specific work before core contract
 - Implement atomic finalize where supported.
 - Pass driver contract tests.
 
+### E04 Local Driver
+- Implement LocalStorageDriver against the E02 provider-neutral contract.
+- Register the Local driver through the Laravel service provider and configured root path.
+- Stream writes in bounded chunks, calculate SHA-256, and finalize through a same-directory temporary file and rename.
+- Stream full reads and bounded ranges; implement stat, exists, delete, and stable safe errors.
+- Add optional DirectoryDriver operations for create, immediate listing, and safe deletion.
+- Reject traversal/absolute keys and refuse to follow symbolic links.
+- Test binary payloads, range reads, finalization, directories, symlinks, and error behavior.
+- Follow [E04 Local Storage Driver specification](17-e04-local-driver.md).
+
 ### E05 Basic Upload
 - Validate input and quotas.
 - Create file and transfer records.
@@ -109,7 +119,7 @@ Implement sequentially; do not start provider-specific work before core contract
 
 ## Milestone policy
 
-Do not call E01/E02 a production engine. A first usable local-storage release requires at least E01–E05. A resumable/recoverable release requires E01–E10. Production readiness requires all applicable release gates and real deployment validation.
+Do not call E01/E02 a production engine. A first usable local-storage release requires at least E01–E05. A resumable/recoverable release requires E01–E10. Production readiness requires all applicable release gates and real deployment validation. E04 is currently being implemented on feature/e04-local-driver; it is not complete until its CI and review gates pass and the branch is merged.
 
 
 ---
