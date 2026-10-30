@@ -165,6 +165,6 @@ Actual size and throughput depend on the host filesystem, available disk space, 
 - [x] Key validation rejects traversal and absolute paths.
 - [x] Existing symlink components are rejected and are not traversed in listing/deletion.
 - [x] Object metadata, existence, and deletion behavior are implemented.
-- [ ] E04 feature tests pass in CI.
+- [x] E04 feature tests pass in CI (48 tests, 162 assertions).
 - [ ] Review findings are addressed and all review threads are resolved.
 - [ ] E04 is merged into main.
