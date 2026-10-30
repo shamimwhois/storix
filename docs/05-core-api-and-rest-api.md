@@ -103,3 +103,34 @@ Use stable machine-readable error codes. HTTP status mapping: 400 invalid input,
 
 
 ---
+
+## 6. E02 public driver API (implemented contract surface)
+
+E02 introduces the provider-neutral driver boundary and driver resolution API. The currently available public entry points are:
+
+```php
+use ShamimStack\\Storix\\Facades\\Storix;
+
+// Resolve a registered driver (or the configured default).
+$driver = Storix::driver();
+$capabilities = Storix::capabilities();
+
+// List names explicitly registered in the current application container.
+$registeredDrivers = Storix::drivers();
+```
+
+Driver implementations are registered through the DriverManager service:
+
+```php
+use ShamimStack\\Storix\\Contracts\\StorageDriver;
+use ShamimStack\\Storix\\Drivers\\DriverManager;
+
+app(DriverManager::class)->register('custom', app(CustomStorageDriver::class));
+$driver = Storix::driver('custom');
+```
+
+The E02 StorageDriver contract accepts typed request objects for stream writes/reads, deletion and metadata lookup. `readStream()` returns a readable PHP stream resource; the concrete driver is responsible for documenting and enforcing its stream lifetime and seekability behavior.
+
+`DriverCapabilities` declares maximum object size, chunk-size bounds/preference, concurrency, streaming, range-read, multipart-write, server-side-copy, atomic-finalize and pause/resume support. The constructor rejects inconsistent size/chunk/concurrency limits.
+
+This is a contract and resolution layer only. No concrete driver is registered by E02, so resolving the default `local` driver will raise `DriverNotFoundException` until E04 adds and registers the Local driver. File/upload manager APIs shown earlier in this document remain planned and are not part of E02.
