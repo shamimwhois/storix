@@ -53,10 +53,14 @@ Implement sequentially; do not start provider-specific work before core contract
 - Follow [E04 Local Storage Driver specification](17-e04-local-driver.md).
 
 ### E05 Basic Upload
-- Validate input and quotas.
-- Create file and transfer records.
-- Transfer small files.
-- Finalize and verify SHA-256.
+- Add typed UploadRequest/UploadResult and expose UploadManager through the facade.
+- Stage readable streams with bounded memory; enforce a configurable 64 MiB initial single-upload limit.
+- Validate names, MIME metadata, expected size, directory scope and driver capabilities.
+- Create scoped file/transfer records and enforce idempotency replay/conflict semantics.
+- Write one object through StorageDriver; independently verify stat, size and SHA-256 by streamed read-back.
+- Finalize file availability and transfer completion atomically; compensate with safe deletion on failure.
+- Add binary/empty-file, validation, idempotency, integrity and cleanup tests.
+- Follow [E05 Basic Upload specification](18-e05-basic-upload.md).
 
 ### E06 Chunk Engine
 - Plan deterministic offsets.

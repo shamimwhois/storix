@@ -4,6 +4,10 @@ All notable changes to Storix are documented in this file.
 
 ## Unreleased
 
+### In progress
+- E05 Basic Upload specification and implementation branch; not yet released or merged.
+
+
 ### Added
 - E01 Composer package foundation for PHP 8.5 and Laravel 13.
 - Laravel package auto-discovery and publishable configuration.

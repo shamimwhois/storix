@@ -32,7 +32,9 @@ storix/
 │   │   ├── StatObjectRequest.php
 │   │   ├── StorageObjectMetadata.php
 │   │   ├── WriteResult.php
-│   │   └── StorageDirectoryEntry.php
+│   │   ├── StorageDirectoryEntry.php
+│   │   ├── UploadRequest.php
+│   │   └── UploadResult.php
 │   ├── Enums/
 │   │   ├── ObjectVisibility.php
 │   │   ├── TransferDirection.php
@@ -50,12 +52,16 @@ storix/
 │   │   ├── EloquentTransferRepository.php
 │   │   └── EloquentChunkRepository.php
 │   ├── Services/TransferStateMachine.php
+│   ├── Uploads/UploadManager.php
 │   ├── Exceptions/
 │   │   ├── InvalidTransferStateTransition.php
 │   │   ├── StorixException.php
 │   │   ├── DriverNotFoundException.php
 │   │   ├── UnsupportedCapabilityException.php
-│   │   └── StorageOperationFailedException.php
+│   │   ├── StorageOperationFailedException.php
+│   │   ├── IdempotencyConflictException.php
+│   │   ├── UploadInProgressException.php
+│   │   └── UploadTooLargeException.php
 │   └── Drivers/
 │       ├── DriverManager.php
 │       └── Local/LocalStorageDriver.php
@@ -98,3 +104,11 @@ storix/
 ## Composer requirements
 
 Package name shamimstack/storix; namespace ShamimStack\\Storix. Declare PHP ^8.5 and Laravel 13 dependencies using exact framework package constraints. Use PSR-4 autoloading. Keep optional integrations in suggest/optional packages where feasible; do not make a frontend dependency mandatory.
+
+## E05 responsibilities
+
+- UploadManager stages, validates, fingerprints and persists a single-object upload.
+- UploadRequest is stream-first and never transfers ownership of the caller's resource.
+- UploadResult returns the persisted file and completed transfer, including whether this was an idempotent replay.
+- E05 independently verifies stored size and SHA-256 by streaming the object back before marking it available.
+- Chunk planning, resumability, background retry and REST endpoints remain deferred.

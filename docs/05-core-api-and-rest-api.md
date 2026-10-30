@@ -134,3 +134,39 @@ The E02 StorageDriver contract accepts typed request objects for stream writes/r
 `DriverCapabilities` declares maximum object size, chunk-size bounds/preference, concurrency, streaming, range-read, multipart-write, server-side-copy, atomic-finalize and pause/resume support. The constructor rejects inconsistent size/chunk/concurrency limits.
 
 This is a contract and resolution layer only. No concrete driver is registered by E02, so resolving the default `local` driver will raise `DriverNotFoundException` until E04 adds and registers the Local driver. File/upload manager APIs shown earlier in this document remain planned and are not part of E02.
+
+
+---
+
+## 7. E05 basic upload API
+
+The first upload workflow is a synchronous, stream-first PHP service. It is deliberately limited to a single object and a configurable size cap; it does not provide chunking or background retries.
+
+```php
+use ShamimStack\Storix\DTOs\UploadRequest;
+use ShamimStack\Storix\Facades\Storix;
+
+$stream = fopen($path, 'rb');
+
+try {
+    $result = Storix::uploads()->upload(new UploadRequest(
+        stream: $stream,
+        originalName: 'report.pdf',
+        tenantId: 'tenant-123',
+        ownerId: 'user-456',
+        idempotencyKey: 'report-upload-001',
+    ));
+} finally {
+    if (is_resource($stream)) {
+        fclose($stream);
+    }
+}
+```
+
+The caller owns the source resource and closes it after the call. Storix reads from the resource's current position, stages bytes with bounded memory, and checks the actual byte count against `storix.uploads.max_file_size_bytes` (initial default: 64 MiB). The stream is not rewound or closed by Storix.
+
+E05 creates scoped file and transfer records, writes through the selected driver's `writeStream()`, compares the write result against the staged SHA-256, then independently reads the stored object back as a stream and verifies its size and hash. The file is marked `available` only after verification succeeds.
+
+An idempotency key replays an already-completed matching upload without writing it again. A matching in-progress request raises an in-progress exception; a changed payload under the same key raises an idempotency conflict. Failed keys are not automatically retried in E05.
+
+This is not a chunked, resumable or queued upload. Those capabilities belong to E06–E08.
