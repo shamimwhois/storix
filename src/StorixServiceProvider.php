@@ -21,8 +21,17 @@ final class StorixServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__.'/../config/storix.php', 'storix');
 
+        $this->app->singleton(LocalStorageDriver::class, function ($app): LocalStorageDriver {
+            $root = (string) $app['config']->get('storix.drivers.local.root', storage_path('app/storix'));
+
+            return new LocalStorageDriver($root);
+        });
+
         $this->app->singleton(DriverManager::class, function ($app): DriverManager {
-            return new DriverManager((string) $app['config']->get('storix.default', 'local'));
+            $manager = new DriverManager((string) $app['config']->get('storix.default', 'local'));
+            $manager->register('local', $app->make(LocalStorageDriver::class));
+
+            return $manager;
         });
 
         $this->app->bind(DirectoryRepository::class, EloquentDirectoryRepository::class);
