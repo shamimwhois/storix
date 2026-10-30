@@ -98,6 +98,30 @@ final class EloquentTransferRepository implements TransferRepository
             ]) === 1;
     }
 
+    public function renewResumeLease(
+        string $transferId,
+        string $token,
+        DateTimeInterface $now,
+        DateTimeInterface $expiresAt,
+    ): bool {
+        if ($token === '' || strlen($token) > 64) {
+            throw new InvalidArgumentException('Resume lease token must contain between 1 and 64 bytes.');
+        }
+
+        if ($expiresAt <= $now) {
+            throw new InvalidArgumentException('Resume lease expiry must be later than its renewal time.');
+        }
+
+        return Transfer::query()
+            ->whereKey($transferId)
+            ->where('resume_lease_token', $token)
+            ->where('resume_lease_expires_at', '>', $now)
+            ->update([
+                'resume_lease_expires_at' => $expiresAt,
+                'updated_at' => $now,
+            ]) === 1;
+    }
+
     public function releaseResumeLease(string $transferId, string $token): bool
     {
         if ($token === '' || strlen($token) > 64) {
