@@ -136,6 +136,7 @@ final class UploadManager
             }
 
             $ownsTransfer = true;
+            $renewLease = fn (): void => $this->renewResumeLease($transfer, $resumeLeaseToken, $leaseSeconds);
 
             if ($multipartDriver !== null && $staged['size'] > 0) {
                 $chunkPlan = $this->chunkPlanner->plan(
@@ -212,8 +213,10 @@ final class UploadManager
                     $storageKey,
                     $staged,
                     $chunkPlan,
+                    $renewLease,
                 );
             } else {
+                $renewLease();
                 $writeResult = $driver->writeStream(new WriteStreamRequest(
                     key: $storageKey,
                     stream: $staged['stream'],
@@ -221,6 +224,7 @@ final class UploadManager
                     visibility: $request->visibility,
                     metadata: $request->metadata,
                 ));
+                $renewLease();
             }
 
             if ($writeResult->object->key !== $storageKey || $writeResult->object->sizeBytes !== $staged['size']) {
@@ -324,6 +328,20 @@ final class UploadManager
         }
     }
 
+    private function renewResumeLease(Transfer $transfer, string $token, int $leaseSeconds): void
+    {
+        $now = now();
+
+        if ($this->transfers->renewResumeLease(
+            (string) $transfer->id,
+            $token,
+            $now,
+            $now->copy()->addSeconds($leaseSeconds),
+        ) === false) {
+            throw new UploadInProgressException;
+        }
+    }
+
     /**
      * @param  array{stream: resource, size: int, sha256: string}  $staged
      * @param  list<ChunkDescriptor>  $plan
@@ -335,10 +353,12 @@ final class UploadManager
         string $storageKey,
         array $staged,
         array $plan,
+        callable $renewLease,
     ): WriteResult {
         $uploadId = null;
 
         try {
+            $renewLease();
             $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest(
                 key: $storageKey,
                 mimeType: $request->mimeType,
@@ -353,6 +373,7 @@ final class UploadManager
             $parts = [];
 
             foreach ($plan as $descriptor) {
+                $renewLease();
                 $chunk = $this->chunks->findByIndex((string) $transfer->id, $descriptor->index);
 
                 if ($chunk === null) {
@@ -374,6 +395,7 @@ final class UploadManager
                         partNumber: $descriptor->index + 1,
                         stream: $partStream,
                     ));
+                    $renewLease();
 
                     if (
                         $part->partNumber !== $descriptor->index + 1
@@ -400,6 +422,7 @@ final class UploadManager
                 }
             }
 
+            $renewLease();
             $result = $driver->completeMultipartWrite(new CompleteMultipartWriteRequest(
                 uploadId: $uploadId,
                 key: $storageKey,
