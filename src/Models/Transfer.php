@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace ShamimStack\Storix\Models;
+namespace ShamimStack\\Storix\\Models;
 
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use ShamimStack\Storix\Enums\TransferDirection;
-use ShamimStack\Storix\Enums\TransferState;
+use Illuminate\\Database\\Eloquent\\Concerns\\HasUuids;
+use Illuminate\\Database\\Eloquent\\Model;
+use Illuminate\\Database\\Eloquent\\Relations\\BelongsTo;
+use Illuminate\\Database\\Eloquent\\Relations\\HasMany;
+use ShamimStack\\Storix\\Enums\\TransferDirection;
+use ShamimStack\\Storix\\Enums\\TransferState;
 
 final class Transfer extends Model
 {
@@ -40,6 +40,8 @@ final class Transfer extends Model
         'fingerprint',
         'multipart_upload_id',
         'multipart_started_at',
+        'resume_lease_token',
+        'resume_lease_expires_at',
         'attempts',
         'max_attempts',
         'last_error_code',
@@ -51,6 +53,7 @@ final class Transfer extends Model
 
     protected $hidden = [
         'multipart_upload_id',
+        'resume_lease_token',
     ];
 
     protected function casts(): array
@@ -69,6 +72,7 @@ final class Transfer extends Model
             'started_at' => 'immutable_datetime',
             'finished_at' => 'immutable_datetime',
             'multipart_started_at' => 'immutable_datetime',
+            'resume_lease_expires_at' => 'immutable_datetime',
             'expires_at' => 'immutable_datetime',
         ];
     }
