@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace ShamimStack\Storix\Tests\Feature;
 
+use ShamimStack\Storix\Drivers\DriverManager;
+use ShamimStack\Storix\StorixManager;
 use ShamimStack\Storix\Tests\TestCase;
 
 final class ServiceProviderTest extends TestCase
@@ -13,5 +15,12 @@ final class ServiceProviderTest extends TestCase
         $this->assertSame('local', config('storix.default'));
         $this->assertSame(8 * 1024 * 1024, config('storix.transfers.chunk_size'));
         $this->assertSame(3, config('storix.transfers.max_parallel_chunks'));
+    }
+
+    public function test_manager_services_are_registered_as_singletons(): void
+    {
+        $this->assertInstanceOf(DriverManager::class, $this->app->make(DriverManager::class));
+        $this->assertInstanceOf(StorixManager::class, $this->app->make('storix'));
+        $this->assertSame($this->app->make('storix'), $this->app->make('storix'));
     }
 }
