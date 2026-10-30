@@ -200,7 +200,7 @@ composer require shamimstack/storix
 
 ## Documentation portal stack
 
-The interactive portal in [docs/index.html](docs/index.html) is built with:
+The live documentation website is published at **[Storix Documentation](https://shamimwhois.github.io/storix/)**. Its source is [docs/index.html](docs/index.html), and the portal is built with:
 
 - Tailwind CSS v4 — compiled production CSS (no Tailwind runtime CDN).
 - Alpine.js 3 — navigation, search, theme toggle, and small UI interactions.
