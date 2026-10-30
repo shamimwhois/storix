@@ -239,7 +239,7 @@ final class UploadManagerTest extends TestCase
                 )),
             );
 
-            self::assertSame(StorixErrorCode::STORAGE_OPERATION_FAILED, $exception->errorCode);
+            self::assertSame('STORAGE_OPERATION_FAILED', $exception->errorCode->value);
         } finally {
             fclose($stream);
         }
