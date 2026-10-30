@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ShamimStack\Storix\Uploads;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -39,6 +40,7 @@ use ShamimStack\Storix\Exceptions\UploadInProgressException;
 use ShamimStack\Storix\Exceptions\UploadIntegrityException;
 use ShamimStack\Storix\Exceptions\UploadTooLargeException;
 use ShamimStack\Storix\Exceptions\UploadValidationException;
+use ShamimStack\Storix\Models\Chunk;
 use ShamimStack\Storix\Models\Directory;
 use ShamimStack\Storix\Models\StoredFile;
 use ShamimStack\Storix\Models\Transfer;
@@ -134,12 +136,12 @@ final class UploadManager
                 if (
                     $multipartDriver === null
                     || $transfer->state->isTerminal()
-                    || ! in_array($transfer->state, [
+                    || in_array($transfer->state, [
                         TransferState::PREPARING,
                         TransferState::TRANSFERRING,
                         TransferState::PAUSED,
                         TransferState::RETRY_WAIT,
-                    ], true)
+                    ], true) === false
                     || ! is_string($transfer->multipart_upload_id)
                     || $transfer->multipart_upload_id === ''
                     || $transfer->file_id === null
@@ -197,7 +199,7 @@ final class UploadManager
                 );
             }
 
-            if (! $isResume) {
+            if ($isResume === false) {
                 $transfer->total_chunks = count($chunkPlan);
                 $transfer = $this->transfers->save($transfer);
 
@@ -427,10 +429,10 @@ final class UploadManager
     /**
      * Rebuild the original deterministic chunk layout rather than applying today's chunk-size config.
      *
-     * @param  \Illuminate\Support\Collection<int, \ShamimStack\Storix\Models\Chunk>  $chunks
+     * @param  Collection<int, Chunk>  $chunks
      * @return list<ChunkDescriptor>
      */
-    private function chunkPlanFromPersisted(\Illuminate\Support\Collection $chunks, int $totalBytes): array
+    private function chunkPlanFromPersisted(Collection $chunks, int $totalBytes): array
     {
         $plan = [];
         $expectedOffset = 0;
