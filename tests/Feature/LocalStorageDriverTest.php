@@ -234,6 +234,15 @@ final class LocalStorageDriverTest extends TestCase
         } catch (InvalidArgumentException) {
             self::assertTrue(true);
         }
+
+        $driver->makeDirectory('Ärger');
+
+        try {
+            $driver->exists('ärger/file.txt');
+            self::fail('Unicode path segments that differ only by letter case must be rejected.');
+        } catch (InvalidArgumentException) {
+            self::assertTrue(true);
+        }
     }
 
     /**
