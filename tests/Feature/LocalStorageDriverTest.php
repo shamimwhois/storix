@@ -223,6 +223,7 @@ final class LocalStorageDriverTest extends TestCase
         $driver = $this->driver();
         $root = $this->temporaryRoots[array_key_last($this->temporaryRoots)];
         $outside = $this->temporaryDirectory();
+        mkdir($outside, 0770, true);
         $outsideFile = $outside.DIRECTORY_SEPARATOR.'secret.txt';
         file_put_contents($outsideFile, 'secret');
 
