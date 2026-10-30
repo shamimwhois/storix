@@ -12,8 +12,8 @@ return new class extends Migration
     {
         Schema::create('storix_files', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->uuid('tenant_id')->nullable()->index();
-            $table->uuid('owner_id')->nullable()->index();
+            $table->string('tenant_id', 64)->nullable()->index();
+            $table->string('owner_id', 64)->nullable()->index();
             $table->foreignUuid('directory_id')->nullable()->constrained('storix_directories')->restrictOnDelete();
             $table->string('driver', 64);
             $table->string('name', 255);
@@ -32,7 +32,7 @@ return new class extends Migration
             $table->index(['tenant_id', 'owner_id', 'created_at'], 'storix_files_scope_created_idx');
             $table->index('directory_id', 'storix_files_directory_idx');
             $table->index(['driver', 'status'], 'storix_files_driver_status_idx');
-            $table->index(['sha256', 'size_bytes'], 'storix_files_checksum_size_idx');
+            $table->index(['tenant_id', 'owner_id', 'driver', 'directory_id', 'sha256', 'size_bytes'], 'storix_files_checksum_scope_idx');
         });
     }
 
