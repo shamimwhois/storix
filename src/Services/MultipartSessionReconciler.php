@@ -47,6 +47,7 @@ final class MultipartSessionReconciler
         $reusable = [];
         $invalidated = [];
         $verifiedBytes = 0;
+        $reusableParts = [];
 
         foreach ($plan as $descriptor) {
             $partNumber = $descriptor->index + 1;
@@ -83,9 +84,10 @@ final class MultipartSessionReconciler
             }
 
             $reusable[] = $chunk;
+            $reusableParts[] = $providerPart;
             $verifiedBytes += $descriptor->sizeBytes;
         }
 
-        return new ChunkReconciliationResult($reusable, $invalidated, $verifiedBytes);
+        return new ChunkReconciliationResult($reusable, $invalidated, $verifiedBytes, $reusableParts);
     }
 }
