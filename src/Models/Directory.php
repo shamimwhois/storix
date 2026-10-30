@@ -35,7 +35,7 @@ final class Directory extends Model
 
     protected static function booted(): void
     {
-        static::saving(function (Directory $directory): void {
+        self::saving(function (Directory $directory): void {
             $name = trim((string) $directory->name);
 
             if ($name === '') {
