@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace ShamimStack\\Storix\\Contracts\\Repositories;
+namespace ShamimStack\Storix\Contracts\Repositories;
 
 use DateTimeInterface;
-use Illuminate\\Support\\Collection;
-use ShamimStack\\Storix\\Models\\Transfer;
+use Illuminate\Support\Collection;
+use ShamimStack\Storix\Models\Transfer;
 
 interface TransferRepository
 {
