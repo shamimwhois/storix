@@ -24,6 +24,7 @@ use ShamimStack\Storix\DTOs\StatObjectRequest;
 use ShamimStack\Storix\DTOs\UploadRequest;
 use ShamimStack\Storix\DTOs\UploadResult;
 use ShamimStack\Storix\DTOs\WriteMultipartPartRequest;
+use ShamimStack\Storix\DTOs\WriteResult;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
 use ShamimStack\Storix\Enums\ChunkState;
 use ShamimStack\Storix\Enums\ObjectVisibility;
@@ -305,7 +306,7 @@ final class UploadManager
         string $storageKey,
         array $staged,
         array $plan,
-    ): \ShamimStack\Storix\DTOs\WriteResult {
+    ): WriteResult {
         $uploadId = null;
 
         try {
