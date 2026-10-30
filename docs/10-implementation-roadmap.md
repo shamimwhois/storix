@@ -42,13 +42,8 @@ Implement sequentially; do not start provider-specific work before core contract
 - Follow [E03 Persistence specification](16-e03-persistence.md).
 
 ### E04 Local Driver
-- Implement stream-based write/read.
-- Implement safe key generation and directory abstraction.
-- Implement atomic finalize where supported.
-- Pass driver contract tests.
-
-### E04 Local Driver
 - Implement LocalStorageDriver against the E02 provider-neutral contract.
+- Pass reusable StorageDriver contract tests against the local adapter.
 - Register the Local driver through the Laravel service provider and configured root path.
 - Stream writes in bounded chunks, calculate SHA-256, and finalize through a same-directory temporary file and rename.
 - Stream full reads and bounded ranges; implement stat, exists, delete, and stable safe errors.
