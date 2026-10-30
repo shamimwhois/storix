@@ -1,6 +1,6 @@
 # E02 — Contracts & Public API
 
-**Status:** Implementation in progress  
+**Status:** Complete — merged into `main`  
 **Epic dependency:** E01 Foundation  
 **Target:** PHP 8.5+ and Laravel 13.x  
 **Package:** `shamimstack/storix`  
@@ -109,16 +109,16 @@ Errors must not expose credentials, raw provider responses, internal filesystem 
 
 ## 8. Acceptance criteria
 
-- [ ] All public contracts use strict types and provider-neutral PHP types.
-- [ ] DTOs reject invalid input at construction.
-- [ ] Capability limits reject inconsistent configurations.
-- [ ] Driver registration rejects empty or mismatched names.
-- [ ] Explicit and default driver resolution work deterministically.
-- [ ] Unknown drivers raise the stable package exception.
-- [ ] Facade and container bindings resolve through Laravel.
-- [ ] Unit and feature tests cover success, invalid input, missing driver, and service binding.
-- [ ] Pint, Composer validation, and the complete PHPUnit suite pass in CI.
-- [ ] README, API documentation, and changelog accurately distinguish implemented contracts from planned storage/transfer features.
+- [x] All public contracts use strict types and provider-neutral PHP types.
+- [x] DTOs reject invalid input at construction.
+- [x] Capability limits reject inconsistent configurations.
+- [x] Driver registration rejects empty or mismatched names.
+- [x] Explicit and default driver resolution work deterministically.
+- [x] Unknown drivers raise the stable package exception.
+- [x] Facade and container bindings resolve through Laravel.
+- [x] Unit and feature tests cover success, invalid input, missing driver, and service binding.
+- [x] Pint, Composer validation, and the complete PHPUnit suite pass in CI.
+- [x] README, API documentation, and changelog accurately distinguish implemented contracts from planned storage/transfer features.
 
 ## 9. Out of scope
 
