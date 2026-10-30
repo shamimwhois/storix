@@ -167,6 +167,7 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
 
     /**
      * Open an object as a readable stream, optionally returning only the requested byte range.
+     *
      * @return resource
      */
     public function readStream(ReadStreamRequest $request): mixed
@@ -492,6 +493,7 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
 
     /**
      * Validate a relative storage key and split it into safe POSIX-style path segments, including Windows device and console aliases.
+     *
      * @return list<string>
      */
     private function segments(string $key): array
