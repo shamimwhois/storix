@@ -1,8 +1,22 @@
 # Storix Documentation
 
-**Start here:** [Open the Storix Documentation Portal](index.html)
+**Live portal:** [https://shamimwhois.github.io/storix/](https://shamimwhois.github.io/storix/)
 
-The portal includes the introduction, solution overview, feature guide, architecture, driver model, transfer lifecycle, security model, developer guidance, operations, roadmap, FAQ, and links to every detailed engineering document.
+**Portal source:** [index.html](index.html)
+
+The interactive documentation portal uses Tailwind CSS v4 with compiled production CSS and Alpine.js bundled with esbuild. GitHub Actions builds and deploys the static site to GitHub Pages whenever documentation changes are pushed to `main`.
+
+## Build locally
+
+```bash
+cd docs
+npm install
+npm run build
+```
+
+Build output:
+- `assets/app.css` — compiled and minified Tailwind CSS.
+- `assets/app.js` — bundled and minified Alpine.js application.
 
 ## Detailed specifications
 
