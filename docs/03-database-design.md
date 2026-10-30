@@ -48,7 +48,7 @@ Use UUID primary keys consistently for Storix-owned records; never expose sequen
 - `last_error_code`, `last_error_message` sanitized
 - `started_at`, `finished_at`, `expires_at`
 - timestamps
-- unique `(tenant_id, owner_id, idempotency_key)` when key is non-null.
+- unique `(idempotency_scope, idempotency_key)` when key is non-null; `idempotency_scope` is a SHA-256 hash of the normalized tenant/owner pair so nullable identity columns cannot weaken uniqueness.
 
 ### `storix_chunks`
 - `id` UUID/ULID
