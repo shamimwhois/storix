@@ -387,6 +387,7 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         }
 
         if ($recursive) {
+            $this->assertTreeHasNoLinks($path);
             $this->removeDirectoryTree($path);
 
             return;
@@ -454,6 +455,7 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         $path = $root;
 
         foreach ($segments as $index => $segment) {
+            $this->assertNoCaseCollision($path, $segment);
             $path .= DIRECTORY_SEPARATOR.$segment;
             $isLast = $index === array_key_last($segments);
 
@@ -463,6 +465,10 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
 
             if (file_exists($path)) {
                 if ($isLast === false && is_dir($path) === false) {
+                    if ($createParents === false) {
+                        return null;
+                    }
+
                     throw new StorageOperationFailedException('resolve_path');
                 }
 
@@ -564,6 +570,54 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         $timestamp = @filemtime($path);
 
         return $timestamp === false ? null : new DateTimeImmutable('@'.$timestamp);
+    }
+
+    /**
+     * Reject an existing path segment that differs only by letter case from the requested key.
+     */
+    private function assertNoCaseCollision(string $directory, string $segment): void
+    {
+        try {
+            foreach (new FilesystemIterator($directory, FilesystemIterator::SKIP_DOTS) as $item) {
+                $existingName = $item->getFilename();
+
+                if ($existingName !== $segment && strcasecmp($existingName, $segment) === 0) {
+                    throw new InvalidArgumentException('Storage keys must not differ only by letter case.');
+                }
+            }
+        } catch (InvalidArgumentException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            throw new StorageOperationFailedException('resolve_path', $exception);
+        }
+    }
+
+    /**
+     * Scan a directory tree without mutation and reject symbolic links before recursive deletion begins.
+     */
+    private function assertTreeHasNoLinks(string $path): void
+    {
+        try {
+            foreach (new DirectoryIterator($path) as $item) {
+                if ($item->isDot()) {
+                    continue;
+                }
+
+                if ($item->isLink()) {
+                    throw new StorageOperationFailedException('delete_directory');
+                }
+
+                if ($item->isDir()) {
+                    $this->assertTreeHasNoLinks($item->getPathname());
+                }
+            }
+        } catch (Throwable $exception) {
+            if ($exception instanceof StorageOperationFailedException) {
+                throw $exception;
+            }
+
+            throw new StorageOperationFailedException('delete_directory', $exception);
+        }
     }
 
     /**
