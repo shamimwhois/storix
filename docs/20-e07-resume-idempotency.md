@@ -49,9 +49,9 @@ For every expected chunk index:
 1. Compare persisted offset and size with the deterministic current plan.
 2. A chunk is reusable only when its state is `verified`, its SHA-256 is valid, and its provider reference belongs to the persisted multipart session.
 3. Re-stage the corresponding byte range from the newly supplied source stream and recompute SHA-256.
-4. If the digest differs, invalidate that chunk and do not reuse its provider reference.
-5. Never infer completion from byte counters alone.
-6. Recompute transfer progress from verified chunks; do not increment counters blindly during reconciliation.
+4. Inspect the provider-side part and compare its part number, byte length, digest and provider reference with the persisted chunk.
+5. If either source bytes or provider-side state differs, discard the provider part, invalidate the chunk and rewrite that part number.
+6. Never infer completion from byte counters alone; recompute transfer progress from provider-verified reusable chunks.
 
 Unknown, duplicate, out-of-range or mismatched chunk records make the session non-resumable and require safe failure/cleanup. Do not silently reshape a live session when chunk-size configuration changes.
 
@@ -59,10 +59,12 @@ Unknown, duplicate, out-of-range or mismatched chunk records make the session no
 
 - Serialize idempotency acquisition using a database transaction and row-level lock where supported.
 - Keep the unique database constraint as the race-safe invariant.
-- Use a transfer-level lease before mutating session/chunk state. The repository now exposes an atomic conditional lease claim and token-checked release; expired leases may be claimed by a new worker.
+- Use a transfer-level lease before mutating session/chunk state. The repository exposes atomic conditional claim, token-owned renewal and token-checked release; expired leases may be claimed by a new worker.
 - A second matching request must receive an in-progress response while a valid lease is held; it must not create another provider session.
-- UploadManager now claims a cryptographically random per-execution lease before mutating a newly created transfer and releases it on both success and failure. The lease duration is configurable through `storix.transfers.resume_lease_seconds` (default 300 seconds). Existing in-progress transfers are still rejected; claiming a lease does not yet resume them.
-- Lease expiry policy and abandoned-session recovery are E08 responsibilities.
+- UploadManager renews the lease around multipart writes and integrity verification. The duration is configurable through `storix.transfers.resume_lease_seconds` (default 300 seconds).
+- A matching existing multipart transfer with a persisted file and session ID can be claimed, moved through the controlled paused/preparing state transitions, reconciled against the newly staged payload, and resumed without creating a new file or provider session.
+- Resume failures preserve a still-open multipart session and persist `retry_wait`; initial-upload failures retain E06 abort/cleanup behavior.
+- Lease heartbeat scheduling between long blocking provider calls and abandoned-session recovery remain operational hardening tasks.
 
 ## Persistence additions
 
@@ -89,5 +91,5 @@ Unknown, duplicate, out-of-range or mismatched chunk records make the session no
 2. Include tenant/owner security scope in the canonical request fingerprint.
 3. Add repository-level atomic idempotency acquisition and transfer lease claim/release operations.
 4. Implement chunk and provider-session reconciliation with fail-closed validation.
-5. Extend UploadManager to claim a lease for an existing matching in-progress transfer, reconcile its provider session, resume missing parts and recompute progress.
-6. Add process-restart, concurrent-worker and regression tests; update docs and roadmap.
+5. Extend UploadManager to claim/renew a lease for an existing matching multipart transfer, reconcile provider parts, reuse verified parts, rewrite missing/mismatched parts and recompute progress.
+6. Add process-restart, concurrent-worker, tamper and regression tests; update docs and roadmap.
