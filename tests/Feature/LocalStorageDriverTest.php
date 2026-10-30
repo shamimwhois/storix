@@ -292,6 +292,15 @@ final class LocalStorageDriverTest extends TestCase
         } catch (InvalidArgumentException) {
             self::assertTrue(true);
         }
+
+        $driver->makeDirectory('café');
+
+        try {
+            $driver->exists("cafe\u{0301}/file.txt");
+            self::fail('Canonically equivalent Unicode path segments must be rejected.');
+        } catch (InvalidArgumentException) {
+            self::assertTrue(true);
+        }
     }
 
     /**
