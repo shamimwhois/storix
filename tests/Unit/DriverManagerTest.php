@@ -29,6 +29,6 @@ final class DriverManagerTest extends TestCase
     {
         $this->expectException(DriverNotFoundException::class);
 
-        (new DriverManager())->driver('missing');
+        (new DriverManager)->driver('missing');
     }
 }
