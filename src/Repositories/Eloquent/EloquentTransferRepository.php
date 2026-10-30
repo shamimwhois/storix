@@ -40,9 +40,13 @@ final class EloquentTransferRepository implements TransferRepository
 
         $tenantId = $attributes['tenant_id'] ?? null;
         $ownerId = $attributes['owner_id'] ?? null;
+        $scopeHash = hash('sha256', json_encode([$tenantId, $ownerId], JSON_THROW_ON_ERROR));
+        $attributes['idempotency_scope'] = $scopeHash;
 
-        return $this->applyScope(Transfer::query(), $tenantId, $ownerId)
-            ->firstOrCreate(['idempotency_key' => $key], $attributes);
+        return Transfer::query()->firstOrCreate(
+            ['idempotency_scope' => $scopeHash, 'idempotency_key' => $key],
+            $attributes,
+        );
     }
 
     public function save(Transfer $transfer): Transfer
