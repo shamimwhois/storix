@@ -8,79 +8,53 @@ storix/
 ├── CHANGELOG.md
 ├── phpunit.xml
 ├── pint.json
-├── phpstan.neon
 ├── config/
 │   └── storix.php
 ├── database/
 │   └── migrations/
-├── routes/
-│   └── api.php
 ├── src/
 │   ├── StorixServiceProvider.php
+│   ├── StorixManager.php
 │   ├── Facades/Storix.php
-│   ├── Contracts/
-│   │   ├── StorageDriver.php
-│   │   ├── ChunkStore.php
-│   │   ├── ProgressStore.php
-│   │   └── LockManager.php
+│   ├── Contracts/StorageDriver.php
 │   ├── DTOs/
+│   │   ├── DriverCapabilities.php
+│   │   ├── WriteStreamRequest.php
+│   │   ├── ReadStreamRequest.php
+│   │   ├── DeleteObjectRequest.php
+│   │   ├── StatObjectRequest.php
+│   │   ├── StorageObjectMetadata.php
+│   │   └── WriteResult.php
 │   ├── Enums/
+│   │   ├── ObjectVisibility.php
+│   │   └── StorixErrorCode.php
 │   ├── Exceptions/
-│   ├── Models/
-│   ├── Policies/
-│   ├── Services/
-│   │   ├── FileManager.php
-│   │   ├── DirectoryManager.php
-│   │   ├── UploadManager.php
-│   │   ├── DownloadManager.php
-│   │   └── TransferManager.php
-│   ├── Drivers/
-│   │   ├── DriverManager.php
-│   │   ├── Local/
-│   │   └── Telegram/
-│   ├── Transfer/
-│   │   ├── ChunkPlanner.php
-│   │   ├── TransferOrchestrator.php
-│   │   ├── RetryPolicy.php
-│   │   ├── RecoveryService.php
-│   │   └── IntegrityVerifier.php
-│   ├── Jobs/
-│   ├── Events/
-│   ├── Listeners/
-│   ├── Http/
-│   │   ├── Controllers/
-│   │   ├── Requests/
-│   │   ├── Resources/
-│   │   └── Middleware/
-│   └── Console/Commands/
-├── resources/
-│   └── (no mandatory frontend assets)
+│   │   ├── StorixException.php
+│   │   ├── DriverNotFoundException.php
+│   │   └── UnsupportedCapabilityException.php
+│   └── Drivers/DriverManager.php
 ├── tests/
 │   ├── Unit/
-│   ├── Feature/
-│   ├── Contract/
-│   ├── Integration/
-│   ├── Security/
-│   └── Performance/
+│   └── Feature/
 └── docs/
 ```
 
-## Responsibilities
+## E02 responsibilities
 
-- `StorageDriver`: provider-neutral operations and capability reporting.
-- `DriverManager`: resolve configured driver; reject unknown drivers clearly.
-- `UploadManager`: validate request, create/reuse session and coordinate upload.
-- `TransferOrchestrator`: state transitions, queue dispatch and completion.
-- `ChunkPlanner`: calculate offsets, sizes and chunk identifiers.
-- `RecoveryService`: reconcile durable records after failure.
-- `IntegrityVerifier`: SHA-256 validation for chunks and final object.
-- `RetryPolicy`: classify errors and calculate bounded delay.
-- `ProgressStore`: store/aggregate progress and ETA samples.
-- `StorixServiceProvider`: merge config, register services, migrations, commands and optional routes.
+- StorageDriver: provider-neutral stream read/write, delete, exists, stat, and capability reporting.
+- DriverCapabilities: validated size, chunk, concurrency, streaming, range, multipart, copy, finalization, and pause/resume declarations.
+- Request/result DTOs: typed boundaries; reject invalid keys, stream resources, offsets, lengths, sizes, and checksums.
+- DriverManager: explicit driver registration and deterministic resolution; unknown drivers raise a stable package exception.
+- StorixManager and Facades/Storix: public container/facade entry points for driver resolution and capability discovery.
+- StorixServiceProvider: merge configuration and register singleton service bindings.
+
+## Deferred responsibilities
+
+- UploadManager, TransferOrchestrator, chunk planner, retry/recovery, and integrity verification are later epics.
+- E03 owns metadata persistence and transfer state.
+- E04 owns the concrete local filesystem driver.
+- E12 owns the optional Telegram adapter after current official constraints are verified.
 
 ## Composer requirements
 
-Package name `shamimstack/storix`; namespace `ShamimStack\Storix`. Declare PHP `^8.5` and Laravel 13 dependencies using the exact framework package constraints confirmed during implementation. Use PSR-4 autoloading. Keep optional integrations in `suggest`/optional packages where feasible; do not make a frontend dependency mandatory.
-
-
----
+Package name shamimstack/storix; namespace ShamimStack\\Storix. Declare PHP ^8.5 and Laravel 13 dependencies using exact framework package constraints. Use PSR-4 autoloading. Keep optional integrations in suggest/optional packages where feasible; do not make a frontend dependency mandatory.
