@@ -78,6 +78,7 @@ final class UploadManagerTest extends TestCase
             self::assertFileExists($this->root.'/'.$result->file->storage_key);
             self::assertSame(1, StoredFile::query()->count());
             self::assertSame(1, Transfer::query()->count());
+            self::assertNull(Transfer::query()->findOrFail($result->transfer->id)->resume_lease_token);
         } finally {
             fclose($stream);
         }
