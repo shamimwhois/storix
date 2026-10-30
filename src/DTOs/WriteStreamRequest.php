@@ -10,8 +10,8 @@ use ShamimStack\Storix\Enums\ObjectVisibility;
 final readonly class WriteStreamRequest
 {
     /**
-     * @param resource $stream
-     * @param array<string, scalar|null> $metadata
+     * @param resource                     $stream
+     * @param array<string, scalar|null>   $metadata
      */
     public function __construct(
         public string $key,
@@ -26,6 +26,12 @@ final readonly class WriteStreamRequest
 
         if (is_resource($this->stream) === false || get_resource_type($this->stream) !== 'stream') {
             throw new InvalidArgumentException('The write source must be a valid stream resource.');
+        }
+
+        $mode = stream_get_meta_data($this->stream)['mode'] ?? '';
+
+        if (str_contains($mode, 'r') === false && str_contains($mode, '+') === false) {
+            throw new InvalidArgumentException('The write source stream must be readable.');
         }
     }
 }
