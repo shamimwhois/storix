@@ -5,7 +5,15 @@ declare(strict_types=1);
 namespace ShamimStack\Storix;
 
 use Illuminate\Support\ServiceProvider;
+use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
+use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
+use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
+use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
 use ShamimStack\Storix\Drivers\DriverManager;
+use ShamimStack\Storix\Repositories\Eloquent\EloquentChunkRepository;
+use ShamimStack\Storix\Repositories\Eloquent\EloquentDirectoryRepository;
+use ShamimStack\Storix\Repositories\Eloquent\EloquentStoredFileRepository;
+use ShamimStack\Storix\Repositories\Eloquent\EloquentTransferRepository;
 
 final class StorixServiceProvider extends ServiceProvider
 {
