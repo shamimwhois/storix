@@ -287,6 +287,24 @@ final class UploadManager
             return new UploadResult($file, $transfer);
         } catch (Throwable $exception) {
             if ($ownsTransfer) {
+                $leaseStillOwned = false;
+
+                try {
+                    $this->renewResumeLease($transfer, $resumeLeaseToken, $leaseSeconds);
+                    $leaseStillOwned = true;
+                } catch (Throwable $leaseException) {
+                    Log::warning('Storix upload ownership could not be confirmed after failure.', [
+                        'transfer_id' => $transfer?->id,
+                        'error_code' => $leaseException instanceof StorixException
+                            ? $leaseException->errorCode->value
+                            : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                    ]);
+                }
+
+                if ($leaseStillOwned === false) {
+                    throw $exception;
+                }
+
                 $cleanupFailed = false;
 
                 if ($objectMayExist && $storageKey !== null) {
