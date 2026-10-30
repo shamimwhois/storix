@@ -81,10 +81,13 @@ final class LocalStorageDriverTest extends TestCase
         fclose($second);
 
         $entries = $driver->listDirectory('reports');
+        $read = $driver->readStream(new ReadStreamRequest('reports/current.txt'));
 
         self::assertCount(1, $entries);
         self::assertSame('current.txt', $entries[0]->name);
-        self::assertSame('new content', stream_get_contents($driver->readStream(new ReadStreamRequest('reports/current.txt'))));
+        self::assertSame('new content', stream_get_contents($read));
+
+        fclose($read);
     }
 
     public function test_it_reads_full_streams_and_bounded_ranges(): void
