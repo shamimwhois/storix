@@ -9,10 +9,7 @@ use ShamimStack\Storix\Enums\ObjectVisibility;
 
 final readonly class UploadRequest
 {
-    /**
-     * @param  resource                   $stream
-     * @param  array<string, scalar|null> $metadata
-     */
+    /** @var resource */
     public mixed $stream;
 
     public string $originalName;
@@ -33,6 +30,7 @@ final readonly class UploadRequest
 
     public ?string $idempotencyKey;
 
+    /** @var array<string, scalar|null> */
     public array $metadata;
 
     public function __construct(

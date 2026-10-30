@@ -16,13 +16,12 @@ use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\DTOs\DeleteObjectRequest;
 use ShamimStack\Storix\DTOs\ReadStreamRequest;
 use ShamimStack\Storix\DTOs\StatObjectRequest;
-use ShamimStack\Storix\DTOs\StorageObjectMetadata;
 use ShamimStack\Storix\DTOs\UploadRequest;
 use ShamimStack\Storix\DTOs\UploadResult;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
+use ShamimStack\Storix\Enums\ObjectVisibility;
 use ShamimStack\Storix\Enums\StorixErrorCode;
 use ShamimStack\Storix\Enums\TransferDirection;
-use ShamimStack\Storix\Enums\ObjectVisibility;
 use ShamimStack\Storix\Enums\TransferState;
 use ShamimStack\Storix\Exceptions\IdempotencyConflictException;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
@@ -316,7 +315,7 @@ final class UploadManager
     }
 
     /**
-     * @param resource $stream
+     * @param  resource  $stream
      */
     private function writeAll(mixed $stream, string $buffer): void
     {
@@ -335,7 +334,8 @@ final class UploadManager
     }
 
     /**
-     * @param resource $stream
+     * @param  resource  $stream
+     *
      * @return array{size: int, sha256: string}
      */
     private function hashStream(mixed $stream): array
@@ -385,7 +385,7 @@ final class UploadManager
     }
 
     /**
-     * @param array{stream: resource, size: int, sha256: string} $staged
+     * @param  array{stream: resource, size: int, sha256: string}  $staged
      */
     private function requestFingerprint(
         UploadRequest $request,
