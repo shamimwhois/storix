@@ -288,6 +288,7 @@ final class LocalStorageDriverTest extends TestCase
     public function test_it_rejects_traversal_absolute_and_ambiguous_keys(): void
     {
         $driver = $this->driver();
+        $invalidUtf8ReservedName = "reserved/CON.\\xFF";
 
         foreach ([
             '../escape.txt',
@@ -306,6 +307,7 @@ final class LocalStorageDriverTest extends TestCase
             'reserved/COM¹',
             'reserved/COM².txt',
             'reserved/LPT³.log',
+            $invalidUtf8ReservedName,
             '.storix-tmp-private/object.bin',
         ] as $key) {
             try {
@@ -315,6 +317,8 @@ final class LocalStorageDriverTest extends TestCase
                 self::assertTrue(true);
             }
         }
+
+        self::assertFalse($driver->exists("reserved/file\\xFF"));
     }
 
     /**
