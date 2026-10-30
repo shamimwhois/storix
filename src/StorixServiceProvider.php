@@ -18,6 +18,9 @@ use ShamimStack\Storix\Repositories\Eloquent\EloquentTransferRepository;
 
 final class StorixServiceProvider extends ServiceProvider
 {
+    /**
+     * Merge package configuration and register the local driver, manager, and persistence repositories.
+     */
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/storix.php', 'storix');
@@ -45,6 +48,9 @@ final class StorixServiceProvider extends ServiceProvider
         });
     }
 
+    /**
+     * Load package migrations and publish the Storix configuration for console applications.
+     */
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
