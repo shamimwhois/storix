@@ -380,29 +380,41 @@ final class UploadManager
                 metadata: $request->metadata,
             ));
         } catch (Throwable $exception) {
-            $errorCode = $exception instanceof StorixException
-                ? $exception->errorCode->value
-                : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
+            try {
+                $errorCode = $exception instanceof StorixException
+                    ? $exception->errorCode->value
+                    : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
 
-            foreach ($this->chunks->forTransfer((string) $transfer->id) as $chunk) {
-                if ($chunk->state !== ChunkState::VERIFIED) {
-                    $chunk->state = ChunkState::FAILED;
-                    $chunk->last_error_code = $errorCode;
-                    $this->chunks->save($chunk);
-                }
-            }
-
-            if ($uploadId !== null) {
                 try {
-                    $driver->abortMultipartWrite($uploadId);
-                } catch (Throwable $abortException) {
-                    Log::warning('Storix multipart abort failed.', [
+                    foreach ($this->chunks->forTransfer((string) $transfer->id) as $chunk) {
+                        if ($chunk->state !== ChunkState::VERIFIED) {
+                            $chunk->state = ChunkState::FAILED;
+                            $chunk->last_error_code = $errorCode;
+                            $this->chunks->save($chunk);
+                        }
+                    }
+                } catch (Throwable $persistenceException) {
+                    Log::warning('Storix multipart failure state could not be persisted.', [
                         'transfer_id' => $transfer->id,
                         'driver' => $driver->name(),
-                        'error_code' => $abortException instanceof StorixException
-                            ? $abortException->errorCode->value
+                        'error_code' => $persistenceException instanceof StorixException
+                            ? $persistenceException->errorCode->value
                             : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
                     ]);
+                }
+            } finally {
+                if ($uploadId !== null) {
+                    try {
+                        $driver->abortMultipartWrite($uploadId);
+                    } catch (Throwable $abortException) {
+                        Log::warning('Storix multipart abort failed.', [
+                            'transfer_id' => $transfer->id,
+                            'driver' => $driver->name(),
+                            'error_code' => $abortException instanceof StorixException
+                                ? $abortException->errorCode->value
+                                : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                        ]);
+                    }
                 }
             }
 
