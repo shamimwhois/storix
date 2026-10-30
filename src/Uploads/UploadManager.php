@@ -465,23 +465,68 @@ final class UploadManager
         array $staged,
         array $plan,
         callable $renewLease,
+        bool $resume,
     ): WriteResult {
-        $uploadId = null;
+        $uploadId = $resume ? (string) $transfer->multipart_upload_id : null;
 
         try {
             $renewLease();
-            $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest(
-                key: $storageKey,
-                mimeType: $request->mimeType,
-                visibility: $request->visibility,
-                metadata: $request->metadata,
-            ));
 
-            $transfer->multipart_upload_id = $uploadId;
-            $transfer->multipart_started_at = now();
-            $transfer = $this->transfers->save($transfer);
+            if ($resume === false) {
+                $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest(
+                    key: $storageKey,
+                    mimeType: $request->mimeType,
+                    visibility: $request->visibility,
+                    metadata: $request->metadata,
+                ));
 
-            $parts = [];
+                $transfer->multipart_upload_id = $uploadId;
+                $transfer->multipart_started_at = now();
+                $transfer = $this->transfers->save($transfer);
+            }
+
+            if ($uploadId === null || $uploadId === '') {
+                throw new UploadIntegrityException;
+            }
+
+            $partsByNumber = [];
+
+            if ($resume) {
+                $reconciliation = $this->multipartSessions->reconcile(
+                    $driver,
+                    $uploadId,
+                    $plan,
+                    $this->chunks->forTransfer((string) $transfer->id),
+                    function (ChunkDescriptor $descriptor) use ($staged): string {
+                        $part = $this->stageChunk($staged['stream'], $descriptor);
+
+                        try {
+                            return $part['sha256'];
+                        } finally {
+                            if (is_resource($part['stream'])) {
+                                fclose($part['stream']);
+                            }
+                        }
+                    },
+                );
+
+                foreach ($reconciliation->invalidatedChunks as $chunk) {
+                    $chunk->state = ChunkState::PENDING;
+                    $chunk->sha256 = null;
+                    $chunk->driver_reference = null;
+                    $chunk->verified_at = null;
+                    $chunk->last_error_code = null;
+                    $this->chunks->save($chunk);
+                }
+
+                foreach ($reconciliation->reusableParts as $part) {
+                    $partsByNumber[$part->partNumber] = $part;
+                }
+
+                $transfer->transferred_bytes = $reconciliation->verifiedBytes;
+                $transfer->completed_chunks = $reconciliation->completedChunks();
+                $transfer = $this->transfers->save($transfer);
+            }
 
             foreach ($plan as $descriptor) {
                 $renewLease();
@@ -489,6 +534,10 @@ final class UploadManager
 
                 if ($chunk === null) {
                     throw new StorageOperationFailedException('chunk_lookup');
+                }
+
+                if (isset($partsByNumber[$descriptor->index + 1])) {
+                    continue;
                 }
 
                 $chunk->state = ChunkState::UPLOADING;
@@ -522,7 +571,7 @@ final class UploadManager
                     $chunk->verified_at = now();
                     $this->chunks->save($chunk);
 
-                    $parts[] = $part;
+                    $partsByNumber[$part->partNumber] = $part;
                     $transfer->transferred_bytes += $part->sizeBytes;
                     $transfer->completed_chunks++;
                     $this->transfers->save($transfer);
@@ -532,6 +581,9 @@ final class UploadManager
                     }
                 }
             }
+
+            ksort($partsByNumber);
+            $parts = array_values($partsByNumber);
 
             $renewLease();
             $result = $driver->completeMultipartWrite(new CompleteMultipartWriteRequest(
