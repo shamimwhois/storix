@@ -35,6 +35,7 @@ Build output:
 - [Acceptance Checklist](13-acceptance-checklist.md)
 - [E02 Contracts & API](15-e02-contracts-and-api.md)
 - [E03 Persistence Layer](16-e03-persistence.md)
+- [E04 Local Storage Driver](17-e04-local-driver.md)
 - [Architecture Decisions](DECISIONS.md)
 
 > Documentation describes the intended engineering design. Feature availability must be confirmed from implementation, tests, and release notes.
