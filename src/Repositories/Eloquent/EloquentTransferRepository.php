@@ -39,7 +39,7 @@ final class EloquentTransferRepository implements TransferRepository
             return $this->create($attributes);
         }
 
-        if (! is_string($key) || trim($key) === '') {
+        if (is_string($key) === false || trim($key) === '') {
             throw new InvalidArgumentException('Idempotency key must be a non-empty string.');
         }
 
