@@ -161,7 +161,7 @@ final class UploadManagerTest extends TestCase
                 idempotencyKey: 'same-request',
             ));
 
-            $this->assertThrows(IdempotencyConflictException::class, fn () => Storix::uploads()->upload(new UploadRequest(
+            $this->assertUploadException(IdempotencyConflictException::class, fn () => Storix::uploads()->upload(new UploadRequest(
                 stream: $secondStream,
                 originalName: 'same.txt',
                 ownerId: 'owner-a',
@@ -190,7 +190,7 @@ final class UploadManagerTest extends TestCase
                 metadata: ['source' => 'first'],
             ));
 
-            $this->assertThrows(IdempotencyConflictException::class, fn () => Storix::uploads()->upload(new UploadRequest(
+            $this->assertUploadException(IdempotencyConflictException::class, fn () => Storix::uploads()->upload(new UploadRequest(
                 stream: $secondStream,
                 originalName: 'same.txt',
                 ownerId: 'owner-a',
@@ -212,7 +212,7 @@ final class UploadManagerTest extends TestCase
         $stream = $this->stream('12345');
 
         try {
-            $this->assertThrows(UploadTooLargeException::class, fn () => Storix::uploads()->upload(new UploadRequest(
+            $this->assertUploadException(UploadTooLargeException::class, fn () => Storix::uploads()->upload(new UploadRequest(
                 stream: $stream,
                 originalName: 'large.txt',
             )));
@@ -230,7 +230,7 @@ final class UploadManagerTest extends TestCase
         $stream = $this->stream('payload');
 
         try {
-            $this->assertThrows(UploadValidationException::class, fn () => Storix::uploads()->upload(new UploadRequest(
+            $this->assertUploadException(UploadValidationException::class, fn () => Storix::uploads()->upload(new UploadRequest(
                 stream: $stream,
                 originalName: 'payload.txt',
                 expectedSizeBytes: 8,
@@ -255,7 +255,7 @@ final class UploadManagerTest extends TestCase
         $stream = $this->stream('payload');
 
         try {
-            $this->assertThrows(UploadValidationException::class, fn () => Storix::uploads()->upload(new UploadRequest(
+            $this->assertUploadException(UploadValidationException::class, fn () => Storix::uploads()->upload(new UploadRequest(
                 stream: $stream,
                 originalName: 'payload.txt',
                 tenantId: 'tenant-a',
@@ -303,7 +303,7 @@ final class UploadManagerTest extends TestCase
         $source = $this->stream('original');
 
         try {
-            $this->assertThrows(UploadIntegrityException::class, fn () => Storix::uploads()->upload(new UploadRequest(
+            $this->assertUploadException(UploadIntegrityException::class, fn () => Storix::uploads()->upload(new UploadRequest(
                 stream: $source,
                 originalName: 'integrity.txt',
                 driver: 'test',
@@ -321,7 +321,7 @@ final class UploadManagerTest extends TestCase
     /**
      * @param  class-string<\Throwable>  $exceptionClass
      */
-    private function assertThrows(string $exceptionClass, callable $callback): \Throwable
+    private function assertUploadException(string $exceptionClass, callable $callback): \Throwable
     {
         try {
             $callback();
