@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace ShamimStack\Storix\Tests\Feature;
 
 use Illuminate\Database\QueryException;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
