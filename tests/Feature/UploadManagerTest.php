@@ -435,6 +435,7 @@ final class UploadManagerTest extends TestCase
         $interrupted = Transfer::query()->findOrFail($transfer->id);
         self::assertSame(TransferState::RETRY_WAIT, $interrupted->state);
         self::assertSame($uploadId, $interrupted->multipart_upload_id);
+        self::assertNotNull($interrupted->last_error_code);
         self::assertNull($interrupted->resume_lease_token);
         self::assertSame('processing', StoredFile::query()->findOrFail($file->id)->status);
 
@@ -459,6 +460,7 @@ final class UploadManagerTest extends TestCase
         self::assertSame(3, $result->transfer->completed_chunks);
         self::assertSame(strlen($payload), $result->transfer->transferred_bytes);
         self::assertNull($result->transfer->multipart_upload_id);
+        self::assertNull($result->transfer->last_error_code);
         self::assertSame(1, Transfer::query()->count());
         self::assertSame(1, StoredFile::query()->count());
         self::assertSame(
