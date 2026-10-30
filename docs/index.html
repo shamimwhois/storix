@@ -238,7 +238,7 @@ Optional state: paused (only where safely supported)</code></pre>
           <article class="docs-card"><h3>Integrity before availability</h3><p>Compare staged bytes, driver write metadata, stat size, and an independent streamed SHA-256 read-back.</p></article>
           <article class="docs-card"><h3>Safe replay</h3><p>Scoped idempotency returns an existing completed upload only for the same request fingerprint; conflicts never overwrite an object.</p></article>
         </div>
-        <div class="docs-callout"><strong>Scope:</strong> E05 is a synchronous single-object upload. Chunking, resumability, background retries, REST endpoints, and Telegram storage are later milestones.</div>
+        <div class="docs-callout"><strong>Scope:</strong> E05 provides the single-object streaming path; E06 adds verified sequential multipart chunk writes. Resume/retry, queued parallel workers, download chunking, REST endpoints, and Telegram storage remain later milestones.</div>
         <p>Implementation specifications: <a href="18-e05-basic-upload.md">E05 Basic Upload</a> and <a href="19-e06-chunk-engine.md">E06 Chunk Engine</a>.</p>
       </section>
 
