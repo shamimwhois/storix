@@ -526,6 +526,7 @@ final class UploadManager
                             }
                         }
                     },
+                    $renewLease,
                 );
 
                 foreach ($reconciliation->invalidatedChunks as $chunk) {
