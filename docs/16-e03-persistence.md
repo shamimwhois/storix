@@ -109,6 +109,7 @@ Indexes: `(tenant_id, owner_id, created_at)`, `directory_id`, `(driver, status)`
 | average_bytes_per_second | decimal nullable | Non-negative |
 | eta_seconds | unsigned big integer nullable | Non-negative |
 | idempotency_key | varchar(128) nullable | Non-empty when present |
+| idempotency_scope | char(64) nullable | SHA-256 of normalized tenant/owner scope; set when key is present |
 | fingerprint | char(64) nullable | SHA-256 hex when present |
 | attempts | unsigned integer | Default 0 |
 | max_attempts | unsigned integer | Positive |
@@ -117,7 +118,7 @@ Indexes: `(tenant_id, owner_id, created_at)`, `directory_id`, `(driver, status)`
 | started_at / finished_at / expires_at | timestamps nullable | Lifecycle timestamps |
 | created_at / updated_at | timestamps | Required |
 
-Indexes: `(tenant_id, owner_id, state)`, `file_id`, `(state, expires_at)`, unique `(tenant_id, owner_id, idempotency_key)`. The repository must normalize absent identity scope consistently and catch unique-constraint races; a preflight SELECT alone is not sufficient.
+Indexes: `(tenant_id, owner_id, state)`, `file_id`, `(state, expires_at)`, unique `(idempotency_scope, idempotency_key)`. The scope hash is computed from the nullable tenant/owner pair so SQL NULL uniqueness semantics cannot permit duplicate unscoped keys. The repository must normalize absent identity scope consistently and rely on the unique scope-hash/key constraint as the final arbiter; a preflight SELECT alone is not sufficient.
 
 ### 4.4 `storix_chunks`
 
