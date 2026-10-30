@@ -25,7 +25,7 @@ final readonly class StorageObjectMetadata
         }
 
         foreach ($this->metadata as $key => $value) {
-            if (! is_string($key) || (! is_scalar($value) && $value !== null)) {
+            if (is_string($key) === false || (is_scalar($value) === false && $value !== null)) {
                 throw new InvalidArgumentException('Object metadata keys must be strings and values must be scalar or null.');
             }
         }
