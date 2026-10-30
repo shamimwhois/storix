@@ -10,6 +10,7 @@ use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
 use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
 use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
 use ShamimStack\Storix\Drivers\DriverManager;
+use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentChunkRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentDirectoryRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentStoredFileRepository;
