@@ -114,7 +114,7 @@ Implement sequentially; do not start provider-specific work before core contract
 
 ## Milestone policy
 
-Do not call E01/E02 a production engine. A first usable local-storage release requires at least E01–E05. A resumable/recoverable release requires E01–E10. Production readiness requires all applicable release gates and real deployment validation. E04 is currently being implemented on feature/e04-local-driver; earlier CI passed, but the latest regression-test run is pending. It is not complete until current CI and review gates pass and the branch is merged.
+Do not call E01/E02 a production engine. A first usable local-storage release requires at least E01–E05. A resumable/recoverable release requires E01–E10. Production readiness requires all applicable release gates and real deployment validation. E04 is complete only after the current CI workflow passes, all required code and security review findings are addressed, all review threads are resolved, and the work is merged into `main`.
 
 
 ---
