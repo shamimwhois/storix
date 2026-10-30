@@ -335,7 +335,6 @@ final class UploadManager
 
     /**
      * @param  resource  $stream
-     *
      * @return array{size: int, sha256: string}
      */
     private function hashStream(mixed $stream): array
