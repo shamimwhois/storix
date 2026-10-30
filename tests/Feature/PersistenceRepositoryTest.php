@@ -42,6 +42,7 @@ final class PersistenceRepositoryTest extends TestCase
             'driver' => 'local',
             'name' => 'invoice.pdf',
             'size_bytes' => 100,
+            'sha256' => str_repeat('a', 64),
             'status' => 'available',
             'visibility' => 'private',
         ]);
@@ -50,6 +51,12 @@ final class PersistenceRepositoryTest extends TestCase
         self::assertNull($directories->findScoped($directory->id, 'tenant-b', 'owner-a'));
         self::assertInstanceOf(StoredFile::class, $files->findScoped($file->id, 'tenant-a', 'owner-a'));
         self::assertNull($files->findScoped($file->id, 'tenant-a', 'owner-b'));
+        self::assertSame(
+            $file->id,
+            $files->findByFingerprint(str_repeat('a', 64), 100, 'local', $directory->id, 'tenant-a', 'owner-a')?->id,
+        );
+        self::assertNull($files->findByFingerprint(str_repeat('a', 64), 100, 'remote', $directory->id, 'tenant-a', 'owner-a'));
+        self::assertNull($files->findByFingerprint(str_repeat('a', 64), 100, 'local', null, 'tenant-a', 'owner-a'));
     }
 
     public function test_transfer_idempotency_is_scoped_and_reuses_existing_record(): void
