@@ -17,6 +17,11 @@ final class StorixServiceProvider extends ServiceProvider
             return new DriverManager((string) $app['config']->get('storix.default', 'local'));
         });
 
+        $this->app->bind(DirectoryRepository::class, EloquentDirectoryRepository::class);
+        $this->app->bind(StoredFileRepository::class, EloquentStoredFileRepository::class);
+        $this->app->bind(TransferRepository::class, EloquentTransferRepository::class);
+        $this->app->bind(ChunkRepository::class, EloquentChunkRepository::class);
+
         $this->app->singleton('storix', function ($app): StorixManager {
             return new StorixManager($app->make(DriverManager::class));
         });
@@ -24,6 +29,8 @@ final class StorixServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+
         if ($this->app->runningInConsole()) {
             $this->publishes([
                 __DIR__.'/../config/storix.php' => config_path('storix.php'),
