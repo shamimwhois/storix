@@ -8,10 +8,13 @@ use InvalidArgumentException;
 use ShamimStack\Storix\Contracts\DirectoryDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
+use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
 use ShamimStack\Storix\DTOs\DeleteObjectRequest;
 use ShamimStack\Storix\DTOs\ReadStreamRequest;
 use ShamimStack\Storix\DTOs\StatObjectRequest;
+use ShamimStack\Storix\DTOs\WriteMultipartPartRequest;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
+use ShamimStack\Storix\Enums\ObjectVisibility;
 use ShamimStack\Storix\Enums\StorixErrorCode;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Facades\Storix;
@@ -521,6 +524,37 @@ final class LocalStorageDriverTest extends TestCase
         self::assertTrue($capabilities->supportsMultipartWrites);
         self::assertSame(1, $capabilities->maxConcurrency);
         self::assertNull($capabilities->maxObjectSizeBytes);
+    }
+
+    public function test_it_inspects_and_discards_a_persisted_multipart_part(): void
+    {
+        $driver = $this->driver();
+        $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest(
+            key: 'resumable/object.bin',
+        ));
+        $stream = $this->inputStream('verified-part-content');
+
+        try {
+            $written = $driver->writeMultipartPart(new WriteMultipartPartRequest(
+                uploadId: $uploadId,
+                partNumber: 1,
+                stream: $stream,
+            ));
+
+            $inspected = $driver->inspectMultipartPart($uploadId, 1);
+
+            self::assertNotNull($inspected);
+            self::assertSame($written->sizeBytes, $inspected->sizeBytes);
+            self::assertSame($written->sha256, $inspected->sha256);
+            self::assertNull($inspected->driverReference);
+
+            $driver->discardMultipartPart($uploadId, 1);
+
+            self::assertNull($driver->inspectMultipartPart($uploadId, 1));
+        } finally {
+            fclose($stream);
+            $driver->abortMultipartWrite($uploadId);
+        }
     }
 
     /**
