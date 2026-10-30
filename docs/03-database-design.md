@@ -35,7 +35,7 @@ Use UUID primary keys consistently for Storix-owned records; never expose sequen
 ### `storix_transfers`
 - `id` UUID/ULID primary key
 - `file_id` nullable FK
-- `tenant_id`, `owner_id`
+- `tenant_id`, `owner_id` nullable `varchar(64)` scope identifiers
 - `direction`: upload/download
 - `driver`
 - `state`: pending/preparing/transferring/paused/retry_wait/verifying/completed/failed/cancelled/expired
