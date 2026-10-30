@@ -9,6 +9,7 @@ In progress. This specification is implemented incrementally on `feature/e07-res
 - Make the request identity include the complete security scope.
 - Preserve idempotency uniqueness across concurrent requests.
 - Persist enough multipart session and chunk-verification metadata to reconcile after a process restart.
+- Inspect provider-side parts and discard stale or mismatched local parts before retrying a part number.
 - Resume only when the staged payload, owner/tenant scope, destination, driver and transfer plan match.
 - Never trust a persisted provider reference without re-verifying the corresponding bytes.
 - Keep the existing `Storix::uploads()->upload(UploadRequest)` API backward compatible.
