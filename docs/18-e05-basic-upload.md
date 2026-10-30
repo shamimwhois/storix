@@ -119,7 +119,7 @@ The size limit is checked while reading, not trusted from request metadata. Empt
 
 The service stages and hashes the source before claiming a transfer so it can compare actual content rather than trusting a filename or client-provided hash.
 
-The request fingerprint is a SHA-256 digest over canonical upload attributes: content SHA-256, actual byte size, normalized filename, selected driver, target directory, MIME type and visibility. The repository adds the tenant/owner scope to the idempotency uniqueness key.
+The request fingerprint is a SHA-256 digest over canonical upload attributes: content SHA-256, actual byte size, normalized filename, selected driver, target directory, MIME type, visibility and sorted metadata. The repository adds the tenant/owner scope to the idempotency uniqueness key.
 
 - No idempotency key: create a new upload on every call.
 - Existing completed key + matching fingerprint + available file: return the prior result with `replayed = true`; do not write the bytes again.
