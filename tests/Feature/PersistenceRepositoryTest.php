@@ -7,6 +7,7 @@ namespace ShamimStack\Storix\Tests\Feature;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
+use LogicException;
 use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
 use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
 use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
@@ -65,6 +66,33 @@ final class PersistenceRepositoryTest extends TestCase
         self::assertNull($files->findByFingerprint(str_repeat('a', 64), 100, 'local', null, 'tenant-a', 'owner-a'));
     }
 
+    public function test_directory_names_are_unique_within_parent_driver_and_owner_scope(): void
+    {
+        $repository = $this->app->make(DirectoryRepository::class);
+        $attributes = [
+            'tenant_id' => 'tenant-a',
+            'owner_id' => 'owner-a',
+            'name' => 'Invoices',
+            'path_key' => 'invoices',
+            'driver' => 'local',
+        ];
+
+        $first = $repository->create($attributes);
+
+        self::assertSame($first->id, $repository->findChild(null, 'Invoices', 'local', 'tenant-a', 'owner-a')?->id);
+
+        try {
+            $repository->create([...$attributes, 'name' => 'invoices']);
+            self::fail('Expected a duplicate normalized directory name to be rejected.');
+        } catch (QueryException) {
+            self::assertTrue(true);
+        }
+
+        $otherOwner = $repository->create([...$attributes, 'owner_id' => 'owner-b']);
+
+        self::assertNotSame($first->id, $otherOwner->id);
+    }
+
     public function test_transfer_idempotency_is_scoped_and_reuses_existing_record(): void
     {
         $repository = $this->app->make(TransferRepository::class);
@@ -96,6 +124,47 @@ final class PersistenceRepositoryTest extends TestCase
 
         self::assertSame($unscopedFirst->id, $unscopedSecond->id);
         self::assertSame(4, Transfer::query()->count());
+    }
+
+    public function test_direct_transfer_creation_normalizes_and_enforces_idempotency_scope(): void
+    {
+        $repository = $this->app->make(TransferRepository::class);
+        $attributes = [
+            'tenant_id' => 'tenant-a',
+            'owner_id' => 'owner-a',
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::PENDING,
+            'idempotency_key' => 'direct-create-key',
+        ];
+
+        $created = $repository->create($attributes);
+
+        self::assertNotNull($created->idempotency_scope);
+        self::assertSame(
+            $created->id,
+            $repository->findByIdempotencyKey('direct-create-key', 'tenant-a', 'owner-a')?->id,
+        );
+
+        $this->expectException(QueryException::class);
+
+        $repository->create($attributes);
+    }
+
+    public function test_repository_save_cannot_bypass_the_transfer_state_machine(): void
+    {
+        $repository = $this->app->make(TransferRepository::class);
+        $transfer = $repository->create([
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::PENDING,
+            'total_bytes' => 12,
+        ]);
+        $transfer->state = TransferState::COMPLETED;
+
+        $this->expectException(LogicException::class);
+
+        $repository->save($transfer);
     }
 
     public function test_blank_idempotency_keys_are_rejected(): void
