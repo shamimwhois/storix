@@ -38,7 +38,7 @@ Implement the durable relational persistence foundation used by later transfer e
 
 1. **Primary identifiers:** UUID strings for all four tables. Do not mix UUID and ULID in this epic.
 2. **Database support:** use Laravel Schema Builder and portable column/index definitions. E03 CI initially validates SQLite through Testbench. MySQL and PostgreSQL compatibility must not be claimed until their integration matrix is added.
-3. **Identity references:** `tenant_id` and `owner_id` are nullable UUID/string identifiers with indexes, not foreign keys. Storix must not assume the host app's user/tenant table names or key types.
+3. **Identity references:** `tenant_id` and `owner_id` are nullable `varchar(64)` identifiers with indexes, not foreign keys. This supports UUID, ULID, numeric IDs represented as strings, and host-specific string keys without coupling Storix to host identity tables.
 4. **Driver naming:** persist the selected driver name as `driver`; do not add duplicate `disk` and `driver` columns.
 5. **Provider references:** `storage_key` is an opaque provider key, not a public URL or credential.
 6. **Metadata:** JSON is supplemental and must not replace indexed/query-critical columns.
@@ -54,8 +54,8 @@ Implement the durable relational persistence foundation used by later transfer e
 | Column | Type | Rules |
 |---|---|---|
 | id | UUID | Primary key |
-| tenant_id | UUID/string nullable | Indexed; host-owned identity |
-| owner_id | UUID/string nullable | Indexed; host-owned identity |
+| tenant_id | varchar(64) nullable | Indexed; host-owned identity |
+| owner_id | varchar(64) nullable | Indexed; host-owned identity |
 | parent_id | UUID nullable | Self-reference, nullable, restrictive delete |
 | name | varchar(255) | Required, non-empty |
 | path_key | varchar(1024) | Required normalized internal path |
@@ -64,15 +64,15 @@ Implement the durable relational persistence foundation used by later transfer e
 | created_at / updated_at | timestamps | Required |
 | deleted_at | timestamp nullable | Soft delete |
 
-Indexes: `(tenant_id, owner_id, driver)`, `parent_id`, `status`. Do not create a full unique index on the 1024-character path. Directory name/path collision checks are performed within a transaction by the repository/service and must be scoped to parent, driver, owner, and tenant.
+Indexes: `(tenant_id, owner_id, driver, parent_id, name)`, `parent_id`, and `status`. Do not create a full unique index on the 1024-character path. E03 provides scoped child lookup; atomic directory-name conflict prevention belongs to the directory-management service in a later epic and must not be claimed until implemented.
 
 ### 4.2 `storix_files`
 
 | Column | Type | Rules |
 |---|---|---|
 | id | UUID | Primary key |
-| tenant_id | UUID/string nullable | Indexed |
-| owner_id | UUID/string nullable | Indexed |
+| tenant_id | varchar(64) nullable | Indexed |
+| owner_id | varchar(64) nullable | Indexed |
 | directory_id | UUID nullable | FK to directories, restrictive delete |
 | driver | varchar(64) | Required |
 | name | varchar(255) | Required |
@@ -88,7 +88,7 @@ Indexes: `(tenant_id, owner_id, driver)`, `parent_id`, `status`. Do not create a
 | created_at / updated_at | timestamps | Required |
 | deleted_at | timestamp nullable | Soft delete |
 
-Indexes: `(tenant_id, owner_id, created_at)`, `directory_id`, `(driver, status)`, `(sha256, size_bytes)`. Repository queries must always apply the relevant owner/tenant scope; the checksum index is not permission to deduplicate across tenant, owner, driver, or target-directory scopes.
+Indexes: `(tenant_id, owner_id, created_at)`, `directory_id`, `(driver, status)`, and `(tenant_id, owner_id, driver, directory_id, sha256, size_bytes)`. Repository queries must always apply the relevant owner/tenant scope; the checksum index is not permission to deduplicate across tenant, owner, driver, or target-directory scopes.
 
 ### 4.3 `storix_transfers`
 
@@ -163,7 +163,7 @@ Define repository contracts under `Contracts/Repositories` and Eloquent implemen
 
 Minimum operations:
 
-- Directories: create, find by ID within scope, find child by normalized name/path within scope, list children, save, soft delete.
+- Directories: create, find by ID within scope, find child by name within scope, list children, save, soft delete.
 - Files: create, find by ID within scope, find by scoped fingerprint when available, including driver and target directory, save, soft delete.
 - Transfers: create, find by ID within scope, find by scoped idempotency key, save, atomically create-or-return idempotent transfer, list stale/eligible records with bounded pagination.
 - Chunks: create, find by transfer/index, list by transfer ordered by index, save, delete by transfer when retention explicitly requests it.
@@ -232,11 +232,11 @@ Rules:
 
 ### Feature / database
 
-- All four migrations up and down.
+- All four migrations load successfully; migration rollback is tested in reverse dependency order.
 - Model relationships and soft-delete behavior.
 - Required columns, defaults, foreign keys, and indexes.
 - Scoped directory/file/transfer lookups.
-- Duplicate idempotency key race/constraint behavior.
+- Duplicate idempotency key reuse, scope isolation, blank-key rejection, and database uniqueness behavior.
 - Unique transfer/chunk index enforcement.
 - Chunk ordering and bounded stale-record query.
 - Transaction rollback leaves no partial metadata.
