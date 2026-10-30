@@ -61,7 +61,7 @@ Unknown, duplicate, out-of-range or mismatched chunk records make the session no
 - Keep the unique database constraint as the race-safe invariant.
 - Use a transfer-level lease before mutating session/chunk state. The repository now exposes an atomic conditional lease claim and token-checked release; expired leases may be claimed by a new worker.
 - A second matching request must receive an in-progress response while a valid lease is held; it must not create another provider session.
-- Lease acquisition primitives are implemented and tested, but UploadManager does not yet acquire/release them. End-to-end enforcement remains an integration task.
+- UploadManager now claims a cryptographically random per-execution lease before mutating a newly created transfer and releases it on both success and failure. The lease duration is configurable through `storix.transfers.resume_lease_seconds` (default 300 seconds). Existing in-progress transfers are still rejected; claiming a lease does not yet resume them.
 - Lease expiry policy and abandoned-session recovery are E08 responsibilities.
 
 ## Persistence additions
@@ -89,5 +89,5 @@ Unknown, duplicate, out-of-range or mismatched chunk records make the session no
 2. Include tenant/owner security scope in the canonical request fingerprint.
 3. Add repository-level atomic idempotency acquisition and transfer lease claim/release operations.
 4. Implement chunk and provider-session reconciliation with fail-closed validation.
-5. Integrate lease acquisition, resumable multipart session reuse and progress recomputation into UploadManager.
+5. Extend UploadManager to claim a lease for an existing matching in-progress transfer, reconcile its provider session, resume missing parts and recompute progress.
 6. Add process-restart, concurrent-worker and regression tests; update docs and roadmap.
