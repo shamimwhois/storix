@@ -1,140 +1,231 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#101522">
-<meta name="description" content="Storix documentation — One API. Every Storage. A Laravel storage and resilient transfer package.">
-<title>Storix Docs — One API. Every Storage.</title>
-<style>
-:root{color-scheme:dark;--bg:#0b1020;--panel:#111a2b;--panel2:#172238;--text:#e8eef9;--muted:#9aa9c0;--line:#26344d;--accent:#8b9cff;--accent2:#55d6be;--code:#080d18;--shadow:0 18px 60px #0005}
-*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:88px}body{margin:0;background:radial-gradient(ellipse at 80% -10%,#29396a55,transparent 38%),var(--bg);color:var(--text);font:15px/1.7 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
-a{color:var(--accent);text-decoration:none}a:hover{color:#c0c9ff}button,input{font:inherit}.layout{min-height:100vh}.sidebar{position:fixed;inset:0 auto 0 0;width:286px;background:#0d1424eF;border-right:1px solid var(--line);padding:24px 18px;overflow:auto;z-index:20;backdrop-filter:blur(18px)}.brand{display:flex;align-items:center;gap:12px;padding:4px 8px 24px;border-bottom:1px solid var(--line)}.logo{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#9aa8ff,#56dfc4);display:grid;place-items:center;color:#101729;font-weight:900;font-size:19px;box-shadow:0 8px 24px #7c8cff40}.brand strong{display:block;font-size:18px;letter-spacing:.02em}.brand small{display:block;color:var(--muted);font-size:11px}.version{margin:18px 8px 10px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}.search{position:relative;margin:0 4px 20px}.search input{width:100%;background:#080e1b;border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--text);outline:none}.search input:focus{border-color:var(--accent)}.nav-group{margin:18px 0}.nav-title{padding:0 10px 7px;color:#71839f;font-size:10px;font-weight:800;letter-spacing:.15em;text-transform:uppercase}.nav a{display:block;padding:7px 10px;margin:2px 0;border-radius:8px;color:#aebbd0;font-size:13px;line-height:1.45}.nav a:hover,.nav a.active{background:#222f4a;color:#fff}.nav a.active{box-shadow:inset 2px 0 var(--accent)}.sidebar-foot{margin:28px 8px 0;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
-.main{margin-left:286px;min-height:100vh}.topbar{height:64px;position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;padding:0 clamp(20px,5vw,64px);background:#0b1020d9;border-bottom:1px solid var(--line);backdrop-filter:blur(18px)}.crumb{font-size:12px;color:var(--muted)}.top-actions{display:flex;gap:10px;align-items:center}.top-actions a,.menu-btn{border:1px solid var(--line);border-radius:9px;padding:7px 11px;color:#c6d1e4;font-size:12px;background:#111a2b}.menu-btn{display:none}.content{max-width:1080px;margin:0 auto;padding:58px clamp(22px,6vw,78px) 100px}.hero{position:relative;padding:46px 42px;border:1px solid #405078;border-radius:22px;background:linear-gradient(125deg,#1b2945eF,#111b30eF 60%,#123a3b88);box-shadow:var(--shadow);overflow:hidden}.hero:after{content:"";position:absolute;width:260px;height:260px;right:-75px;top:-95px;border-radius:50%;background:#91a0ff22;filter:blur(8px)}.eyebrow{color:var(--accent2);font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}.hero h1{font-size:clamp(38px,6vw,64px);line-height:1.05;letter-spacing:-.055em;margin:14px 0}.hero p{max-width:700px;color:#bdc9dc;font-size:17px}.hero-links{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}.button{display:inline-flex;align-items:center;padding:10px 15px;border-radius:9px;background:linear-gradient(120deg,#a4afff,#65dfc8);color:#0c1525;font-weight:800;font-size:13px}.button.secondary{background:#17243a;color:#dbe4f4;border:1px solid #3a4c6d}.notice{margin:24px 0;padding:15px 18px;border:1px solid #806b38;border-left:3px solid #e9bd67;background:#2b2518;border-radius:10px;color:#eadcb8;font-size:13px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:22px 0 48px}.stat{padding:17px;border:1px solid var(--line);background:#111a2b;border-radius:13px}.stat b{display:block;font-size:21px;letter-spacing:-.04em}.stat span{font-size:11px;color:var(--muted)}
-section{margin:58px 0;scroll-margin-top:90px}h2{font-size:29px;letter-spacing:-.035em;margin:0 0 16px}h3{font-size:18px;margin:26px 0 8px}p{color:#bdc9da}li{color:#bdc9da;margin:5px 0}.lead{font-size:17px;color:#c9d4e6;max-width:850px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}.card{padding:18px;border:1px solid var(--line);border-radius:13px;background:linear-gradient(145deg,#131f34,#101827)}.card h3{margin:0 0 7px}.card p{margin:0;font-size:13px}.tag{display:inline-block;margin:4px 4px 0 0;padding:3px 8px;border-radius:20px;background:#263451;color:#bfcaff;font-size:10px;font-weight:700}.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:12px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:11px 13px;border-bottom:1px solid var(--line)}th{background:#17243a;color:#dce5f5}td{color:#b9c6d9}tr:last-child td{border-bottom:0}pre{overflow:auto;padding:18px;background:var(--code);border:1px solid var(--line);border-radius:12px;color:#c9d8f4;font-size:12px;line-height:1.65}code{font-family:"SFMono-Regular",Consolas,monospace;color:#b9c9ff}p code,li code{background:#1a2942;padding:2px 5px;border-radius:5px}.doc-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.doc-list a{display:block;padding:13px 15px;background:#121d30;border:1px solid var(--line);border-radius:10px;color:#d9e3f3;font-size:13px}.doc-list a:hover{border-color:var(--accent);background:#1a2942}.doc-list small{display:block;color:var(--muted);margin-top:3px}.step{display:grid;grid-template-columns:34px 1fr;gap:12px;margin:14px 0}.step-num{width:30px;height:30px;border-radius:9px;background:#28365a;color:#c4ccff;display:grid;place-items:center;font-weight:800}.step p{margin:0}.footer{border-top:1px solid var(--line);padding-top:22px;color:var(--muted);font-size:12px}.mobile-overlay{display:none}
-@media(max-width:980px){.sidebar{transform:translateX(-100%);transition:transform .25s ease}.sidebar.open{transform:translateX(0)}.main{margin-left:0}.menu-btn{display:block}.mobile-overlay.show{display:block;position:fixed;inset:0;background:#0009;z-index:15}.stats{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:620px){.content{padding:28px 17px 70px}.hero{padding:30px 22px}.grid,.doc-list{grid-template-columns:1fr}.topbar{padding:0 14px}.top-actions a{display:none}.stats{gap:8px}.stat{padding:12px}.stat b{font-size:18px}h2{font-size:25px}}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0f1b">
+  <meta name="description" content="Storix documentation — One API. Every Storage. A driver-based storage and resilient transfer layer for Laravel.">
+  <title>Storix Documentation — One API. Every Storage.</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x2='1' y2='1'%3E%3Cstop stop-color='%23a5b4fc'/%3E%3Cstop offset='1' stop-color='%236ee7c7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url(%23g)'/%3E%3Ctext x='50%25' y='55%25' font-family='Arial' font-size='39' font-weight='bold' text-anchor='middle' dominant-baseline='middle' fill='%230a0f1b'%3ES%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./assets/app.css">
+  <script defer src="./assets/app.js"></script>
 </head>
-<body>
-<div class="mobile-overlay" id="overlay"></div>
-<aside class="sidebar" id="sidebar">
-  <div class="brand"><div class="logo">S</div><div><strong>Storix Docs</strong><small>One API. Every Storage.</small></div></div>
-  <div class="version">Documentation · v1.1</div>
-  <div class="search"><input id="search" type="search" placeholder="Search documentation…" aria-label="Search documentation"></div>
-  <nav class="nav" id="nav">
-    <div class="nav-group"><div class="nav-title">Getting started</div>
-      <a href="#introduction" class="active">Introduction</a><a href="#quick-start">Quick start</a><a href="#why-storix">Why Storix</a><a href="#concepts">Core concepts</a>
-    </div>
-    <div class="nav-group"><div class="nav-title">Product guide</div>
-      <a href="#features">Features</a><a href="#architecture">Architecture</a><a href="#drivers">Storage drivers</a><a href="#transfer-lifecycle">Transfer lifecycle</a><a href="#security">Security model</a>
-    </div>
-    <div class="nav-group"><div class="nav-title">Developer guide</div>
-      <a href="#installation">Installation</a><a href="#usage">PHP API direction</a><a href="#configuration">Configuration</a><a href="#operations">Queues & operations</a><a href="#testing">Testing strategy</a>
-    </div>
-    <div class="nav-group"><div class="nav-title">Reference</div>
-      <a href="#roadmap">Implementation roadmap</a><a href="#decisions">Design decisions</a><a href="#documentation">All documents</a><a href="#faq">FAQ</a>
-    </div>
-  </nav>
-  <div class="sidebar-foot">Built for Laravel developers.<br><a href="https://github.com/Shamimwhois/storix">GitHub repository ↗</a></div>
-</aside>
-<div class="main">
-  <header class="topbar"><div style="display:flex;gap:12px;align-items:center"><button class="menu-btn" id="menu" aria-label="Open navigation">☰</button><span class="crumb">Storix <span style="color:#52627d">/</span> Documentation</span></div><div class="top-actions"><a href="../README.md">README</a><a href="https://github.com/Shamimwhois/storix">GitHub ↗</a></div></header>
-  <main class="content">
-    <div class="hero" id="introduction">
-      <div class="eyebrow">Laravel storage infrastructure</div>
-      <h1>One API.<br>Every Storage.</h1>
-      <p>Store, retrieve, organize, and transfer files through one consistent Laravel API — with replaceable drivers and a resilient transfer architecture.</p>
-      <div class="hero-links"><a class="button" href="#quick-start">Explore the guide ↓</a><a class="button secondary" href="https://github.com/Shamimwhois/storix">View on GitHub ↗</a></div>
-    </div>
-    <div class="notice"><strong>Project status — specification stage.</strong> This portal documents the planned architecture, features, and implementation path. It does not claim that every listed capability is already implemented or production-ready.</div>
-    <div class="stats"><div class="stat"><b>PHP 8.5+</b><span>Target runtime</span></div><div class="stat"><b>Laravel 13</b><span>Target framework</span></div><div class="stat"><b>14 Epics</b><span>Implementation roadmap</span></div><div class="stat"><b>Driver-based</b><span>Storage architecture</span></div></div>
+<body x-data="docsApp" x-cloak>
+  <div class="docs-backdrop" :class="{ 'show': sidebarOpen }" @click="closeSidebar()" aria-hidden="true"></div>
 
-    <section id="quick-start"><h2>Quick start</h2><p class="lead">Start with the product model, understand the driver boundary, then follow the implementation roadmap. Storix is designed as a Composer package and does not ship a dashboard or frontend.</p>
-      <div class="step"><div class="step-num">1</div><div><strong>Understand the product</strong><p>Read the <a href="01-product-requirements.md">Product Requirements Document</a> for goals, functional scope, and acceptance criteria.</p></div></div>
-      <div class="step"><div class="step-num">2</div><div><strong>Understand the architecture</strong><p>Review the <a href="02-system-architecture.md">System Architecture</a> and <a href="07-storage-drivers.md">Driver Contract</a> before changing implementation boundaries.</p></div></div>
-      <div class="step"><div class="step-num">3</div><div><strong>Follow the roadmap</strong><p>Implement in dependency order. E01 establishes the Composer package, service provider, config, CI, and conventions.</p></div></div>
-      <div class="step"><div class="step-num">4</div><div><strong>Prove behavior with tests</strong><p>Use the <a href="09-testing-strategy.md">Testing Strategy</a> and <a href="13-acceptance-checklist.md">Acceptance Checklist</a>. Never mark a feature complete based on documentation alone.</p></div></div>
-    </section>
+  <aside id="docs-sidebar" class="docs-sidebar" :class="{ 'open': sidebarOpen }" aria-label="Documentation navigation">
+    <a href="#introduction" class="docs-brand" @click="closeSidebar()">
+      <span class="docs-brand-mark">S</span>
+      <span><span class="docs-brand-title">Storix Docs</span><span class="docs-brand-subtitle">ONE API. EVERY STORAGE.</span></span>
+    </a>
 
-    <section id="why-storix"><h2>Why Storix?</h2><p class="lead">Storage providers have different APIs and capabilities. Large transfers are vulnerable to network failures, duplicate requests, rate limits, and partial writes. Storix aims to make these concerns explicit and reusable.</p>
-      <div class="grid">
-        <article class="card"><h3>One stable API</h3><p>Keep application business logic independent from provider-specific SDKs and response objects.</p></article>
-        <article class="card"><h3>Resilient transfers</h3><p>Persist sessions and chunk state so eligible transfers can recover after interruptions.</p></article>
-        <article class="card"><h3>Integrity-first</h3><p>Verify chunk and final content with SHA-256 where bytes are available. Never infer success from metadata alone.</p></article>
-        <article class="card"><h3>Laravel-native</h3><p>Integrate with the service container, queues, events, migrations, scheduler, cache, and filesystem.</p></article>
+    <div class="docs-kicker">Documentation · v1.1</div>
+    <label class="docs-search" for="docs-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+      <input id="docs-search" x-ref="search" x-model.debounce.120ms="query" type="search" placeholder="Search this guide…" autocomplete="off" aria-label="Search this documentation">
+      <kbd>/</kbd>
+      <button type="button" x-show="query" @click.prevent="clearSearch()" aria-label="Clear search">×</button>
+    </label>
+
+    <nav class="docs-nav" aria-label="Documentation sections">
+      <div class="docs-nav-group">
+        <div class="docs-nav-heading">Getting started</div>
+        <a class="docs-nav-link active" href="#introduction" data-doc-link @click="closeSidebar()"><span>01</span> Introduction</a>
+        <a class="docs-nav-link" href="#quick-start" data-doc-link @click="closeSidebar()"><span>02</span> Quick start</a>
+        <a class="docs-nav-link" href="#why-storix" data-doc-link @click="closeSidebar()"><span>03</span> Why Storix</a>
+        <a class="docs-nav-link" href="#concepts" data-doc-link @click="closeSidebar()"><span>04</span> Core concepts</a>
       </div>
-    </section>
-
-    <section id="concepts"><h2>Core concepts</h2>
-      <div class="grid">
-        <article class="card"><h3>Storage driver</h3><p>A provider adapter implementing a provider-neutral contract. Each driver declares its capabilities and operational limits.</p></article>
-        <article class="card"><h3>File metadata</h3><p>Application-facing metadata and opaque identifiers. Physical provider keys stay private to infrastructure.</p></article>
-        <article class="card"><h3>Transfer session</h3><p>A durable workflow tracking intent, state, retries, ownership, and completion evidence.</p></article>
-        <article class="card"><h3>Chunk</h3><p>A bounded part of a transfer with an offset, expected size, state, checksum, and provider reference.</p></article>
-        <article class="card"><h3>Capability model</h3><p>Describes whether a driver supports streaming, range reads, multipart writes, atomic finalize, or pause/resume.</p></article>
-        <article class="card"><h3>Idempotency</h3><p>Allows safe request replay and duplicate detection without crossing tenant or owner boundaries.</p></article>
+      <div class="docs-nav-group">
+        <div class="docs-nav-heading">Product guide</div>
+        <a class="docs-nav-link" href="#features" data-doc-link @click="closeSidebar()"><span>05</span> Features</a>
+        <a class="docs-nav-link" href="#architecture" data-doc-link @click="closeSidebar()"><span>06</span> Architecture</a>
+        <a class="docs-nav-link" href="#drivers" data-doc-link @click="closeSidebar()"><span>07</span> Storage drivers</a>
+        <a class="docs-nav-link" href="#transfers" data-doc-link @click="closeSidebar()"><span>08</span> Transfer lifecycle</a>
+        <a class="docs-nav-link" href="#security" data-doc-link @click="closeSidebar()"><span>09</span> Security model</a>
       </div>
-    </section>
-
-    <section id="features"><h2>Feature overview</h2><p class="lead">The following are planned capabilities defined by the current engineering specification.</p>
-      <div class="grid">
-        <article class="card"><h3>File & directory management</h3><p>Put, stream, inspect, list, rename, and delete files/directories through a unified API, subject to driver capabilities.</p><span class="tag">Storage</span><span class="tag">Metadata</span></article>
-        <article class="card"><h3>Chunked transfers</h3><p>Configurable chunk planning, bounded parallelism, chunk checksums, and durable transfer state.</p><span class="tag">Upload</span><span class="tag">Download</span></article>
-        <article class="card"><h3>Resume & recovery</h3><p>Reconcile persisted state, reuse verified chunks within the same security scope, and retry transient failures.</p><span class="tag">Idempotency</span><span class="tag">Backoff</span></article>
-        <article class="card"><h3>Progress & events</h3><p>Bytes, percentage, speed, ETA when measurable, chunk counts, lifecycle events, and structured diagnostics.</p><span class="tag">Observability</span><span class="tag">Events</span></article>
-        <article class="card"><h3>Security & tenancy</h3><p>Owner/tenant scopes, policy hooks, path safety, quotas, secret redaction, and integrity checks.</p><span class="tag">Authorization</span><span class="tag">Isolation</span></article>
-        <article class="card"><h3>Laravel integrations</h3><p>Service provider, config, migrations, facade, queues, scheduler, optional Redis optimizations, and optional REST adapter.</p><span class="tag">Laravel</span><span class="tag">API</span></article>
+      <div class="docs-nav-group">
+        <div class="docs-nav-heading">Developer guide</div>
+        <a class="docs-nav-link" href="#installation" data-doc-link @click="closeSidebar()"><span>10</span> Installation</a>
+        <a class="docs-nav-link" href="#api" data-doc-link @click="closeSidebar()"><span>11</span> PHP API</a>
+        <a class="docs-nav-link" href="#configuration" data-doc-link @click="closeSidebar()"><span>12</span> Configuration</a>
+        <a class="docs-nav-link" href="#operations" data-doc-link @click="closeSidebar()"><span>13</span> Operations</a>
+        <a class="docs-nav-link" href="#testing" data-doc-link @click="closeSidebar()"><span>14</span> Testing</a>
       </div>
-    </section>
+      <div class="docs-nav-group">
+        <div class="docs-nav-heading">Reference</div>
+        <a class="docs-nav-link" href="#roadmap" data-doc-link @click="closeSidebar()"><span>15</span> Roadmap</a>
+        <a class="docs-nav-link" href="#documents" data-doc-link @click="closeSidebar()"><span>16</span> All documents</a>
+        <a class="docs-nav-link" href="#faq" data-doc-link @click="closeSidebar()"><span>17</span> FAQ</a>
+      </div>
+    </nav>
 
-    <section id="architecture"><h2>Architecture</h2><p class="lead">Storix uses a modular, domain-oriented core. Application services depend on contracts; infrastructure adapters integrate provider SDKs and Laravel facilities.</p>
-      <pre><code>Laravel Application / CLI / Optional REST
-                  │
+    <div class="docs-sidebar-footer">
+      <div>Built for Laravel developers.</div>
+      <a href="https://github.com/Shamimwhois/storix" target="_blank" rel="noreferrer">GitHub repository ↗</a>
+    </div>
+  </aside>
+
+  <div class="docs-main">
+    <header class="docs-topbar">
+      <div class="flex items-center gap-3">
+        <button class="docs-menu-button" type="button" @click="sidebarOpen = !sidebarOpen" :aria-expanded="sidebarOpen.toString()" aria-controls="docs-sidebar" aria-label="Toggle navigation">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </button>
+        <div class="docs-crumb">Storix <span class="mx-2 opacity-40">/</span> Documentation</div>
+      </div>
+      <div class="docs-top-actions">
+        <button class="docs-icon-button" type="button" @click="toggleTheme()" :aria-label="lightTheme ? 'Switch to dark theme' : 'Switch to light theme'" title="Toggle theme">
+          <svg x-show="!lightTheme" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"></path></svg>
+          <svg x-show="lightTheme" x-cloak viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z"></path></svg>
+        </button>
+        <a class="docs-top-link" href="../README.md"><span class="label">README</span><span aria-hidden="true">↗</span></a>
+        <a class="docs-top-link" href="https://github.com/Shamimwhois/storix" target="_blank" rel="noreferrer"><span class="label">GitHub</span><span aria-hidden="true">↗</span></a>
+      </div>
+    </header>
+
+    <main class="docs-content">
+      <section id="introduction" class="docs-hero" data-doc-section>
+        <div class="docs-eyebrow">Laravel storage infrastructure</div>
+        <h1>One API.<br>Every Storage.</h1>
+        <p>A unified, driver-based storage and transfer layer for Laravel. Store, retrieve, organize, and move files without coupling your application to a single provider.</p>
+        <div class="docs-hero-actions">
+          <a class="docs-button-primary" href="#quick-start">Explore the guide <span aria-hidden="true">↓</span></a>
+          <a class="docs-button-secondary" href="https://github.com/Shamimwhois/storix" target="_blank" rel="noreferrer">View repository <span aria-hidden="true">↗</span></a>
+        </div>
+      </section>
+
+      <div class="docs-status" role="status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v4m0 4h.01"></path></svg>
+        <div><strong>Project status: engineering specification.</strong> This portal describes planned architecture and capabilities. It does not imply every feature is implemented or production-ready. Check code, tests, and release notes for verified status.</div>
+      </div>
+
+      <div class="docs-stats">
+        <div class="docs-stat"><strong>PHP 8.5+</strong><span>Target runtime</span></div>
+        <div class="docs-stat"><strong>Laravel 13</strong><span>Target framework</span></div>
+        <div class="docs-stat"><strong>14 Epics</strong><span>Implementation roadmap</span></div>
+        <div class="docs-stat"><strong>Driver-based</strong><span>Storage architecture</span></div>
+      </div>
+
+      <section id="quick-start" class="docs-section" data-doc-section>
+        <div class="docs-section-heading"><span class="docs-section-number">01</span><h2>Quick start</h2></div>
+        <p class="docs-lead">Start with the product model, understand the driver boundary, then follow the implementation roadmap. Storix is a backend-only Composer package; it does not ship a dashboard or frontend.</p>
+        <div class="docs-steps">
+          <div class="docs-step"><span class="docs-step-number">1</span><div><strong>Understand the product</strong><p>Read the <a href="01-product-requirements.md">Product Requirements Document</a> for goals, scope, user journeys, and acceptance criteria.</p></div></div>
+          <div class="docs-step"><span class="docs-step-number">2</span><div><strong>Review the architecture</strong><p>Study <a href="02-system-architecture.md">System Architecture</a> and <a href="07-storage-drivers.md">Storage Drivers</a> before changing boundaries.</p></div></div>
+          <div class="docs-step"><span class="docs-step-number">3</span><div><strong>Implement in roadmap order</strong><p>Begin with E01 Foundation: Composer metadata, service provider, configuration, CI, and conventions.</p></div></div>
+          <div class="docs-step"><span class="docs-step-number">4</span><div><strong>Prove behavior with tests</strong><p>Use the <a href="09-testing-strategy.md">Testing Strategy</a> and <a href="13-acceptance-checklist.md">Acceptance Checklist</a>. Documentation alone is not implementation evidence.</p></div></div>
+        </div>
+      </section>
+
+      <section id="why-storix" class="docs-section" data-doc-section>
+        <div class="docs-section-heading"><span class="docs-section-number">02</span><h2>Why Storix?</h2></div>
+        <p class="docs-lead">Storage providers expose different APIs and capabilities. Large transfers introduce interruptions, duplicate requests, rate limits, partial writes, and uncertainty about data integrity. Storix centralizes those concerns behind a consistent Laravel API.</p>
+        <div class="docs-grid">
+          <article class="docs-card"><h3>One stable API</h3><p>Keep application business logic independent from provider-specific SDKs and response objects.</p></article>
+          <article class="docs-card"><h3>Resilient transfers</h3><p>Persist sessions and chunk state so eligible transfers can recover after interruptions.</p></article>
+          <article class="docs-card"><h3>Integrity first</h3><p>Verify chunks and final content with SHA-256 where bytes are available. Never infer success from metadata alone.</p></article>
+          <article class="docs-card"><h3>Laravel native</h3><p>Integrate with the service container, queues, events, migrations, scheduler, cache, and filesystem.</p></article>
+        </div>
+      </section>
+
+      <section id="concepts" class="docs-section" data-doc-section>
+        <div class="docs-section-heading"><span class="docs-section-number">03</span><h2>Core concepts</h2></div>
+        <div class="docs-grid">
+          <article class="docs-card"><h3>Storage driver</h3><p>A provider adapter implementing a provider-neutral contract. Each driver declares its capabilities and operational limits.</p></article>
+          <article class="docs-card"><h3>File metadata</h3><p>Application-facing metadata and opaque identifiers. Physical provider keys stay private to infrastructure.</p></article>
+          <article class="docs-card"><h3>Transfer session</h3><p>A durable workflow tracking intent, state, retries, ownership, and completion evidence.</p></article>
+          <article class="docs-card"><h3>Chunk</h3><p>A bounded part of a transfer with an offset, expected size, state, checksum, and provider reference.</p></article>
+          <article class="docs-card"><h3>Capability model</h3><p>Describes whether a driver supports streaming, range reads, multipart writes, atomic finalize, or pause/resume.</p></article>
+          <article class="docs-card"><h3>Idempotency</h3><p>Allows safe request replay and duplicate detection without crossing tenant or owner boundaries.</p></article>
+        </div>
+      </section>
+
+      <section id="features" class="docs-section" data-doc-section>
+        <div class="docs-section-heading"><span class="docs-section-number">04</span><h2>Feature overview</h2></div>
+        <p class="docs-lead">The following are planned capabilities defined by the current engineering specification.</p>
+        <div class="docs-grid">
+          <article class="docs-card"><h3>File & directory management</h3><p>Put, stream, inspect, list, rename, and delete files/directories through a unified API, subject to driver capabilities.</p><div class="docs-tags"><span class="docs-tag">Storage</span><span class="docs-tag">Metadata</span></div></article>
+          <article class="docs-card"><h3>Chunked transfers</h3><p>Configurable chunk planning, bounded parallelism, chunk checksums, and durable transfer state.</p><div class="docs-tags"><span class="docs-tag">Upload</span><span class="docs-tag">Download</span></div></article>
+          <article class="docs-card"><h3>Resume & recovery</h3><p>Reconcile persisted state, reuse verified chunks within the same security scope, and retry transient failures.</p><div class="docs-tags"><span class="docs-tag">Idempotency</span><span class="docs-tag">Backoff</span></div></article>
+          <article class="docs-card"><h3>Progress & events</h3><p>Bytes, percentage, speed, ETA when measurable, chunk counts, lifecycle events, and structured diagnostics.</p><div class="docs-tags"><span class="docs-tag">Observability</span><span class="docs-tag">Events</span></div></article>
+          <article class="docs-card"><h3>Security & tenancy</h3><p>Owner/tenant scopes, policy hooks, path safety, quotas, secret redaction, and integrity checks.</p><div class="docs-tags"><span class="docs-tag">Authorization</span><span class="docs-tag">Isolation</span></div></article>
+          <article class="docs-card"><h3>Laravel integrations</h3><p>Service provider, config, migrations, facade, queues, scheduler, optional Redis optimizations, and optional REST adapter.</p><div class="docs-tags"><span class="docs-tag">Laravel</span><span class="docs-tag">API</span></div></article>
+        </div>
+      </section>
+
+      <section id="architecture" class="docs-section" data-doc-section>
+        <div class="docs-section-heading"><span class="docs-section-number">05</span><h2>Architecture</h2></div>
+        <p class="docs-lead">Storix uses a modular, domain-oriented core. Application services depend on contracts; infrastructure adapters integrate provider SDKs and Laravel facilities.</p>
+        <pre class="docs-code"><button class="docs-copy" type="button" data-copy-button>Copy</button><code>Laravel Application / CLI / Optional REST
+                  |
            Storix PHP API
-                  │
+                  |
        Application Services + Domain
-          ┌───────┼────────┐
+          +-------+--------+
      Authorization  Metadata DB  Transfer Orchestrator
-                                  │
+                                  |
                             Laravel Queue
-                                  │
+                                  |
                        Chunk + Integrity Engine
-                                  │
+                                  |
                             Driver Manager
-                       ┌──────────┼──────────┐
+                       +----------+----------+
                       Local   Telegram   Future Drivers</code></pre>
-      <p>For detailed sequences and consistency rules, read <a href="02-system-architecture.md">System Architecture</a> and <a href="03-database-design.md">Database Design</a>.</p>
-    </section>
+        <p>For detailed sequences and consistency rules, read <a href="02-system-architecture.md">System Architecture</a> and <a href="03-database-design.md">Database Design</a>.</p>
+      </section>
 
-    <section id="drivers"><h2>Storage drivers</h2><div class="table-wrap"><table><thead><tr><th>Driver</th><th>Purpose</th><th>Scope</th></tr></thead><tbody>
-      <tr><td>Local</td><td>Baseline filesystem-backed storage</td><td>Planned first usable driver</td></tr>
-      <tr><td>Telegram</td><td>Optional remote provider adapter</td><td>Requires current official API/policy validation</td></tr>
-      <tr><td>S3-compatible / R2</td><td>Object storage backends</td><td>Future extensions</td></tr>
-      <tr><td>Custom</td><td>Application/vendor-specific backend</td><td>Via driver contract</td></tr>
-    </tbody></table></div>
-      <p><strong>Important:</strong> Telegram Serverless is explicitly excluded. Storix must not assume Telegram-specific identifiers or behavior in its core domain.</p>
-    </section>
+      <section id="drivers" class="docs-section" data-doc-section>
+        <div class="docs-section-heading"><span class="docs-section-number">06</span><h2>Storage drivers</h2></div>
+        <div class="docs-table-wrap"><table class="docs-table"><thead><tr><th>Driver</th><th>Purpose</th><th>Scope</th></tr></thead><tbody>
+          <tr><td>Local</td><td>Baseline filesystem-backed storage</td><td>Planned first usable driver</td></tr>
+          <tr><td>Telegram</td><td>Optional remote provider adapter</td><td>Requires current official API/policy validation</td></tr>
+          <tr><td>S3-compatible / R2</td><td>Object storage backends</td><td>Future extensions</td></tr>
+          <tr><td>Custom</td><td>Application/vendor-specific backend</td><td>Via driver contract</td></tr>
+        </tbody></table></div>
+        <div class="docs-callout"><strong>Scope boundary:</strong> Telegram Serverless is explicitly excluded. Storix must not assume Telegram-specific identifiers or behavior in its core domain.</div>
+      </section>
 
-    <section id="transfer-lifecycle"><h2>Transfer lifecycle</h2><p>Expected high-level lifecycle:</p><pre><code>pending → preparing → transferring → verifying → completed
-                     │               │
-                     └──── retry_wait┘
+      <section id="transfers" class="docs-section" data-doc-section>
+        <div class="docs-section-heading"><span class="docs-section-number">07</span><h2>Transfer lifecycle</h2></div>
+        <p>Expected high-level lifecycle:</p>
+        <pre class="docs-code"><button class="docs-copy" type="button" data-copy-button>Copy</button><code>pending → preparing → transferring → verifying → completed
+                     |               |
+                     +--- retry_wait-+
+
 Terminal states: failed · cancelled · expired
 Optional state: paused (only where safely supported)</code></pre>
-      <ul><li>Validate authorization, limits, source metadata, and available temporary storage.</li><li>Create or reuse an eligible idempotent session.</li><li>Transfer chunks with bounded concurrency and persist verified progress.</li><li>Reconcile provider state after interruptions and retry only eligible failures.</li><li>Finalize through the driver and verify final integrity before marking complete.</li></ul>
-      <p>See <a href="06-transfer-engine.md">Transfer Engine</a> for protocol and failure handling.</p>
-    </section>
+        <ul class="docs-list">
+          <li>Validate authorization, limits, source metadata, and available temporary storage.</li>
+          <li>Create or reuse an eligible idempotent session.</li>
+          <li>Transfer chunks with bounded concurrency and persist verified progress.</li>
+          <li>Reconcile provider state after interruptions and retry only eligible failures.</li>
+          <li>Finalize through the driver and verify final integrity before marking complete.</li>
+        </ul>
+        <p>See <a href="06-transfer-engine.md">Transfer Engine</a> for protocol and failure handling.</p>
+      </section>
 
-    <section id="security"><h2>Security model</h2><div class="grid">
-      <article class="card"><h3>Authorization by scope</h3><p>Every read, write, list, resume, share, and delete operation must enforce owner and tenant access.</p></article>
-      <article class="card"><h3>Safe object keys</h3><p>Generate opaque keys independently of user filenames; normalize paths and reject traversal.</p></article>
-      <article class="card"><h3>Secrets stay private</h3><p>Never expose provider tokens, signed URLs, private storage references, or raw exception traces.</p></article>
-      <article class="card"><h3>Resource controls</h3><p>Bound file size, chunk size, concurrency, queue attempts, quotas, and temporary disk usage.</p></article>
-    </div><p>Read the complete <a href="08-security-design.md">Security Design</a> before implementing access or sharing features.</p></section>
+      <section id="security" class="docs-section" data-doc-section>
+        <div class="docs-section-heading"><span class="docs-section-number">08</span><h2>Security model</h2></div>
+        <div class="docs-grid">
+          <article class="docs-card"><h3>Authorization by scope</h3><p>Every read, write, list, resume, share, and delete operation must enforce owner and tenant access.</p></article>
+          <article class="docs-card"><h3>Safe object keys</h3><p>Generate opaque keys independently of user filenames; normalize paths and reject traversal.</p></article>
+          <article class="docs-card"><h3>Secrets stay private</h3><p>Never expose provider tokens, signed URLs, private storage references, or raw exception traces.</p></article>
+          <article class="docs-card"><h3>Resource controls</h3><p>Bound file size, chunk size, concurrency, queue attempts, quotas, and temporary disk usage.</p></article>
+        </div>
+        <p>Read the complete <a href="08-security-design.md">Security Design</a> before implementing access or sharing features.</p>
+      </section>
 
-    <section id="installation"><h2>Installation</h2><p>Expected Composer installation after a compatible package release is published:</p><pre><code>composer require shamimstack/storix</code></pre><div class="notice">This is the intended distribution command. Until a tagged release is published, do not assume Packagist installation is available. Use the repository's development setup instructions for active implementation.</div></section>
+      <section id="installation" class="docs-section" data-doc-section>
+        <div class="docs-section-heading"><span class="docs-section-number">09</span><h2>Installation</h2></div>
+        <p>Expected Composer installation after a compatible package release is published:</p>
+        <pre class="docs-code"><button class="docs-copy" type="button" data-copy-button>Copy</button><code>composer require shamimstack/storix</code></pre>
+        <div class="docs-callout">This is the intended distribution command. Until a tagged release is published, do not assume Packagist installation is available. Use the repository's development setup instructions for active implementation.</div>
+      </section>
 
-    <section id="usage"><h2>PHP API direction</h2><p>The intended primary interface is PHP services/facade. The exact signatures and DTOs are subject to implementation and API review.</p><pre><code>use ShamimStack\Storix\Facades\Storix;
+      <section id="api" class="docs-section" data-doc-section>
+        <div class="docs-section-heading"><span class="docs-section-number">10</span><h2>PHP API direction</h2></div>
+        <p>The intended primary interface is PHP services/facade. Exact signatures and DTOs are subject to implementation and API review.</p>
+        <pre class="docs-code"><button class="docs-copy" type="button" data-copy-button>Copy</button><code>use ShamimStack\\Storix\\Facades\\Storix;
 
 $file = Storix::files()->put(
     source: $uploadedFile,
@@ -149,9 +240,14 @@ $transfer = Storix::uploads()->start($source, [
     'idempotency_key' => $requestId,
 ]);
 
-$status = Storix::transfers()->status($transfer->id);</code></pre><p>See <a href="05-core-api-and-rest-api.md">Core PHP API and REST API</a> for suggested routes, response envelopes, and error conventions.</p></section>
+$status = Storix::transfers()->status($transfer->id);</code></pre>
+        <p>See <a href="05-core-api-and-rest-api.md">Core PHP API and REST API</a> for suggested routes, response envelopes, and error conventions.</p>
+      </section>
 
-    <section id="configuration"><h2>Configuration</h2><p>Configuration is expected to cover default driver, driver credentials/settings, chunk policy, concurrency, retry policy, session retention, progress persistence, quotas, and optional REST adapter settings.</p><pre><code>return [
+      <section id="configuration" class="docs-section" data-doc-section>
+        <div class="docs-section-heading"><span class="docs-section-number">11</span><h2>Configuration</h2></div>
+        <p>Configuration is expected to cover default driver, driver credentials/settings, chunk policy, concurrency, retry policy, session retention, progress persistence, quotas, and optional REST adapter settings.</p>
+        <pre class="docs-code"><button class="docs-copy" type="button" data-copy-button>Copy</button><code>return [
     'default_driver' => env('STORIX_DRIVER', 'local'),
     'transfers' => [
         'chunk_size' => 8 * 1024 * 1024,
@@ -162,80 +258,91 @@ $status = Storix::transfers()->status($transfer->id);</code></pre><p>See <a href
         'enabled' => false,
         'prefix' => 'api/v1/storix',
     ],
-];</code></pre><p>Values are illustrative only. See <a href="12-configuration-and-operations.md">Configuration & Operations</a> for the complete example and operational guidance.</p></section>
+];</code></pre>
+        <p>Values are illustrative only. See <a href="12-configuration-and-operations.md">Configuration & Operations</a> for the complete example and operational guidance.</p>
+      </section>
 
-    <section id="operations"><h2>Queues & operations</h2><ul><li>Use Laravel queues for long-running transfers.</li><li>Separate transfer and cleanup workloads when needed.</li><li>Use idempotent jobs, bounded attempts, locks, and worker timeouts aligned with queue retry settings.</li><li>Schedule stale-session recovery and temporary-resource cleanup.</li><li>Log sanitized structured fields such as transfer ID, driver, state, attempt, duration, and error code.</li></ul><p>Redis may improve queue/progress workloads but should not replace durable relational metadata.</p></section>
+      <section id="operations" class="docs-section" data-doc-section>
+        <div class="docs-section-heading"><span class="docs-section-number">12</span><h2>Queues & operations</h2></div>
+        <ul class="docs-list">
+          <li>Use Laravel queues for long-running transfers.</li>
+          <li>Separate transfer and cleanup workloads when needed.</li>
+          <li>Use idempotent jobs, bounded attempts, locks, and worker timeouts aligned with queue retry settings.</li>
+          <li>Schedule stale-session recovery and temporary-resource cleanup.</li>
+          <li>Log sanitized structured fields such as transfer ID, driver, state, attempt, duration, and error code.</li>
+        </ul>
+        <p>Redis may improve queue/progress workloads but should not replace durable relational metadata.</p>
+      </section>
 
-    <section id="testing"><h2>Testing strategy</h2><div class="grid">
-      <article class="card"><h3>Unit tests</h3><p>State machine, chunk planner, fingerprinting, retry policy, DTO validation, and progress math.</p></article>
-      <article class="card"><h3>Driver contract tests</h3><p>Common behavior for stream read/write, stat, delete, capability declarations, and error mapping.</p></article>
-      <article class="card"><h3>Integration tests</h3><p>Laravel container, migrations, queues, events, filesystem, and end-to-end local transfers.</p></article>
-      <article class="card"><h3>Security & performance</h3><p>IDOR, tenant isolation, path traversal, secret redaction, memory bounds, concurrency, and realistic benchmarks.</p></article>
-    </div></section>
+      <section id="testing" class="docs-section" data-doc-section>
+        <div class="docs-section-heading"><span class="docs-section-number">13</span><h2>Testing strategy</h2></div>
+        <div class="docs-grid">
+          <article class="docs-card"><h3>Unit tests</h3><p>State machine, chunk planner, fingerprinting, retry policy, DTO validation, and progress math.</p></article>
+          <article class="docs-card"><h3>Driver contract tests</h3><p>Common behavior for stream read/write, stat, delete, capability declarations, and error mapping.</p></article>
+          <article class="docs-card"><h3>Integration tests</h3><p>Laravel container, migrations, queues, events, filesystem, and end-to-end local transfers.</p></article>
+          <article class="docs-card"><h3>Security & performance</h3><p>IDOR, tenant isolation, path traversal, secret redaction, memory bounds, concurrency, and realistic benchmarks.</p></article>
+        </div>
+      </section>
 
-    <section id="roadmap"><h2>Implementation roadmap</h2><div class="table-wrap"><table><thead><tr><th>Epic</th><th>Scope</th></tr></thead><tbody>
-      <tr><td>E01</td><td>Foundation — Composer, provider, config, CI</td></tr><tr><td>E02</td><td>Contracts & PHP API</td></tr><tr><td>E03</td><td>Persistence & state machine</td></tr><tr><td>E04</td><td>Local storage driver</td></tr><tr><td>E05</td><td>Basic upload</td></tr><tr><td>E06</td><td>Chunk engine</td></tr><tr><td>E07</td><td>Resume & idempotency</td></tr><tr><td>E08</td><td>Recovery & retry</td></tr><tr><td>E09</td><td>Download engine</td></tr><tr><td>E10</td><td>Progress & events</td></tr><tr><td>E11</td><td>Performance & benchmarks</td></tr><tr><td>E12</td><td>Optional Telegram driver after validation</td></tr><tr><td>E13</td><td>Optional REST adapter & security hardening</td></tr><tr><td>E14</td><td>Release & operations</td></tr>
-    </tbody></table></div><p>Implement sequentially. Do not begin provider-specific work before core contracts and transfer state are stable. See <a href="10-implementation-roadmap.md">full roadmap</a>.</p></section>
+      <section id="roadmap" class="docs-section" data-doc-section>
+        <div class="docs-section-heading"><span class="docs-section-number">14</span><h2>Implementation roadmap</h2></div>
+        <div class="docs-table-wrap"><table class="docs-table"><thead><tr><th>Epic</th><th>Scope</th></tr></thead><tbody>
+          <tr><td>E01</td><td>Foundation — Composer, provider, config, CI</td></tr>
+          <tr><td>E02</td><td>Contracts & PHP API</td></tr>
+          <tr><td>E03</td><td>Persistence & state machine</td></tr>
+          <tr><td>E04</td><td>Local storage driver</td></tr>
+          <tr><td>E05</td><td>Basic upload</td></tr>
+          <tr><td>E06</td><td>Chunk engine</td></tr>
+          <tr><td>E07</td><td>Resume & idempotency</td></tr>
+          <tr><td>E08</td><td>Recovery & retry</td></tr>
+          <tr><td>E09</td><td>Download engine</td></tr>
+          <tr><td>E10</td><td>Progress & events</td></tr>
+          <tr><td>E11</td><td>Performance & benchmarks</td></tr>
+          <tr><td>E12</td><td>Optional Telegram driver after validation</td></tr>
+          <tr><td>E13</td><td>Optional REST adapter & security hardening</td></tr>
+          <tr><td>E14</td><td>Release & operations</td></tr>
+        </tbody></table></div>
+        <p>Implement sequentially. Do not begin provider-specific work before core contracts and transfer state are stable. See the <a href="10-implementation-roadmap.md">full roadmap</a>.</p>
+      </section>
 
-    <section id="decisions"><h2>Design decisions</h2><ul><li>Backend-only package; no bundled frontend.</li><li>PHP 8.5+ and Laravel 13.x are current targets.</li><li>PHP services/facade are primary; REST is optional.</li><li>Driver-based storage; core remains provider-neutral.</li><li>Telegram Serverless is out of scope.</li><li>Redis is optional; durable metadata belongs in the database.</li><li>Provider limits must be verified against current official documentation.</li></ul><p>Unresolved product decisions are tracked in <a href="DECISIONS.md">DECISIONS.md</a>; do not silently make scope decisions during implementation.</p></section>
+      <section id="documents" class="docs-section" data-doc-section>
+        <div class="docs-section-heading"><span class="docs-section-number">15</span><h2>Documentation library</h2></div>
+        <p class="docs-lead">Each document is the detailed source of truth for its subject.</p>
+        <div class="docs-doc-list">
+          <a class="docs-doc-link" href="01-product-requirements.md">01 · Product Requirements<small>Goals, scope, user journeys, acceptance criteria</small></a>
+          <a class="docs-doc-link" href="02-system-architecture.md">02 · System Architecture<small>Layers, data flow, consistency, failure recovery</small></a>
+          <a class="docs-doc-link" href="03-database-design.md">03 · Database Design<small>Tables, indexes, relationships, state models</small></a>
+          <a class="docs-doc-link" href="04-package-structure.md">04 · Package Structure<small>Composer tree and class responsibilities</small></a>
+          <a class="docs-doc-link" href="05-core-api-and-rest-api.md">05 · Core API & REST<small>PHP API, routes, response and error contracts</small></a>
+          <a class="docs-doc-link" href="06-transfer-engine.md">06 · Transfer Engine<small>Chunking, resume, retry, progress, downloads</small></a>
+          <a class="docs-doc-link" href="07-storage-drivers.md">07 · Storage Drivers<small>Driver contracts and provider capabilities</small></a>
+          <a class="docs-doc-link" href="08-security-design.md">08 · Security Design<small>Threat model, tenant isolation, secrets</small></a>
+          <a class="docs-doc-link" href="09-testing-strategy.md">09 · Testing Strategy<small>Unit, integration, contract, security, performance</small></a>
+          <a class="docs-doc-link" href="10-implementation-roadmap.md">10 · Implementation Roadmap<small>Fourteen epics and dependencies</small></a>
+          <a class="docs-doc-link" href="11-ai-coding-instructions.md">11 · AI Coding Instructions<small>Implementation workflow and agent constraints</small></a>
+          <a class="docs-doc-link" href="12-configuration-and-operations.md">12 · Configuration & Operations<small>Config, queues, scheduler, troubleshooting</small></a>
+          <a class="docs-doc-link" href="13-acceptance-checklist.md">13 · Acceptance Checklist<small>Evidence-based release gates</small></a>
+          <a class="docs-doc-link" href="DECISIONS.md">Architecture Decisions<small>Confirmed and pending decisions</small></a>
+        </div>
+      </section>
 
-    <section id="documentation"><h2>Documentation library</h2><p>Each document is the detailed source of truth for its subject.</p><div class="doc-list">
-      <a href="01-product-requirements.md">01 · Product Requirements<small>Goals, scope, user journeys, acceptance criteria</small></a>
-      <a href="02-system-architecture.md">02 · System Architecture<small>Layers, data flow, consistency, failure recovery</small></a>
-      <a href="03-database-design.md">03 · Database Design<small>Tables, indexes, relationships, state models</small></a>
-      <a href="04-package-structure.md">04 · Package Structure<small>Composer tree and class responsibilities</small></a>
-      <a href="05-core-api-and-rest-api.md">05 · Core API & REST<small>PHP API, routes, response and error contracts</small></a>
-      <a href="06-transfer-engine.md">06 · Transfer Engine<small>Chunking, resume, retry, progress, downloads</small></a>
-      <a href="07-storage-drivers.md">07 · Storage Drivers<small>Driver contracts and provider capabilities</small></a>
-      <a href="08-security-design.md">08 · Security Design<small>Threat model, tenant isolation, secrets</small></a>
-      <a href="09-testing-strategy.md">09 · Testing Strategy<small>Unit, integration, contract, security, performance</small></a>
-      <a href="10-implementation-roadmap.md">10 · Implementation Roadmap<small>Fourteen epics and dependencies</small></a>
-      <a href="11-ai-coding-instructions.md">11 · AI Coding Instructions<small>Implementation workflow and agent constraints</small></a>
-      <a href="12-configuration-and-operations.md">12 · Configuration & Operations<small>Config, queues, scheduler, troubleshooting</small></a>
-      <a href="13-acceptance-checklist.md">13 · Acceptance Checklist<small>Evidence-based release gates</small></a>
-      <a href="DECISIONS.md">Architecture Decisions<small>Confirmed and pending decisions</small></a>
-    </div></section>
+      <section id="faq" class="docs-section" data-doc-section>
+        <div class="docs-section-heading"><span class="docs-section-number">16</span><h2>Frequently asked questions</h2></div>
+        <h3>Does Storix include a frontend or dashboard?</h3><p>No. It is a backend-only package. Applications can build their own UI using the PHP API, events, or optional REST adapter.</p>
+        <h3>Is Telegram required?</h3><p>No. Telegram is an optional driver. The core architecture is provider-neutral, and Telegram Serverless is excluded.</p>
+        <h3>Does every driver support pause, resume, and range downloads?</h3><p>No. These behaviors depend on driver capabilities and execution mode. Storix must expose support explicitly instead of promising identical behavior for every provider.</p>
+        <h3>Are all features implemented now?</h3><p>No. This documentation describes the intended design and roadmap. Consult repository code, tests, and release notes for verified implementation status.</p>
+        <h3>When is a transfer considered successful?</h3><p>Only after the driver finalizes the object and the required integrity verification succeeds.</p>
+      </section>
 
-    <section id="faq"><h2>Frequently asked questions</h2>
-      <h3>Does Storix include a frontend or dashboard?</h3><p>No. It is a backend-only package. Applications can build their own UI using the PHP API, events, or optional REST adapter.</p>
-      <h3>Is Telegram required?</h3><p>No. Telegram is an optional driver. The core architecture is provider-neutral, and Telegram Serverless is excluded.</p>
-      <h3>Does every driver support pause, resume, and range downloads?</h3><p>No. These behaviors depend on driver capabilities and execution mode. Storix must expose support explicitly instead of promising identical behavior for every provider.</p>
-      <h3>Are all features implemented now?</h3><p>No. This documentation describes the intended design and roadmap. Consult repository code, tests, and release notes for verified implementation status.</p>
-      <h3>When is a transfer considered successful?</h3><p>Only after the driver finalizes the object and the required integrity verification succeeds.</p>
-    </section>
-    <div class="footer">Storix Documentation · One API. Every Storage. · <a href="https://github.com/Shamimwhois/storix">GitHub repository</a><br>Engineering specification — feature availability is determined by implementation and verified tests.</div>
-  </main>
-</div>
-<script>
-(() => {
-  const sidebar=document.getElementById('sidebar');
-  const overlay=document.getElementById('overlay');
-  const menu=document.getElementById('menu');
-  const close=()=>{sidebar.classList.remove('open');overlay.classList.remove('show')};
-  menu.addEventListener('click',()=>{sidebar.classList.toggle('open');overlay.classList.toggle('show')});
-  overlay.addEventListener('click',close);
-  document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',()=>{document.querySelectorAll('.nav a').forEach(x=>x.classList.remove('active'));a.classList.add('active');close()}));
-  const search=document.getElementById('search');
-  search.addEventListener('input',()=>{
-    const q=search.value.trim().toLowerCase();
-    document.querySelectorAll('.nav a').forEach(a=>{a.style.display=(!q||a.textContent.toLowerCase().includes(q))?'block':'none'});
-    document.querySelectorAll('main section').forEach(s=>{
-      const match=!q||s.innerText.toLowerCase().includes(q);
-      s.style.display=match?'':'none';
-    });
-    const hero=document.querySelector('.hero');
-    hero.style.display=(!q||hero.innerText.toLowerCase().includes(q))?'':'none';
-  });
-  const sections=[...document.querySelectorAll('main section[id]')];
-  const observer=new IntersectionObserver(entries=>{
-    entries.forEach(entry=>{
-      if(entry.isIntersecting){
-        document.querySelectorAll('.nav a').forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+entry.target.id));
-      }
-    });
-  },{rootMargin:'-18% 0px -72% 0px'});
-  sections.forEach(s=>observer.observe(s));
-})();
-</script>
+      <footer class="docs-footer">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <span>Storix Documentation · One API. Every Storage.</span>
+          <a href="https://github.com/Shamimwhois/storix" target="_blank" rel="noreferrer">Open on GitHub ↗</a>
+        </div>
+        <p>Engineering specification — feature availability is determined by implementation and verified tests.</p>
+      </footer>
+    </main>
+  </div>
 </body>
 </html>
