@@ -36,6 +36,7 @@ final class Transfer extends Model
         'average_bytes_per_second',
         'eta_seconds',
         'idempotency_key',
+        'idempotency_scope',
         'fingerprint',
         'attempts',
         'max_attempts',
