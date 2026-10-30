@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace ShamimStack\Storix\Tests\Unit;
 
 use Illuminate\Support\Collection;
-use ShamimStack\Storix\Tests\TestCase;
+use PHPUnit\Framework\TestCase;
 use ShamimStack\Storix\DTOs\ChunkDescriptor;
 use ShamimStack\Storix\Enums\ChunkState;
 use ShamimStack\Storix\Exceptions\UploadIntegrityException;
@@ -41,7 +41,7 @@ final class ChunkReconcilerTest extends TestCase
     public function test_it_does_not_reuse_chunks_without_a_verified_timestamp(): void
     {
         $chunk = $this->chunk(0, 0, 4, hash('sha256', 'data'), ChunkState::VERIFIED);
-        $chunk->verified_at = null;
+        $chunk->setRawAttributes(array_merge($chunk->getAttributes(), ['verified_at' => null]), true);
 
         $result = (new ChunkReconciler)->reconcile(
             [new ChunkDescriptor(0, 0, 4)],
@@ -86,14 +86,14 @@ final class ChunkReconcilerTest extends TestCase
         ChunkState $state,
     ): Chunk {
         $chunk = new Chunk;
-        $chunk->forceFill([
+        $chunk->setRawAttributes([
             'chunk_index' => $index,
             'offset_bytes' => $offset,
             'size_bytes' => $size,
             'sha256' => $sha256,
-            'state' => $state,
-            'verified_at' => now(),
-        ]);
+            'state' => $state->value,
+            'verified_at' => '2026-10-31 00:00:00',
+        ], true);
 
         return $chunk;
     }
