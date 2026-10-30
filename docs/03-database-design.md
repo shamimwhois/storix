@@ -2,7 +2,7 @@
 
 ## 1. Principles
 
-Use UUID/ULID public identifiers; never expose sequential database IDs. Store sizes as unsigned big integers. Store timestamps in UTC. Add `tenant_id` and `owner_id` where the host application's identity model is available. Avoid storing credentials or encryption keys in plaintext.
+Use UUID primary keys consistently for Storix-owned records; never expose sequential database IDs. E03 does not mix UUID and ULID. Store sizes as unsigned big integers. Store timestamps in UTC. Add nullable `tenant_id` and `owner_id` scope identifiers without foreign keys to host-application identity tables. Avoid storing credentials or encryption keys in plaintext.
 
 ## 2. Tables
 
@@ -21,7 +21,7 @@ Use UUID/ULID public identifiers; never expose sequential database IDs. Store si
 ### `storix_files`
 - `id` UUID/ULID primary key
 - `tenant_id`, `owner_id`, `directory_id` nullable FK
-- `disk`/`driver` varchar(64)
+- `driver` varchar(64)
 - `name`, `original_name`, `extension`, `mime_type`
 - `size_bytes` unsigned bigint
 - `sha256` char(64), nullable until verified
@@ -62,7 +62,7 @@ Use UUID/ULID public identifiers; never expose sequential database IDs. Store si
 - timestamps
 - unique `(transfer_id, chunk_index)`; index `(transfer_id, state)`.
 
-### `storix_share_links` (optional module)
+### `storix_share_links` (deferred optional module)
 - `id` UUID/ULID
 - `file_id` FK
 - `token_hash` char(64), unique
@@ -72,7 +72,7 @@ Use UUID/ULID public identifiers; never expose sequential database IDs. Store si
 - timestamps
 Store only a hash of the share token; return the raw token once at creation.
 
-### `storix_transfer_events` (optional audit/history)
+### `storix_transfer_events` (deferred optional audit/history)
 - `id`, `transfer_id`, `event_type`, `payload` JSON, `occurred_at`
 - index `(transfer_id, occurred_at)`.
 
@@ -97,7 +97,8 @@ A transfer may become `completed` only from `verifying`. A terminal transfer can
 - Add foreign keys and cascade behavior deliberately; prefer restrictive deletes for audit-sensitive records.
 - Use composite indexes matching actual query filters.
 - JSON columns are for non-critical extensible metadata, not core query fields.
-- Test migrations on each supported database engine declared by the package.
+- E03 initially validates SQLite through Testbench; do not claim MySQL/PostgreSQL support until those engines are included in CI.
+- See [E03 Persistence specification](16-e03-persistence.md) for the implementation-ready schema, repository boundaries, and state machine.
 - If cross-database partial unique indexes differ, enforce idempotency in a transaction with a unique key strategy compatible with the supported engines.
 
 
