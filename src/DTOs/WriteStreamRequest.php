@@ -24,7 +24,7 @@ final readonly class WriteStreamRequest
             throw new InvalidArgumentException('Storage key must be a non-empty string without null bytes.');
         }
 
-        if (! is_resource($this->stream) || get_resource_type($this->stream) !== 'stream') {
+        if (is_resource($this->stream) === false || get_resource_type($this->stream) !== 'stream') {
             throw new InvalidArgumentException('The write source must be a valid stream resource.');
         }
     }
