@@ -192,6 +192,43 @@ final class UploadManagerTest extends TestCase
         }
     }
 
+    public function test_it_replays_a_completed_upload_before_applying_a_changed_chunk_plan(): void
+    {
+        config(['storix.transfers.chunk_size' => 4]);
+        $firstStream = $this->stream('same-payload');
+        $retryStream = $this->stream('same-payload');
+
+        try {
+            $first = Storix::uploads()->upload(new UploadRequest(
+                stream: $firstStream,
+                originalName: 'same.txt',
+                ownerId: 'owner-a',
+                idempotencyKey: 'chunk-plan-replay',
+            ));
+
+            self::assertSame(3, $first->transfer->total_chunks);
+
+            config(['storix.transfers.chunk_size' => 1]);
+
+            $retry = Storix::uploads()->upload(new UploadRequest(
+                stream: $retryStream,
+                originalName: 'same.txt',
+                ownerId: 'owner-a',
+                idempotencyKey: 'chunk-plan-replay',
+            ));
+
+            self::assertTrue($retry->replayed);
+            self::assertSame($first->file->id, $retry->file->id);
+            self::assertSame($first->transfer->id, $retry->transfer->id);
+            self::assertSame(3, $retry->transfer->total_chunks);
+            self::assertSame(1, Transfer::query()->count());
+            self::assertSame(1, StoredFile::query()->count());
+        } finally {
+            fclose($firstStream);
+            fclose($retryStream);
+        }
+    }
+
     public function test_it_rejects_reusing_an_idempotency_key_for_different_content(): void
     {
         $firstStream = $this->stream('first');
