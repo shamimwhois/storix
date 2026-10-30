@@ -16,7 +16,7 @@ Storix is an **API-first, backend-only Laravel package** designed to give applic
 
 Instead of coupling application code to a single provider, Storix places a stable PHP API over a capability-aware driver system. Its engineering design covers streaming I/O, large-file chunking, resumable transfers, retries, integrity verification, transfer observability, and tenant-aware access control.
 
-> **Project status:** E01 Foundation, E02 Contracts & API, and E03 Persistence are merged into `main`. The persistence layer includes four migrations, UUID-backed models, scoped repositories, idempotency constraints, and a guarded transfer state machine. Storix is not yet a usable storage engine or production release; concrete drivers, upload/download execution, chunk transmission, retries, and recovery remain on the roadmap.
+> **Project status:** E01 Foundation, E02 Contracts & API, and E03 Persistence are merged into `main`. E04 Local Driver is in progress on `feature/e04-local-driver`: it adds the first filesystem adapter, bounded stream I/O, safe storage keys, and directory operations, pending CI and review. A complete upload workflow still requires E05; chunked/resumable transfers and recovery remain later epics. Storix is not yet a production release.
 
 ## At a glance
 
@@ -180,7 +180,7 @@ $status = Storix::transfers()->status($transfer->id);
 
 | Driver | Role | Status / boundary |
 |---|---|---|
-| Local | Baseline filesystem-backed storage | Planned first usable driver |
+| Local | Baseline filesystem-backed storage | E04 implementation in progress; CI/review/merge pending |
 | Telegram | Optional remote storage integration | Planned; must revalidate official API limits, policy, and deployment constraints |
 | S3-compatible | Object storage integration | Future extension |
 | Cloudflare R2 | S3-compatible backend candidate | Future extension |
@@ -239,6 +239,7 @@ The documentation portal is available at **[docs/index.html](docs/index.html)**.
 | [Architecture decisions](docs/DECISIONS.md) | Confirmed decisions and unresolved engineering choices |
 | [E02 Contracts & API](docs/15-e02-contracts-and-api.md) | Public driver contract, DTOs, capabilities, exceptions, registration, facade, and acceptance criteria |
 | [E03 Persistence](docs/16-e03-persistence.md) | Database schema, Eloquent models, repositories, UUID policy, and transfer state machine |
+| [E04 Local Storage Driver](docs/17-e04-local-driver.md) | Local streaming I/O, safe keys, range reads, metadata, and directories |
 
 ## Implementation roadmap
 
@@ -247,7 +248,7 @@ Implementation is staged to reduce architectural risk:
 1. **E01 — Foundation:** Composer metadata, service provider, configuration, CI, and package conventions.
 2. **E02 — Contracts and API:** typed DTOs, exceptions, driver contracts, facade, and service bindings.
 3. **E03 — Persistence:** migrations, models, repositories, and transfer state machine.
-4. **E04 — Local driver:** safe stream-based local storage.
+4. **E04 — Local driver:** safe stream-based local storage (in progress on `feature/e04-local-driver`).
 5. **E05 — Basic upload:** validation, upload records, finalization, and checksum.
 6. **E06 — Chunk engine:** deterministic chunk planning and bounded concurrency.
 7. **E07 — Resume and idempotency:** fingerprinting and safe reconciliation.
