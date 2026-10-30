@@ -28,6 +28,25 @@ final class PersistenceSchemaTest extends TestCase
         self::assertTrue(Schema::hasTable('storix_chunks'));
     }
 
+    public function test_migrations_can_be_rolled_back_in_reverse_dependency_order(): void
+    {
+        $migrationPaths = [
+            dirname(__DIR__, 2).'/database/migrations/2026_10_30_000001_create_storix_directories_table.php',
+            dirname(__DIR__, 2).'/database/migrations/2026_10_30_000002_create_storix_files_table.php',
+            dirname(__DIR__, 2).'/database/migrations/2026_10_30_000003_create_storix_transfers_table.php',
+            dirname(__DIR__, 2).'/database/migrations/2026_10_30_000004_create_storix_chunks_table.php',
+        ];
+
+        foreach (array_reverse($migrationPaths) as $migrationPath) {
+            (require $migrationPath)->down();
+        }
+
+        self::assertFalse(Schema::hasTable('storix_chunks'));
+        self::assertFalse(Schema::hasTable('storix_transfers'));
+        self::assertFalse(Schema::hasTable('storix_files'));
+        self::assertFalse(Schema::hasTable('storix_directories'));
+    }
+
     public function test_package_repository_contracts_are_bound(): void
     {
         self::assertInstanceOf(
