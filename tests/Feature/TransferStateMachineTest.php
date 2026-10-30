@@ -53,12 +53,58 @@ final class TransferStateMachineTest extends TestCase
         $this->app->make(TransferStateMachine::class)->transition($transfer, TransferState::COMPLETED);
     }
 
-    private function makeTransfer(): Transfer
+    public function test_every_documented_transition_is_allowed(): void
+    {
+        $transitions = [
+            [TransferState::PENDING, TransferState::PREPARING],
+            [TransferState::PENDING, TransferState::CANCELLED],
+            [TransferState::PENDING, TransferState::EXPIRED],
+            [TransferState::PENDING, TransferState::FAILED],
+            [TransferState::PREPARING, TransferState::TRANSFERRING],
+            [TransferState::PREPARING, TransferState::RETRY_WAIT],
+            [TransferState::PREPARING, TransferState::PAUSED],
+            [TransferState::PREPARING, TransferState::FAILED],
+            [TransferState::PREPARING, TransferState::CANCELLED],
+            [TransferState::PREPARING, TransferState::EXPIRED],
+            [TransferState::TRANSFERRING, TransferState::VERIFYING],
+            [TransferState::TRANSFERRING, TransferState::RETRY_WAIT],
+            [TransferState::TRANSFERRING, TransferState::PAUSED],
+            [TransferState::TRANSFERRING, TransferState::FAILED],
+            [TransferState::TRANSFERRING, TransferState::CANCELLED],
+            [TransferState::RETRY_WAIT, TransferState::PREPARING],
+            [TransferState::RETRY_WAIT, TransferState::TRANSFERRING],
+            [TransferState::RETRY_WAIT, TransferState::FAILED],
+            [TransferState::RETRY_WAIT, TransferState::CANCELLED],
+            [TransferState::RETRY_WAIT, TransferState::EXPIRED],
+            [TransferState::PAUSED, TransferState::PREPARING],
+            [TransferState::PAUSED, TransferState::TRANSFERRING],
+            [TransferState::PAUSED, TransferState::CANCELLED],
+            [TransferState::PAUSED, TransferState::EXPIRED],
+            [TransferState::VERIFYING, TransferState::COMPLETED],
+            [TransferState::VERIFYING, TransferState::RETRY_WAIT],
+            [TransferState::VERIFYING, TransferState::FAILED],
+        ];
+
+        $machine = $this->app->make(TransferStateMachine::class);
+
+        foreach ($transitions as [$from, $to]) {
+            $transfer = $this->makeTransfer($from);
+            $result = $machine->transition($transfer, $to);
+
+            self::assertSame($to, $result->state, sprintf(
+                'Expected transition [%s] -> [%s] to be allowed.',
+                $from->value,
+                $to->value,
+            ));
+        }
+    }
+
+    private function makeTransfer(TransferState $state = TransferState::PENDING): Transfer
     {
         return Transfer::query()->create([
             'direction' => TransferDirection::UPLOAD,
             'driver' => 'local',
-            'state' => TransferState::PENDING,
+            'state' => $state,
             'total_bytes' => 100,
         ]);
     }
