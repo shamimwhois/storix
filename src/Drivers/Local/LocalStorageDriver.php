@@ -422,7 +422,7 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
                 continue;
             }
 
-            if (!$isLast && $createParents) {
+            if ($isLast === false && $createParents) {
                 if (@mkdir($path, 0770) === false && is_dir($path) === false) {
                     throw new StorageOperationFailedException('create_directory');
                 }
