@@ -20,12 +20,18 @@ final class EloquentStoredFileRepository implements StoredFileRepository
         return $this->applyScope(StoredFile::query(), $tenantId, $ownerId)->find($id);
     }
 
-    public function findByFingerprint(string $sha256, int $sizeBytes, ?string $tenantId, ?string $ownerId): ?StoredFile
+    public function findByFingerprint(string $sha256, int $sizeBytes, string $driver, ?string $directoryId, ?string $tenantId, ?string $ownerId): ?StoredFile
     {
-        return $this->applyScope(StoredFile::query(), $tenantId, $ownerId)
-            ->where('sha256', $sha256)
+        $query = $this->applyScope(StoredFile::query(), $tenantId, $ownerId)
+            ->where('sha256', strtolower($sha256))
             ->where('size_bytes', $sizeBytes)
-            ->first();
+            ->where('driver', $driver);
+
+        $directoryId === null
+            ? $query->whereNull('directory_id')
+            : $query->where('directory_id', $directoryId);
+
+        return $query->first();
     }
 
     public function save(StoredFile $file): StoredFile
