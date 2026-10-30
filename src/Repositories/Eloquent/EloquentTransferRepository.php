@@ -85,7 +85,6 @@ final class EloquentTransferRepository implements TransferRepository
                 TransferState::TRANSFERRING->value,
                 TransferState::PAUSED->value,
                 TransferState::RETRY_WAIT->value,
-                TransferState::VERIFYING->value,
             ])
             ->where(function (Builder $query) use ($now): void {
                 $query->whereNull('resume_lease_expires_at')
