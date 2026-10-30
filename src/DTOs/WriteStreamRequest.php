@@ -7,12 +7,10 @@ namespace ShamimStack\Storix\DTOs;
 use InvalidArgumentException;
 use ShamimStack\Storix\Enums\ObjectVisibility;
 
+/** @property array<string, scalar|null> $metadata */
 final readonly class WriteStreamRequest
 {
-    /**
-     * @param  resource                    $stream
-     * @param  array<string, scalar|null>  $metadata
-     */
+    /** @param resource $stream */
     public function __construct(
         public string $key,
         public mixed $stream,
