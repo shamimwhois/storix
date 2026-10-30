@@ -14,8 +14,12 @@ All notable changes to Storix are documented in this file.
 - E02 stable error codes and typed package exceptions.
 - E02 driver registry/manager, injectable Storix manager, and facade.
 - Unit and feature tests for capabilities, driver resolution, and facade bindings.
+- E03 reversible migrations for directories, files, transfers, and chunks.
+- E03 UUID-backed Eloquent models, relationships, and scoped repository contracts/implementations.
+- E03 normalized idempotency scope and transfer state machine with guarded transitions.
+- E03 persistence schema, repository, and state-transition feature tests.
 
 ### Scope
 - E02 defines the contracts and public driver-resolution API only.
-- No concrete storage driver, persistence layer, upload engine, chunk orchestration,
-  retry worker, or Telegram integration is implemented by E02.
+- E03 adds durable metadata persistence; it does not implement storage byte I/O, a concrete driver,
+  upload/download orchestration, chunk transmission, retry workers, or Telegram integration.
