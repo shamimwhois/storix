@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace ShamimStack\\Storix\\Models;
+namespace ShamimStack\Storix\Models;
 
-use Illuminate\\Database\\Eloquent\\Concerns\\HasUuids;
-use Illuminate\\Database\\Eloquent\\Model;
-use Illuminate\\Database\\Eloquent\\Relations\\BelongsTo;
-use Illuminate\\Database\\Eloquent\\Relations\\HasMany;
-use ShamimStack\\Storix\\Enums\\TransferDirection;
-use ShamimStack\\Storix\\Enums\\TransferState;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use ShamimStack\Storix\Enums\TransferDirection;
+use ShamimStack\Storix\Enums\TransferState;
 
 final class Transfer extends Model
 {
