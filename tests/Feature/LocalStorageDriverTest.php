@@ -240,6 +240,9 @@ final class LocalStorageDriverTest extends TestCase
             'reserved/CON',
             'reserved/CON.txt',
             'reserved/NUL.log',
+            'reserved/COM¹',
+            'reserved/COM².txt',
+            'reserved/LPT³.log',
             '.storix-tmp-private/object.bin',
         ] as $key) {
             try {
