@@ -346,8 +346,8 @@ final class UploadManagerTest extends TestCase
             'fingerprint' => $fingerprint,
             'idempotency_key' => $idempotencyKey,
             'attempts' => 1,
-            'max_attempts' => 1,
-            'multipart_upload_id' => $uploadId,
+            'max_attempts' => 5,
+            'multipart_upload_id => $uploadId,
             'multipart_started_at' => now(),
         ]);
 
