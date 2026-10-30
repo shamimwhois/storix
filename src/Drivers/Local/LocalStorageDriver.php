@@ -103,13 +103,13 @@ final class LocalStorageDriver implements StorageDriver, DirectoryDriver
                 $bytesWritten += strlen($chunk);
             }
 
-            if (@fflush($destination) === false || @fclose($destination) === false) {
-                $destination = null;
+            $flushed = @fflush($destination);
+            $closed = @fclose($destination);
+            $destination = null;
 
+            if ($flushed === false || $closed === false) {
                 throw new StorageOperationFailedException('write');
             }
-
-            $destination = null;
 
             if (is_link($path) || @rename($temporaryPath, $path) === false) {
                 throw new StorageOperationFailedException('write');
