@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace ShamimStack\Storix\Exceptions;
 
-use Throwable;
 use ShamimStack\Storix\Enums\StorixErrorCode;
+use Throwable;
 
 final class StorageOperationFailedException extends StorixException
 {
