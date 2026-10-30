@@ -205,10 +205,10 @@ final class UploadManagerTest extends TestCase
             fn (string $transferId) => $chunkRepository->deleteForTransfer($transferId),
         );
         $failingRepository->method('forTransfer')->willThrowException(
-            new \\RuntimeException('Simulated chunk persistence failure.'),
+            new \RuntimeException('Simulated chunk persistence failure.'),
         );
         $this->app->instance(
-            \\ShamimStack\\Storix\\Contracts\\Repositories\\ChunkRepository::class,
+            \ShamimStack\Storix\Contracts\Repositories\ChunkRepository::class,
             $failingRepository,
         );
 
