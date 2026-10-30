@@ -42,6 +42,7 @@ final class Directory extends Model
                 throw new InvalidArgumentException('Directory name must be a non-empty string.');
             }
 
+            $directory->name = $name;
             $directory->scope_hash = hash('sha256', json_encode([
                 $directory->tenant_id,
                 $directory->owner_id,
