@@ -121,7 +121,7 @@ final class UploadManager
                 'fingerprint' => $fingerprint,
                 'idempotency_key' => $request->idempotencyKey,
                 'attempts' => 0,
-                'max_attempts' => 1,
+                'max_attempts' => max(1, (int) $this->config->get('storix.transfers.max_attempts', 5)),
             ]);
 
             if ($transfer->wasRecentlyCreated === false) {
