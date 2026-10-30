@@ -20,8 +20,11 @@ All notable changes to Storix are documented in this file.
 - E03 scoped child-directory lookups, case-insensitive directory uniqueness, and host-compatible tenant/owner identifier storage.
 - E03 repository guards prevent direct state-machine bypasses and normalize idempotency keys on both transfer creation paths.
 - E03 persistence schema, repository, and state-transition feature tests.
+- E04 LocalStorageDriver with bounded stream writes, SHA-256 calculation, safe keys, and same-directory temporary-file finalization.
+- E04 full/range reads, object metadata, idempotent deletion, and optional directory operations.
+- E04 filesystem adapter tests for binary data, path traversal, symlink handling, and directory lifecycle.
 
 ### Scope
 - E02 defines the contracts and public driver-resolution API only.
-- E03 adds durable metadata persistence; it does not implement storage byte I/O, a concrete driver,
-  upload/download orchestration, chunk transmission, retry workers, or Telegram integration.
+- E03 adds durable metadata persistence; it does not implement upload/download orchestration, chunk transmission, retry workers, or Telegram integration.
+- E04 adds concrete local filesystem I/O only; upload sessions, chunk orchestration, retry/recovery, and remote providers remain later epics.
