@@ -8,7 +8,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
-use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
 use ShamimStack\Storix\Contracts\StorageDriver;
 use ShamimStack\Storix\DTOs\DriverCapabilities;
 use ShamimStack\Storix\DTOs\ReadStreamRequest;

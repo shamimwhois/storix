@@ -22,6 +22,7 @@ use ShamimStack\Storix\DTOs\UploadResult;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
 use ShamimStack\Storix\Enums\StorixErrorCode;
 use ShamimStack\Storix\Enums\TransferDirection;
+use ShamimStack\Storix\Enums\ObjectVisibility;
 use ShamimStack\Storix\Enums\TransferState;
 use ShamimStack\Storix\Exceptions\IdempotencyConflictException;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
@@ -55,11 +56,17 @@ final class UploadManager
         $driver = $this->drivers->driver($request->driver);
         $driverName = $driver->name();
 
-        if ($driver->capabilities()->supportsStreaming === false) {
+        $capabilities = $driver->capabilities();
+
+        if ($capabilities->supportsStreaming === false) {
             throw new UnsupportedCapabilityException('streaming', $driverName);
         }
 
-        $staged = $this->stage($request);
+        if ($request->visibility !== ObjectVisibility::PRIVATE) {
+            throw new UploadValidationException('Only private uploads are supported by E05.');
+        }
+
+        $staged = $this->stage($request, $capabilities->maxObjectSizeBytes);
         $transfer = null;
         $file = null;
         $storageKey = null;
@@ -234,9 +241,12 @@ final class UploadManager
     /**
      * @return array{stream: resource, size: int, sha256: string}
      */
-    private function stage(UploadRequest $request): array
+    private function stage(UploadRequest $request, ?int $driverMaximumBytes): array
     {
-        $maximumBytes = (int) $this->config->get('storix.uploads.max_file_size_bytes', 67_108_864);
+        $configuredMaximumBytes = (int) $this->config->get('storix.uploads.max_file_size_bytes', 67_108_864);
+        $maximumBytes = $driverMaximumBytes === null
+            ? $configuredMaximumBytes
+            : min($configuredMaximumBytes, $driverMaximumBytes);
         $memoryBytes = (int) $this->config->get('storix.uploads.spool_memory_bytes', 8_388_608);
 
         if ($maximumBytes < 1 || $memoryBytes < 1) {
