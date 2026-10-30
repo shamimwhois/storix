@@ -472,10 +472,7 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         return $segments;
     }
 
-    /**
-     * @param resource $destination
-     * @param string   $contents
-     */
+    /** @param resource $destination */
     private function writeAll(mixed $destination, string $contents): void
     {
         $offset = 0;
