@@ -52,7 +52,7 @@ final class PersistenceRepositoryTest extends TestCase
 
         self::assertInstanceOf(Directory::class, $directories->findScoped($directory->id, 'tenant-a', 'owner-a'));
         self::assertNull($directories->findScoped($directory->id, 'tenant-b', 'owner-a'));
-        self::assertSame($directory->id, $directories->findChild(null, 'Invoices', 'local', 'tenant-a', 'owner-a')?->id);
+        self::assertSame($directory->id, $directories->findChild(null, ' invoices ', 'local', 'tenant-a', 'owner-a')?->id);
         self::assertNull($directories->findChild(null, 'Invoices', 'local', 'tenant-b', 'owner-a'));
         self::assertInstanceOf(StoredFile::class, $files->findScoped($file->id, 'tenant-a', 'owner-a'));
         self::assertNull($files->findScoped($file->id, 'tenant-a', 'owner-b'));
