@@ -411,6 +411,7 @@ final class LocalStorageDriverTest extends TestCase
 
     /**
      * Create a rewound in-memory stream containing the supplied test payload.
+     *
      * @return resource
      */
     private function inputStream(string $contents): mixed
