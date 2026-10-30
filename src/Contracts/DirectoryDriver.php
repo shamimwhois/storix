@@ -8,6 +8,9 @@ use ShamimStack\Storix\DTOs\StorageDirectoryEntry;
 
 interface DirectoryDriver
 {
+    /**
+     * Create a directory, including missing parents, using a driver-relative key.
+     */
     public function makeDirectory(string $key): void;
 
     /**
@@ -17,5 +20,8 @@ interface DirectoryDriver
      */
     public function listDirectory(string $key = ''): array;
 
+    /**
+     * Delete a directory, with recursive removal disabled unless explicitly requested.
+     */
     public function deleteDirectory(string $key, bool $recursive = false): void;
 }
