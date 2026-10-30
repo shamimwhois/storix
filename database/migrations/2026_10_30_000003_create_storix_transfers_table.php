@@ -13,8 +13,8 @@ return new class extends Migration
         Schema::create('storix_transfers', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->foreignUuid('file_id')->nullable()->constrained('storix_files')->restrictOnDelete();
-            $table->uuid('tenant_id')->nullable()->index();
-            $table->uuid('owner_id')->nullable()->index();
+            $table->string('tenant_id', 64)->nullable()->index();
+            $table->string('owner_id', 64)->nullable()->index();
             $table->string('direction', 16);
             $table->string('driver', 64);
             $table->string('state', 24)->default('pending');
