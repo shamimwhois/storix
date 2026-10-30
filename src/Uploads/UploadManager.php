@@ -249,8 +249,8 @@ final class UploadManager
 
                     return [$file, $transfer];
                 });
-            } else {
-                $this->states->transition($transfer->id, TransferState::PAUSED);
+            } elseif (in_array($transfer->state, [TransferState::PREPARING, TransferState::TRANSFERRING], true)) {
+                $transfer = $this->states->transition($transfer->id, TransferState::PAUSED);
             }
 
             $transfer = $this->states->transition($transfer->id, TransferState::PREPARING);
@@ -271,6 +271,7 @@ final class UploadManager
                     $staged,
                     $chunkPlan,
                     $renewLease,
+                    $isResume,
                 );
             } else {
                 $renewLease();
@@ -405,6 +406,37 @@ final class UploadManager
                 fclose($staged['stream']);
             }
         }
+    }
+
+    /**
+     * Rebuild the original deterministic chunk layout rather than applying today's chunk-size config.
+     *
+     * @param  \Illuminate\Support\Collection<int, \ShamimStack\Storix\Models\Chunk>  $chunks
+     * @return list<ChunkDescriptor>
+     */
+    private function chunkPlanFromPersisted(\Illuminate\Support\Collection $chunks, int $totalBytes): array
+    {
+        $plan = [];
+        $expectedOffset = 0;
+
+        foreach ($chunks as $index => $chunk) {
+            $chunkIndex = (int) $chunk->getRawOriginal('chunk_index');
+            $offset = (int) $chunk->getRawOriginal('offset_bytes');
+            $size = (int) $chunk->getRawOriginal('size_bytes');
+
+            if ($chunkIndex !== $index || $offset !== $expectedOffset || $size < 1) {
+                throw new UploadIntegrityException;
+            }
+
+            $plan[] = new ChunkDescriptor($chunkIndex, $offset, $size);
+            $expectedOffset += $size;
+        }
+
+        if ($expectedOffset !== $totalBytes || ($totalBytes > 0 && $plan === [])) {
+            throw new UploadIntegrityException;
+        }
+
+        return $plan;
     }
 
     private function renewResumeLease(Transfer $transfer, string $token, int $leaseSeconds): void
