@@ -186,6 +186,7 @@ final class UploadManagerTest extends TestCase
         self::assertSame(ChunkState::FAILED, $chunk->state);
         self::assertNotNull($chunk->last_error_code);
         self::assertNull($transfer->multipart_upload_id);
+        self::assertNull($transfer->resume_lease_token);
         self::assertSame(1, StoredFile::query()->count());
         self::assertSame(1, Transfer::query()->count());
         self::assertSame(1, Chunk::query()->count());
