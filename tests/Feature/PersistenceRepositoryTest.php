@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace ShamimStack\Storix\Tests\Feature;
 
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 use LogicException;
+use RuntimeException;
 use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
 use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
 use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
@@ -53,6 +55,8 @@ final class PersistenceRepositoryTest extends TestCase
         self::assertInstanceOf(Directory::class, $directories->findScoped($directory->id, 'tenant-a', 'owner-a'));
         self::assertNull($directories->findScoped($directory->id, 'tenant-b', 'owner-a'));
         self::assertSame($directory->id, $directories->findChild(null, ' invoices ', 'local', 'tenant-a', 'owner-a')?->id);
+        self::assertTrue($file->directory->is($directory));
+        self::assertTrue($directory->files->contains('id', $file->id));
         self::assertNull($directories->findChild(null, 'Invoices', 'local', 'tenant-b', 'owner-a'));
         self::assertInstanceOf(StoredFile::class, $files->findScoped($file->id, 'tenant-a', 'owner-a'));
         self::assertNull($files->findScoped($file->id, 'tenant-a', 'owner-b'));
@@ -110,6 +114,7 @@ final class PersistenceRepositoryTest extends TestCase
         $second = $repository->firstOrCreateIdempotent($attributes);
 
         self::assertSame($first->id, $second->id);
+        self::assertNull($repository->findScoped($first->id, 'tenant-b', 'owner-a'));
         self::assertSame(1, Transfer::query()->count());
 
         $otherOwner = $repository->firstOrCreateIdempotent([...$attributes, 'owner_id' => 'owner-b']);
@@ -231,6 +236,89 @@ final class PersistenceRepositoryTest extends TestCase
 
         self::assertSame([0, 1], $chunks->forTransfer($transfer->id)->pluck('chunk_index')->all());
         self::assertSame(2, $transfer->chunks()->count());
+    }
+
+    public function test_file_and_directory_soft_deletion_is_persisted(): void
+    {
+        $directories = $this->app->make(DirectoryRepository::class);
+        $files = $this->app->make(StoredFileRepository::class);
+        $directory = $directories->create([
+            'tenant_id' => 'tenant-soft',
+            'owner_id' => 'owner-soft',
+            'name' => 'Archive',
+            'path_key' => 'archive',
+            'driver' => 'local',
+        ]);
+        $file = $files->create([
+            'tenant_id' => 'tenant-soft',
+            'owner_id' => 'owner-soft',
+            'directory_id' => $directory->id,
+            'driver' => 'local',
+            'name' => 'old.zip',
+            'size_bytes' => 25,
+            'status' => 'available',
+            'visibility' => ObjectVisibility::PRIVATE,
+        ]);
+
+        self::assertTrue($files->softDelete($file));
+        self::assertTrue($directories->softDelete($directory));
+        self::assertNull($files->findScoped($file->id, 'tenant-soft', 'owner-soft'));
+        self::assertNull($directories->findScoped($directory->id, 'tenant-soft', 'owner-soft'));
+        self::assertTrue(StoredFile::withTrashed()->findOrFail($file->id)->trashed());
+        self::assertTrue(Directory::withTrashed()->findOrFail($directory->id)->trashed());
+    }
+
+    public function test_expired_transfer_query_is_bounded_and_excludes_terminal_states(): void
+    {
+        $repository = $this->app->make(TransferRepository::class);
+        $cutoff = now();
+
+        foreach ([1, 2, 3] as $minutes) {
+            $repository->create([
+                'direction' => TransferDirection::UPLOAD,
+                'driver' => 'local',
+                'state' => TransferState::PENDING,
+                'total_bytes' => 10,
+                'expires_at' => $cutoff->copy()->subMinutes($minutes),
+            ]);
+        }
+
+        $terminal = $repository->create([
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::COMPLETED,
+            'total_bytes' => 10,
+            'expires_at' => $cutoff->copy()->subMinute(),
+        ]);
+
+        $expired = $repository->expiredBefore($cutoff, 2);
+
+        self::assertCount(2, $expired);
+        self::assertFalse($expired->contains('id', $terminal->id));
+        self::assertTrue($expired[0]->expires_at <= $expired[1]->expires_at);
+    }
+
+    public function test_transaction_rollback_removes_partial_metadata(): void
+    {
+        $directories = $this->app->make(DirectoryRepository::class);
+
+        try {
+            DB::transaction(function () use ($directories): void {
+                $directories->create([
+                    'tenant_id' => 'tenant-rollback',
+                    'owner_id' => 'owner-rollback',
+                    'name' => 'Temporary',
+                    'path_key' => 'temporary',
+                    'driver' => 'local',
+                ]);
+
+                throw new RuntimeException('Force transaction rollback.');
+            });
+        } catch (RuntimeException $exception) {
+            self::assertSame('Force transaction rollback.', $exception->getMessage());
+        }
+
+        self::assertSame(0, Directory::query()->where('tenant_id', 'tenant-rollback')->count());
     }
 
     public function test_database_constraint_rejects_duplicate_chunk_indexes(): void
