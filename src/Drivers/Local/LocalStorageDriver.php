@@ -520,7 +520,7 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
                 || $segment === '..'
                 || strncasecmp($segment, '.storix-tmp-', 12) === 0
                 || rtrim($segment, '. ') !== $segment
-                || preg_match('/^(CON|PRN|AUX|NUL|CONIN[$]|CONOUT[$]|COM[1-9¹²³]|LPT[1-9¹²³])(?:\\..*)?$/iu', $segment) === 1) {
+                || preg_match('/^(CON|PRN|AUX|NUL|CONIN[$]|CONOUT[$]|COM(?:[1-9]|\\xC2[\\xB2\\xB3\\xB9])|LPT(?:[1-9]|\\xC2[\\xB2\\xB3\\xB9]))(?:\\..*)?$/i', $segment) === 1) {
                 throw new InvalidArgumentException('Storage keys contain an invalid path segment.');
             }
         }
