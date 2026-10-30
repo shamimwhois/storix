@@ -16,6 +16,8 @@ final readonly class ChunkReconciliationResult
         public array $reusableChunks,
         public array $invalidatedChunks,
         public int $verifiedBytes,
+        /** @var list<MultipartPartResult> */
+        public array $reusableParts = [],
     ) {}
 
     public function completedChunks(): int
