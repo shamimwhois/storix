@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use DirectoryIterator;
 use FilesystemIterator;
 use finfo;
+use Normalizer;
 use InvalidArgumentException;
 use ShamimStack\Storix\Contracts\DirectoryDriver;
 use ShamimStack\Storix\Contracts\StorageDriver;
@@ -609,15 +610,28 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
     }
 
     /**
-     * Apply Unicode case folding to valid UTF-8 names while preserving support for arbitrary byte names.
+     * Normalize and case-fold valid UTF-8 names while preserving support for arbitrary byte names.
      */
     private function caseFold(string $value): string
     {
-        if (preg_match('//u', $value) === 1) {
-            return mb_convert_case($value, MB_CASE_FOLD, 'UTF-8');
+        if (preg_match('//u', $value) !== 1) {
+            return strtolower($value);
         }
 
-        return strtolower($value);
+        $normalized = Normalizer::normalize($value, Normalizer::FORM_C);
+
+        if ($normalized === false) {
+            throw new StorageOperationFailedException('resolve_path');
+        }
+
+        $folded = mb_convert_case($normalized, MB_CASE_FOLD, 'UTF-8');
+        $foldedNormalized = Normalizer::normalize($folded, Normalizer::FORM_C);
+
+        if ($foldedNormalized === false) {
+            throw new StorageOperationFailedException('resolve_path');
+        }
+
+        return $foldedNormalized;
     }
 
     /**
