@@ -18,6 +18,7 @@ storix/
 │   ├── Facades/Storix.php
 │   ├── Contracts/
 │   │   ├── StorageDriver.php
+│   │   ├── DirectoryDriver.php
 │   │   └── Repositories/
 │   │       ├── DirectoryRepository.php
 │   │       ├── StoredFileRepository.php
@@ -30,7 +31,8 @@ storix/
 │   │   ├── DeleteObjectRequest.php
 │   │   ├── StatObjectRequest.php
 │   │   ├── StorageObjectMetadata.php
-│   │   └── WriteResult.php
+│   │   ├── WriteResult.php
+│   │   └── StorageDirectoryEntry.php
 │   ├── Enums/
 │   │   ├── ObjectVisibility.php
 │   │   ├── TransferDirection.php
@@ -52,8 +54,11 @@ storix/
 │   │   ├── InvalidTransferStateTransition.php
 │   │   ├── StorixException.php
 │   │   ├── DriverNotFoundException.php
-│   │   └── UnsupportedCapabilityException.php
-│   └── Drivers/DriverManager.php
+│   │   ├── UnsupportedCapabilityException.php
+│   │   └── StorageOperationFailedException.php
+│   └── Drivers/
+│       ├── DriverManager.php
+│       └── Local/LocalStorageDriver.php
 ├── tests/
 │   ├── Unit/
 │   └── Feature/
@@ -75,6 +80,13 @@ storix/
 - DriverManager: explicit driver registration and deterministic resolution; unknown drivers raise a stable package exception.
 - StorixManager and Facades/Storix: public container/facade entry points for driver resolution and capability discovery.
 - StorixServiceProvider: merge configuration and register singleton service bindings.
+
+## E04 responsibilities
+
+- LocalStorageDriver implements stream-based file operations against the configured local root.
+- Local key validation rejects traversal and unsafe path segments; temporary writes finalize through same-directory rename.
+- DirectoryDriver is an optional extension for directory creation, immediate listing, and explicit recursive deletion.
+- Local reads support full streams and bounded offset/length ranges; writes calculate SHA-256 without buffering the full object in PHP memory.
 
 ## Deferred responsibilities
 

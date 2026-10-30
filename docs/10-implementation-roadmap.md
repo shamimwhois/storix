@@ -42,10 +42,15 @@ Implement sequentially; do not start provider-specific work before core contract
 - Follow [E03 Persistence specification](16-e03-persistence.md).
 
 ### E04 Local Driver
-- Implement stream-based write/read.
-- Implement safe key generation and directory abstraction.
-- Implement atomic finalize where supported.
-- Pass driver contract tests.
+- Implement LocalStorageDriver against the E02 provider-neutral contract.
+- Pass reusable StorageDriver contract tests against the local adapter.
+- Register the Local driver through the Laravel service provider and configured root path.
+- Stream writes in bounded chunks, calculate SHA-256, and finalize through a same-directory temporary file and rename.
+- Stream full reads and bounded ranges; implement stat, exists, delete, and stable safe errors.
+- Add optional DirectoryDriver operations for create, immediate listing, and safe deletion.
+- Reject traversal/absolute keys and refuse to follow symbolic links.
+- Test binary payloads, range reads, finalization, directories, symlinks, and error behavior.
+- Follow [E04 Local Storage Driver specification](17-e04-local-driver.md).
 
 ### E05 Basic Upload
 - Validate input and quotas.
@@ -85,6 +90,7 @@ Implement sequentially; do not start provider-specific work before core contract
 
 ### E11 Performance
 - Benchmark chunk sizes and concurrency.
+- Benchmark local key case/normalization collision checks and directory operations at high directory cardinality.
 - Enforce memory and disk budgets.
 - Add provider/tenant concurrency controls.
 - Document measured results and test environment.
@@ -109,7 +115,7 @@ Implement sequentially; do not start provider-specific work before core contract
 
 ## Milestone policy
 
-Do not call E01/E02 a production engine. A first usable local-storage release requires at least E01–E05. A resumable/recoverable release requires E01–E10. Production readiness requires all applicable release gates and real deployment validation.
+Do not call E01/E02 a production engine. A first usable local-storage release requires at least E01–E05. A resumable/recoverable release requires E01–E10. Production readiness requires all applicable release gates and real deployment validation. E04 is complete only after the current CI workflow passes, all required code and security review findings are addressed, all review threads are resolved, and the work is merged into `main`.
 
 
 ---

@@ -13,7 +13,9 @@
   "require": {
     "illuminate/database": "^13.0",
     "illuminate/support": "^13.0",
-    "php": "^8.5"
+    "php": "^8.5",
+    "symfony/polyfill-intl-normalizer": "^1.0",
+    "symfony/polyfill-mbstring": "^1.0"
   },
   "require-dev": {
     "laravel/pint": "^1.29",

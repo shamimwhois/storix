@@ -10,6 +10,7 @@ use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
 use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
 use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
 use ShamimStack\Storix\Drivers\DriverManager;
+use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentChunkRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentDirectoryRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentStoredFileRepository;
@@ -17,12 +18,24 @@ use ShamimStack\Storix\Repositories\Eloquent\EloquentTransferRepository;
 
 final class StorixServiceProvider extends ServiceProvider
 {
+    /**
+     * Merge package configuration and register the local driver, manager, and persistence repositories.
+     */
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/storix.php', 'storix');
 
+        $this->app->singleton(LocalStorageDriver::class, function ($app): LocalStorageDriver {
+            $root = (string) $app['config']->get('storix.drivers.local.root', storage_path('app/storix'));
+
+            return new LocalStorageDriver($root);
+        });
+
         $this->app->singleton(DriverManager::class, function ($app): DriverManager {
-            return new DriverManager((string) $app['config']->get('storix.default', 'local'));
+            $manager = new DriverManager((string) $app['config']->get('storix.default', 'local'));
+            $manager->register('local', $app->make(LocalStorageDriver::class));
+
+            return $manager;
         });
 
         $this->app->bind(DirectoryRepository::class, EloquentDirectoryRepository::class);
@@ -35,6 +48,9 @@ final class StorixServiceProvider extends ServiceProvider
         });
     }
 
+    /**
+     * Load package migrations and publish the Storix configuration for console applications.
+     */
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
