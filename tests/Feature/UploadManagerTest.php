@@ -10,17 +10,22 @@ use Illuminate\Support\Str;
 use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
 use ShamimStack\Storix\Contracts\StorageDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
+use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
+use ShamimStack\Storix\DTOs\CompleteMultipartWriteRequest;
 use ShamimStack\Storix\DTOs\DriverCapabilities;
+use ShamimStack\Storix\DTOs\MultipartPartResult;
 use ShamimStack\Storix\DTOs\ReadStreamRequest;
 use ShamimStack\Storix\DTOs\StatObjectRequest;
 use ShamimStack\Storix\DTOs\StorageObjectMetadata;
 use ShamimStack\Storix\DTOs\UploadRequest;
+use ShamimStack\Storix\DTOs\WriteMultipartPartRequest;
 use ShamimStack\Storix\DTOs\WriteResult;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
 use ShamimStack\Storix\Enums\ChunkState;
 use ShamimStack\Storix\Enums\TransferState;
 use ShamimStack\Storix\Exceptions\IdempotencyConflictException;
 use ShamimStack\Storix\Exceptions\UploadIntegrityException;
+use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Exceptions\UploadTooLargeException;
 use ShamimStack\Storix\Exceptions\UploadValidationException;
 use ShamimStack\Storix\Facades\Storix;
@@ -141,6 +146,49 @@ final class UploadManagerTest extends TestCase
         } finally {
             fclose($stream);
         }
+    }
+
+    public function test_it_persists_failed_upload_state_when_a_multipart_part_write_fails(): void
+    {
+        $driver = $this->createMock(MultipartStorageDriver::class);
+        $driver->method('name')->willReturn('mp');
+        $driver->method('capabilities')->willReturn(new DriverCapabilities(
+            supportsMultipartWrites: true,
+        ));
+        $driver->method('beginMultipartWrite')->willReturn('upload-1');
+        $driver->method('writeMultipartPart')->willThrowException(
+            new StorageOperationFailedException('multipart_write'),
+        );
+        $driver->expects(self::once())->method('abortMultipartWrite')->with('upload-1');
+        $driver->expects(self::once())->method('delete');
+
+        $this->app->make(DriverManager::class)->register('mp', $driver);
+        $stream = $this->stream('multipart-payload');
+
+        try {
+            $this->assertUploadException(
+                StorageOperationFailedException::class,
+                fn () => Storix::uploads()->upload(new UploadRequest(
+                    stream: $stream,
+                    originalName: 'multipart.txt',
+                    driver: 'mp',
+                )),
+            );
+        } finally {
+            fclose($stream);
+        }
+
+        $file = StoredFile::query()->firstOrFail();
+        $transfer = Transfer::query()->firstOrFail();
+        $chunk = Chunk::query()->firstOrFail();
+
+        self::assertSame('failed', $file->status);
+        self::assertSame(TransferState::FAILED, $transfer->state);
+        self::assertSame(ChunkState::FAILED, $chunk->state);
+        self::assertNotNull($chunk->last_error_code);
+        self::assertSame(1, StoredFile::query()->count());
+        self::assertSame(1, Transfer::query()->count());
+        self::assertSame(1, Chunk::query()->count());
     }
 
     public function test_it_accepts_an_empty_file(): void
