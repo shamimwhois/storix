@@ -79,7 +79,7 @@ These checks mitigate traversal and static symlink escapes. They do not guarante
 - Flush and close the staging file before renaming it to the final key.
 - Remove the temporary file on failure. Do not replace an existing destination until the new stream has been written successfully.
 
-Finalization uses a same-directory rename. Atomic replacement depends on the semantics of the underlying local filesystem.
+Finalization uses a same-directory rename. Atomic replacement depends on the semantics of the underlying local filesystem. This describes atomic visibility, not crash durability; the driver does not explicitly fsync the file or parent-directory metadata.
 
 ### Reads
 
