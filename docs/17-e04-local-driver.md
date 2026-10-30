@@ -80,9 +80,9 @@ The local driver rejects:
 - absolute paths and leading/trailing separators;
 - empty segments, . and .. traversal segments;
 - backslashes, null bytes, control characters, and platform-reserved filename characters;
-- Windows device names and segments ending in a dot or space.
+- Windows device names (including names with extensions), segments ending in a dot or space, and the reserved `.storix-tmp-` internal namespace.
 
-The driver builds paths only below the configured root, checks existing path components for symbolic links, does not follow symlinks during directory listing or recursive deletion, and refuses to delete the root directory. Error messages use stable package exceptions and do not include absolute filesystem paths.
+The driver builds paths only below the configured root, checks existing path components for symbolic links, does not follow symlinks during directory listing or recursive deletion, reserves the `.storix-tmp-` namespace for private temporary files, and refuses to delete the root directory. Error messages use stable package exceptions and do not include absolute filesystem paths.
 
 These checks mitigate traversal and static symlink escapes. They are not a promise of race-free protection against a hostile local process concurrently replacing filesystem entries between checks and I/O. The configured root must be writable only by trusted application processes.
 
@@ -93,7 +93,7 @@ These checks mitigate traversal and static symlink escapes. They are not a promi
 - Reads the input resource from its current stream position; it does not rewind or close the caller's input stream.
 - Copies in fixed 1 MiB chunks, so file contents are not accumulated in PHP memory.
 - Computes SHA-256 while copying.
-- Writes to a randomly named temporary file in the destination directory with restrictive permissions.
+- Writes to a `tempnam()`-reserved file in the destination directory. The file is created with private permissions (0600 on POSIX systems), and the driver rejects a temp-file fallback outside that directory. The `.storix-tmp-` prefix is reserved for these internal files and cannot be used in user keys.
 - Flushes and closes the temporary file before renaming it to the final key.
 - Removes the temporary file on failure; an existing destination is not replaced until the new stream has been written successfully.
 
