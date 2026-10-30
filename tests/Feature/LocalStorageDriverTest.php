@@ -14,7 +14,6 @@ use ShamimStack\Storix\DTOs\ReadStreamRequest;
 use ShamimStack\Storix\DTOs\StatObjectRequest;
 use ShamimStack\Storix\DTOs\WriteMultipartPartRequest;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
-use ShamimStack\Storix\Enums\ObjectVisibility;
 use ShamimStack\Storix\Enums\StorixErrorCode;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Facades\Storix;
