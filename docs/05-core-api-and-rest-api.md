@@ -109,7 +109,7 @@ Use stable machine-readable error codes. HTTP status mapping: 400 invalid input,
 E02 introduces the provider-neutral driver boundary and driver resolution API. The currently available public entry points are:
 
 ```php
-use ShamimStack\\Storix\\Facades\\Storix;
+use ShamimStack\Storix\Facades\Storix;
 
 // Resolve a registered driver (or the configured default).
 $driver = Storix::driver();
@@ -122,8 +122,8 @@ $registeredDrivers = Storix::drivers();
 Driver implementations are registered through the DriverManager service:
 
 ```php
-use ShamimStack\\Storix\\Contracts\\StorageDriver;
-use ShamimStack\\Storix\\Drivers\\DriverManager;
+use ShamimStack\Storix\Contracts\StorageDriver;
+use ShamimStack\Storix\Drivers\DriverManager;
 
 app(DriverManager::class)->register('custom', app(CustomStorageDriver::class));
 $driver = Storix::driver('custom');
