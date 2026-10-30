@@ -183,6 +183,7 @@ final class UploadManagerTest extends TestCase
         self::assertSame(TransferState::FAILED, $transfer->state);
         self::assertSame(ChunkState::FAILED, $chunk->state);
         self::assertNotNull($chunk->last_error_code);
+        self::assertNull($transfer->multipart_upload_id);
         self::assertSame(1, StoredFile::query()->count());
         self::assertSame(1, Transfer::query()->count());
         self::assertSame(1, Chunk::query()->count());
@@ -388,6 +389,35 @@ final class UploadManagerTest extends TestCase
 
         self::assertSame(1, StoredFile::query()->count());
         self::assertSame(1, Transfer::query()->count());
+    }
+
+    public function test_request_fingerprint_is_bound_to_tenant_and_owner_security_scope(): void
+    {
+        $firstStream = $this->stream('same-payload');
+        $secondStream = $this->stream('same-payload');
+
+        try {
+            $first = Storix::uploads()->upload(new UploadRequest(
+                stream: $firstStream,
+                originalName: 'same.txt',
+                tenantId: 'tenant-a',
+                ownerId: 'owner-a',
+                idempotencyKey: 'scope-a',
+            ));
+            $second = Storix::uploads()->upload(new UploadRequest(
+                stream: $secondStream,
+                originalName: 'same.txt',
+                tenantId: 'tenant-b',
+                ownerId: 'owner-a',
+                idempotencyKey: 'scope-b',
+            ));
+
+            self::assertNotSame($first->transfer->fingerprint, $second->transfer->fingerprint);
+            self::assertNotSame($first->transfer->idempotency_scope, $second->transfer->idempotency_scope);
+        } finally {
+            fclose($firstStream);
+            fclose($secondStream);
+        }
     }
 
     public function test_it_enforces_the_configured_size_limit_while_staging(): void
