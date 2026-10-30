@@ -72,8 +72,9 @@ final class EloquentTransferRepository implements TransferRepository
             ->get();
     }
 
-    /** @param Builder<Transfer> $query
-     *  @return Builder<Transfer>
+    /**
+     * @param  Builder<Transfer>  $query
+     * @return Builder<Transfer>
      */
     private function applyScope(Builder $query, ?string $tenantId, ?string $ownerId): Builder
     {
