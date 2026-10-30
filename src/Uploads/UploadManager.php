@@ -139,7 +139,6 @@ final class UploadManager
 
                 if (
                     $multipartDriver === null
-                    || $transfer->state->isTerminal()
                     || in_array($transfer->state, [
                         TransferState::PREPARING,
                         TransferState::TRANSFERRING,
