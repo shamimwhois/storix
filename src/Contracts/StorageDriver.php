@@ -20,7 +20,11 @@ interface StorageDriver
 
     public function writeStream(WriteStreamRequest $request): WriteResult;
 
-    /** Returns a readable stream resource. */
+    /**
+     * Return a readable PHP stream resource.
+     *
+     * @return resource
+     */
     public function readStream(ReadStreamRequest $request): mixed;
 
     public function delete(DeleteObjectRequest $request): void;
