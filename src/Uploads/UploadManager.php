@@ -142,7 +142,7 @@ final class UploadManager
                         TransferState::PAUSED,
                         TransferState::RETRY_WAIT,
                     ], true) === false
-                    || ! is_string($transfer->multipart_upload_id)
+                    || is_string($transfer->multipart_upload_id) === false
                     || $transfer->multipart_upload_id === ''
                     || $transfer->file_id === null
                 ) {
@@ -158,8 +158,8 @@ final class UploadManager
                 if (
                     $file === null
                     || $file->driver !== $driverName
-                    || ! in_array($file->status, ['pending', 'processing'], true)
-                    || ! is_string($file->storage_key)
+                    || in_array($file->status, ['pending', 'processing'], true) === false
+                    || is_string($file->storage_key) === false
                     || $file->storage_key === ''
                 ) {
                     throw new IdempotencyConflictException;
