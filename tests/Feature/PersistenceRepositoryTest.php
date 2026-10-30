@@ -74,7 +74,13 @@ final class PersistenceRepositoryTest extends TestCase
         $otherOwner = $repository->firstOrCreateIdempotent([...$attributes, 'owner_id' => 'owner-b']);
 
         self::assertNotSame($first->id, $otherOwner->id);
-        self::assertSame(2, Transfer::query()->count());
+
+        $unscoped = [...$attributes, 'tenant_id' => null, 'owner_id' => null, 'idempotency_key' => 'unscoped-request'];
+        $unscopedFirst = $repository->firstOrCreateIdempotent($unscoped);
+        $unscopedSecond = $repository->firstOrCreateIdempotent($unscoped);
+
+        self::assertSame($unscopedFirst->id, $unscopedSecond->id);
+        self::assertSame(3, Transfer::query()->count());
     }
 
     public function test_chunks_are_ordered_and_unique_per_transfer(): void
