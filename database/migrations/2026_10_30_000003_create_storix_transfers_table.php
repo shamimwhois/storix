@@ -26,6 +26,7 @@ return new class extends Migration
             $table->decimal('average_bytes_per_second', 20, 2)->nullable();
             $table->unsignedBigInteger('eta_seconds')->nullable();
             $table->string('idempotency_key', 128)->nullable();
+            $table->char('idempotency_scope', 64)->nullable();
             $table->char('fingerprint', 64)->nullable();
             $table->unsignedInteger('attempts')->default(0);
             $table->unsignedInteger('max_attempts')->default(5);
@@ -36,7 +37,7 @@ return new class extends Migration
             $table->timestamp('expires_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['tenant_id', 'owner_id', 'idempotency_key'], 'storix_transfers_idempotency_unique');
+            $table->unique(['idempotency_scope', 'idempotency_key'], 'storix_transfers_idempotency_unique');
             $table->index(['tenant_id', 'owner_id', 'state'], 'storix_transfers_scope_state_idx');
             $table->index(['state', 'expires_at'], 'storix_transfers_state_expiry_idx');
             $table->index('file_id', 'storix_transfers_file_idx');
