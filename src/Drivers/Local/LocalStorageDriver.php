@@ -22,7 +22,7 @@ use ShamimStack\Storix\DTOs\WriteStreamRequest;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use Throwable;
 
-final class LocalStorageDriver implements StorageDriver, DirectoryDriver
+final class LocalStorageDriver implements DirectoryDriver, StorageDriver
 {
     private const int IO_CHUNK_BYTES = 1_048_576;
 
@@ -83,7 +83,7 @@ final class LocalStorageDriver implements StorageDriver, DirectoryDriver
                 throw new StorageOperationFailedException('write');
             }
 
-            while (! feof($request->stream)) {
+            while (!feof($request->stream)) {
                 $chunk = @fread($request->stream, self::IO_CHUNK_BYTES);
 
                 if ($chunk === false) {
@@ -151,7 +151,7 @@ final class LocalStorageDriver implements StorageDriver, DirectoryDriver
     {
         $path = $this->resolvePath($request->key, createParents: false, createRoot: false);
 
-        if ($path === null || ! is_file($path) || is_link($path)) {
+        if ($path === null || !is_file($path) || is_link($path)) {
             throw new StorageOperationFailedException('read');
         }
 
@@ -182,7 +182,7 @@ final class LocalStorageDriver implements StorageDriver, DirectoryDriver
         try {
             $remaining = $request->length;
 
-            while ($remaining > 0 && ! feof($source)) {
+            while ($remaining > 0 && !feof($source)) {
                 $chunk = @fread($source, min(self::IO_CHUNK_BYTES, $remaining));
 
                 if ($chunk === false) {
@@ -223,11 +223,11 @@ final class LocalStorageDriver implements StorageDriver, DirectoryDriver
     {
         $path = $this->resolvePath($request->key, createParents: false, createRoot: false);
 
-        if ($path === null || (! file_exists($path) && ! is_link($path))) {
+        if ($path === null || (!file_exists($path) && !is_link($path))) {
             return;
         }
 
-        if (is_link($path) || ! is_file($path) || @unlink($path) === false) {
+        if (is_link($path) || !is_file($path) || @unlink($path) === false) {
             throw new StorageOperationFailedException('delete');
         }
     }
@@ -236,14 +236,14 @@ final class LocalStorageDriver implements StorageDriver, DirectoryDriver
     {
         $path = $this->resolvePath($key, createParents: false, createRoot: false);
 
-        return $path !== null && is_file($path) && ! is_link($path);
+        return $path !== null && is_file($path) && !is_link($path);
     }
 
     public function stat(StatObjectRequest $request): ?StorageObjectMetadata
     {
         $path = $this->resolvePath($request->key, createParents: false, createRoot: false);
 
-        if ($path === null || ! is_file($path) || is_link($path)) {
+        if ($path === null || !is_file($path) || is_link($path)) {
             return null;
         }
 
@@ -286,7 +286,7 @@ final class LocalStorageDriver implements StorageDriver, DirectoryDriver
             ? $this->rootPath(create: true)
             : $this->resolvePath($key, createParents: false, createRoot: false);
 
-        if ($path === null || ! is_dir($path)) {
+        if ($path === null || !is_dir($path)) {
             throw new StorageOperationFailedException('list_directory');
         }
 
@@ -300,7 +300,7 @@ final class LocalStorageDriver implements StorageDriver, DirectoryDriver
                     continue;
                 }
 
-                if (! $item->isDir() && ! $item->isFile()) {
+                if (!$item->isDir() && !$item->isFile()) {
                     continue;
                 }
 
@@ -337,11 +337,11 @@ final class LocalStorageDriver implements StorageDriver, DirectoryDriver
 
         $path = $this->resolvePath($key, createParents: false, createRoot: false);
 
-        if ($path === null || ! file_exists($path)) {
+        if ($path === null || !file_exists($path)) {
             return;
         }
 
-        if (is_link($path) || ! is_dir($path)) {
+        if (is_link($path) || !is_dir($path)) {
             throw new StorageOperationFailedException('delete_directory');
         }
 
@@ -359,7 +359,7 @@ final class LocalStorageDriver implements StorageDriver, DirectoryDriver
     private function rootPath(bool $create): ?string
     {
         if ($this->canonicalRoot !== null) {
-            if (is_link($this->canonicalRoot) || ! is_dir($this->canonicalRoot)) {
+            if (is_link($this->canonicalRoot) || !is_dir($this->canonicalRoot)) {
                 throw new StorageOperationFailedException('resolve_root');
             }
 
@@ -370,17 +370,17 @@ final class LocalStorageDriver implements StorageDriver, DirectoryDriver
             throw new StorageOperationFailedException('resolve_root');
         }
 
-        if (! file_exists($this->root)) {
-            if (! $create) {
+        if (!file_exists($this->root)) {
+            if (!$create) {
                 return null;
             }
 
-            if (@mkdir($this->root, 0770, true) === false && ! is_dir($this->root)) {
+            if (@mkdir($this->root, 0770, true) === false && !is_dir($this->root)) {
                 throw new StorageOperationFailedException('create_root');
             }
         }
 
-        if (! is_dir($this->root)) {
+        if (!is_dir($this->root)) {
             throw new StorageOperationFailedException('resolve_root');
         }
 
@@ -415,26 +415,26 @@ final class LocalStorageDriver implements StorageDriver, DirectoryDriver
             }
 
             if (file_exists($path)) {
-                if (! $isLast && ! is_dir($path)) {
+                if (!$isLast && !is_dir($path)) {
                     throw new StorageOperationFailedException('resolve_path');
                 }
 
                 continue;
             }
 
-            if (! $isLast && $createParents) {
-                if (@mkdir($path, 0770) === false && ! is_dir($path)) {
+            if (!$isLast && $createParents) {
+                if (@mkdir($path, 0770) === false && !is_dir($path)) {
                     throw new StorageOperationFailedException('create_directory');
                 }
 
-                if (is_link($path) || ! is_dir($path)) {
+                if (is_link($path) || !is_dir($path)) {
                     throw new StorageOperationFailedException('resolve_path');
                 }
 
                 continue;
             }
 
-            if (! $isLast) {
+            if (!$isLast) {
                 $remaining = array_slice($segments, $index + 1);
 
                 return $path.DIRECTORY_SEPARATOR.implode(DIRECTORY_SEPARATOR, $remaining);
@@ -464,7 +464,7 @@ final class LocalStorageDriver implements StorageDriver, DirectoryDriver
                 || $segment === '.'
                 || $segment === '..'
                 || rtrim($segment, '. ') !== $segment
-                || preg_match('/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i', $segment) === 1) {
+                || preg_match('/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\\..*)?$/i', $segment) === 1) {
                 throw new InvalidArgumentException('Storage keys contain an invalid path segment.');
             }
         }
@@ -493,7 +493,7 @@ final class LocalStorageDriver implements StorageDriver, DirectoryDriver
 
     private function detectMimeType(string $path): ?string
     {
-        if (! class_exists(finfo::class)) {
+        if (!class_exists(finfo::class)) {
             return null;
         }
 
@@ -529,7 +529,7 @@ final class LocalStorageDriver implements StorageDriver, DirectoryDriver
                     continue;
                 }
 
-                if (! $item->isFile() || @unlink($childPath) === false) {
+                if (!$item->isFile() || @unlink($childPath) === false) {
                     throw new StorageOperationFailedException('delete_directory');
                 }
             }
