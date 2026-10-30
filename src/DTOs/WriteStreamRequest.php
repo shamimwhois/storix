@@ -10,8 +10,8 @@ use ShamimStack\Storix\Enums\ObjectVisibility;
 final readonly class WriteStreamRequest
 {
     /**
-     * @param resource $stream
-     * @param array<string, scalar|null> $metadata
+     * @param  resource                    $stream
+     * @param  array<string, scalar|null>  $metadata
      */
     public function __construct(
         public string $key,
