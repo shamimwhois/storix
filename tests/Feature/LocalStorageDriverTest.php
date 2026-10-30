@@ -177,6 +177,66 @@ final class LocalStorageDriverTest extends TestCase
     }
 
     /**
+     * Verify lookup operations treat regular-file parents as missing while writes remain invalid.
+     */
+    public function test_lookup_operations_treat_a_regular_file_parent_as_missing(): void
+    {
+        $driver = $this->driver();
+        $input = $this->inputStream('parent object');
+        $driver->writeStream(new WriteStreamRequest('parent.txt', $input));
+        fclose($input);
+
+        self::assertFalse($driver->exists('parent.txt/child.txt'));
+        self::assertNull($driver->stat(new StatObjectRequest('parent.txt/child.txt')));
+
+        $driver->delete(new DeleteObjectRequest('parent.txt/child.txt'));
+
+        self::assertTrue($driver->exists('parent.txt'));
+
+        $childInput = $this->inputStream('child object');
+
+        try {
+            $driver->writeStream(new WriteStreamRequest('parent.txt/child.txt', $childInput));
+            self::fail('Writing below a regular file must fail.');
+        } catch (StorageOperationFailedException $exception) {
+            self::assertSame(StorixErrorCode::STORAGE_OPERATION_FAILED, $exception->errorCode);
+        } finally {
+            fclose($childInput);
+        }
+    }
+
+    /**
+     * Verify that existing directory and object names cannot be shadowed by case-only aliases.
+     */
+    public function test_it_rejects_case_colliding_existing_path_segments(): void
+    {
+        $driver = $this->driver();
+        $driver->makeDirectory('Docs');
+
+        $directoryCollisionInput = $this->inputStream('directory collision');
+
+        try {
+            $driver->writeStream(new WriteStreamRequest('docs/file.txt', $directoryCollisionInput));
+            self::fail('A directory key that differs only by letter case must be rejected.');
+        } catch (InvalidArgumentException) {
+            self::assertTrue(true);
+        } finally {
+            fclose($directoryCollisionInput);
+        }
+
+        $objectInput = $this->inputStream('existing object');
+        $driver->writeStream(new WriteStreamRequest('reports/Readme.txt', $objectInput));
+        fclose($objectInput);
+
+        try {
+            $driver->exists('reports/README.txt');
+            self::fail('An object key that differs only by letter case must be rejected.');
+        } catch (InvalidArgumentException) {
+            self::assertTrue(true);
+        }
+    }
+
+    /**
      * Verify sorted immediate listings and the explicit recursive-delete safety boundary.
      */
     public function test_it_supports_directory_creation_listing_and_safe_recursive_deletion(): void
@@ -325,6 +385,7 @@ final class LocalStorageDriverTest extends TestCase
         }
 
         self::assertFileExists($outsideFile);
+        self::assertFileExists($root.DIRECTORY_SEPARATOR.'documents'.DIRECTORY_SEPARATOR.'notes.txt');
         self::assertFileExists($root.DIRECTORY_SEPARATOR.'documents'.DIRECTORY_SEPARATOR.'external.txt');
     }
 
