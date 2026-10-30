@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace ShamimStack\\Storix\\Repositories\\Eloquent;
+namespace ShamimStack\Storix\Repositories\Eloquent;
 
 use DateTimeInterface;
-use Illuminate\\Database\\Eloquent\\Builder;
-use Illuminate\\Support\\Collection;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use InvalidArgumentException;
 use LogicException;
-use ShamimStack\\Storix\\Contracts\\Repositories\\TransferRepository;
-use ShamimStack\\Storix\\Enums\\TransferState;
-use ShamimStack\\Storix\\Models\\Transfer;
+use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
+use ShamimStack\Storix\Enums\TransferState;
+use ShamimStack\Storix\Models\Transfer;
 
 final class EloquentTransferRepository implements TransferRepository
 {
