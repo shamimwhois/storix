@@ -2,26 +2,26 @@
 
 declare(strict_types=1);
 
-namespace ShamimStack\Storix\Tests\Feature;
+namespace ShamimStack\\Storix\\Tests\\Feature;
 
-use Illuminate\Database\QueryException;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
+use Illuminate\\Database\\QueryException;
+use Illuminate\\Foundation\\Testing\\RefreshDatabase;
+use Illuminate\\Support\\Facades\\DB;
 use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
-use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
-use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
-use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
-use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
-use ShamimStack\Storix\Enums\ChunkState;
-use ShamimStack\Storix\Enums\ObjectVisibility;
-use ShamimStack\Storix\Enums\TransferDirection;
-use ShamimStack\Storix\Enums\TransferState;
-use ShamimStack\Storix\Models\Directory;
-use ShamimStack\Storix\Models\StoredFile;
-use ShamimStack\Storix\Models\Transfer;
-use ShamimStack\Storix\Tests\TestCase;
+use ShamimStack\\Storix\\Contracts\\Repositories\\ChunkRepository;
+use ShamimStack\\Storix\\Contracts\\Repositories\\DirectoryRepository;
+use ShamimStack\\Storix\\Contracts\\Repositories\\StoredFileRepository;
+use ShamimStack\\Storix\\Contracts\\Repositories\\TransferRepository;
+use ShamimStack\\Storix\\Enums\\ChunkState;
+use ShamimStack\\Storix\\Enums\\ObjectVisibility;
+use ShamimStack\\Storix\\Enums\\TransferDirection;
+use ShamimStack\\Storix\\Enums\\TransferState;
+use ShamimStack\\Storix\\Models\\Directory;
+use ShamimStack\\Storix\\Models\\StoredFile;
+use ShamimStack\\Storix\\Models\\Transfer;
+use ShamimStack\\Storix\\Tests\\TestCase;
 
 final class PersistenceRepositoryTest extends TestCase
 {
@@ -170,6 +170,44 @@ final class PersistenceRepositoryTest extends TestCase
         $this->expectException(LogicException::class);
 
         $repository->save($transfer);
+    }
+
+    public function test_resume_lease_is_exclusive_expires_and_requires_its_own_token_to_release(): void
+    {
+        $repository = $this->app->make(TransferRepository::class);
+        $transfer = $repository->create([
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::TRANSFERRING,
+            'total_bytes' => 12,
+        ]);
+        $now = now();
+
+        self::assertTrue($repository->claimResumeLease(
+            $transfer->id,
+            'worker-token-a',
+            $now,
+            $now->copy()->addSeconds(30),
+        ));
+        self::assertFalse($repository->claimResumeLease(
+            $transfer->id,
+            'worker-token-b',
+            $now->copy()->addSecond(),
+            $now->copy()->addSeconds(31),
+        ));
+        self::assertFalse($repository->releaseResumeLease($transfer->id, 'worker-token-b'));
+
+        $afterExpiry = $now->copy()->addSeconds(31);
+
+        self::assertTrue($repository->claimResumeLease(
+            $transfer->id,
+            'worker-token-b',
+            $afterExpiry,
+            $afterExpiry->copy()->addSeconds(30),
+        ));
+        self::assertFalse($repository->releaseResumeLease($transfer->id, 'worker-token-a'));
+        self::assertTrue($repository->releaseResumeLease($transfer->id, 'worker-token-b'));
+        self::assertNull($repository->findScoped($transfer->id, null, null)?->resume_lease_token);
     }
 
     public function test_blank_idempotency_keys_are_rejected(): void
