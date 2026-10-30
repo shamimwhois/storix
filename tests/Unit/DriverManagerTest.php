@@ -17,7 +17,7 @@ final class DriverManagerTest extends TestCase
         $manager = new DriverManager('memory');
         $driver = $this->createMock(StorageDriver::class);
         $driver->method('name')->willReturn('memory');
-        $driver->method('capabilities')->willReturn(new DriverCapabilities());
+        $driver->method('capabilities')->willReturn(new DriverCapabilities);
 
         $manager->register('memory', $driver);
 
