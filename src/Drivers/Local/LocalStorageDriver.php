@@ -80,22 +80,34 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
             throw new StorageOperationFailedException('write');
         }
 
-        $temporaryPath = @tempnam($directory, '.storix-tmp-');
+        if (DIRECTORY_SEPARATOR === '\\') {
+            try {
+                $temporaryPath = $directory.DIRECTORY_SEPARATOR.'.storix-tmp-'.bin2hex(random_bytes(16));
+            } catch (Throwable $exception) {
+                throw new StorageOperationFailedException('write', $exception);
+            }
 
-        if ($temporaryPath === false) {
-            throw new StorageOperationFailedException('write');
+            $destination = @fopen($temporaryPath, 'x+b');
+        } else {
+            $temporaryPath = @tempnam($directory, '.storix-tmp-');
+
+            if ($temporaryPath === false) {
+                throw new StorageOperationFailedException('write');
+            }
+
+            if (dirname($temporaryPath) !== $directory) {
+                @unlink($temporaryPath);
+
+                throw new StorageOperationFailedException('write');
+            }
+
+            $destination = @fopen($temporaryPath, 'r+b');
         }
-
-        if (dirname($temporaryPath) !== $directory) {
-            @unlink($temporaryPath);
-
-            throw new StorageOperationFailedException('write');
-        }
-
-        $destination = @fopen($temporaryPath, 'r+b');
 
         if ($destination === false) {
-            @unlink($temporaryPath);
+            if (isset($temporaryPath) && (file_exists($temporaryPath) || is_link($temporaryPath))) {
+                @unlink($temporaryPath);
+            }
 
             throw new StorageOperationFailedException('write');
         }
@@ -404,11 +416,15 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
     private function rootPath(bool $create): ?string
     {
         if ($this->canonicalRoot !== null) {
-            if (is_link($this->canonicalRoot) || is_dir($this->canonicalRoot) === false) {
+            if (is_link($this->canonicalRoot)) {
                 throw new StorageOperationFailedException('resolve_root');
             }
 
-            return $this->canonicalRoot;
+            if (is_dir($this->canonicalRoot)) {
+                return $this->canonicalRoot;
+            }
+
+            $this->canonicalRoot = null;
         }
 
         if (is_link($this->root)) {
