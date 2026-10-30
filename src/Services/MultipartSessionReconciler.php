@@ -30,6 +30,7 @@ final class MultipartSessionReconciler
         array $plan,
         Collection $persistedChunks,
         callable $hashStagedChunk,
+        ?callable $renewLease = null,
     ): ChunkReconciliationResult {
         $metadata = $this->chunks->reconcile($plan, $persistedChunks, $hashStagedChunk);
         $reusableByIndex = [];
@@ -50,13 +51,25 @@ final class MultipartSessionReconciler
         $reusableParts = [];
 
         foreach ($plan as $descriptor) {
+            if ($renewLease !== null) {
+                $renewLease();
+            }
+
             $partNumber = $descriptor->index + 1;
             $providerPart = $driver->inspectMultipartPart($uploadId, $partNumber);
+
+            if ($renewLease !== null) {
+                $renewLease();
+            }
+
             $chunk = $persistedByIndex[$descriptor->index];
 
             if (isset($reusableByIndex[$descriptor->index]) === false || $providerPart === null) {
                 if ($providerPart !== null) {
                     $driver->discardMultipartPart($uploadId, $partNumber);
+                    if ($renewLease !== null) {
+                        $renewLease();
+                    }
                 }
 
                 $invalidated[] = $chunk;
@@ -78,6 +91,9 @@ final class MultipartSessionReconciler
                 || $referenceMatches === false
             ) {
                 $driver->discardMultipartPart($uploadId, $partNumber);
+                if ($renewLease !== null) {
+                    $renewLease();
+                }
                 $invalidated[] = $chunk;
 
                 continue;
