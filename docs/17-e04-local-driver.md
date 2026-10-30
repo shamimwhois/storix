@@ -40,7 +40,7 @@ Directory listing returns typed StorageDirectoryEntry values. The local storage 
 
 Example:
 
-\`\`\`php
+```php
 use ShamimStack\\Storix\\Contracts\\DirectoryDriver;
 use ShamimStack\\Storix\\Facades\\Storix;
 
@@ -52,20 +52,20 @@ if (! $driver instanceof DirectoryDriver) {
 
 $driver->makeDirectory('documents/2026');
 $entries = $driver->listDirectory('documents');
-\`\`\`
+```
 
 ## 3. Configuration and registration
 
 The configured local root is read from storix.drivers.local.root:
 
-\`\`\`php
+```php
 // config/storix.php
 'drivers' => [
     'local' => [
         'root' => storage_path('app/storix'),
     ],
 ],
-\`\`\`
+```
 
 The package service provider registers a singleton LocalStorageDriver and registers it in DriverManager under the stable name local. The existing default-driver setting continues to choose which registered driver resolves when no name is supplied.
 
