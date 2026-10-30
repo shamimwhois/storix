@@ -59,12 +59,14 @@ Implement the durable relational persistence foundation used by later transfer e
 | parent_id | UUID nullable | Self-reference, nullable, restrictive delete |
 | name | varchar(255) | Required, non-empty |
 | path_key | varchar(1024) | Required normalized internal path |
+| scope_hash | char(64) | SHA-256 of tenant, owner, driver, and parent scope |
+| name_hash | char(64) | SHA-256 of trimmed, lowercased name |
 | driver | varchar(64) | Required |
 | status | varchar(24) | active/deleting/deleted |
 | created_at / updated_at | timestamps | Required |
 | deleted_at | timestamp nullable | Soft delete |
 
-Indexes: `(tenant_id, owner_id, driver, parent_id, name)`, `parent_id`, and `status`. Do not create a full unique index on the 1024-character path. E03 provides scoped child lookup; atomic directory-name conflict prevention belongs to the directory-management service in a later epic and must not be claimed until implemented.
+Indexes: unique `(scope_hash, name_hash)`, lookup `(tenant_id, owner_id, driver, parent_id, name)`, `parent_id`, and `status`. The model computes the hashes before save; the database unique constraint prevents duplicate case-insensitive directory names within the same tenant, owner, driver, and parent. Soft-deleted directories reserve their names until restored or physically purged. Do not create a full unique index on the 1024-character path.
 
 ### 4.2 `storix_files`
 
@@ -165,7 +167,7 @@ Minimum operations:
 
 - Directories: create, find by ID within scope, find child by name within scope, list children, save, soft delete.
 - Files: create, find by ID within scope, find by scoped fingerprint when available, including driver and target directory, save, soft delete.
-- Transfers: create, find by ID within scope, find by scoped idempotency key, save, atomically create-or-return idempotent transfer, list stale/eligible records with bounded pagination.
+- Transfers: create (normalizing idempotency scope for any supplied key), find by ID within scope, find by scoped idempotency key, save non-state attributes only, atomically create-or-return idempotent transfer, list stale/eligible records with bounded pagination.
 - Chunks: create, find by transfer/index, list by transfer ordered by index, save, delete by transfer when retention explicitly requests it.
 
 Every public lookup that accepts an owner/tenant scope must apply it in SQL, not fetch globally and filter in PHP. Repository methods return typed models or explicit nullable results. Avoid generic `array<string,mixed>` repositories.
@@ -194,7 +196,7 @@ Allowed transitions:
 
 Rules:
 
-- All transitions go through one `TransferStateMachine` service.
+- All state transitions go through one `TransferStateMachine` service; repository `save()` rejects state changes on persisted transfer models.
 - Invalid transitions throw a dedicated domain exception; never silently coerce state.
 - `completed` requires source state `verifying`.
 - Terminal states cannot be reopened; a new transfer is created instead.
@@ -236,8 +238,8 @@ Rules:
 - Model relationships and soft-delete behavior.
 - Required columns, defaults, foreign keys, and indexes.
 - Scoped directory/file/transfer lookups.
-- Duplicate idempotency key reuse, scope isolation, blank-key rejection, and database uniqueness behavior.
-- Unique transfer/chunk index enforcement, including duplicate-key rejection.
+- Duplicate idempotency key reuse in both repository create paths, scope isolation, blank-key rejection, and database uniqueness behavior.
+- Unique directory scope/name, transfer idempotency, and transfer/chunk index enforcement, including duplicate-key rejection.
 - Chunk ordering and bounded stale-record query.
 - Transaction rollback leaves no partial metadata.
 - SQLite CI must pass; no unsupported database is claimed.
