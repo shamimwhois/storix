@@ -14,6 +14,8 @@ interface DirectoryRepository
 
     public function findScoped(string $id, ?string $tenantId, ?string $ownerId): ?Directory;
 
+    public function findChild(?string $parentId, string $name, string $driver, ?string $tenantId, ?string $ownerId): ?Directory;
+
     /** @return Collection<int, Directory> */
     public function children(?string $parentId, string $driver, ?string $tenantId, ?string $ownerId): Collection;
 
