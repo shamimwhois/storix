@@ -237,7 +237,7 @@ Rules:
 - Required columns, defaults, foreign keys, and indexes.
 - Scoped directory/file/transfer lookups.
 - Duplicate idempotency key reuse, scope isolation, blank-key rejection, and database uniqueness behavior.
-- Unique transfer/chunk index enforcement.
+- Unique transfer/chunk index enforcement, including duplicate-key rejection.
 - Chunk ordering and bounded stale-record query.
 - Transaction rollback leaves no partial metadata.
 - SQLite CI must pass; no unsupported database is claimed.
