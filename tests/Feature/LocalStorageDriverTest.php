@@ -252,6 +252,77 @@ final class LocalStorageDriverTest extends TestCase
     }
 
     /**
+     * Verify that a symbolic link used as an intermediate directory is rejected during path resolution.
+     */
+    public function test_it_rejects_symlinked_intermediate_directories(): void
+    {
+        if (function_exists('symlink') === false) {
+            self::markTestSkipped('Symbolic links are not available in this environment.');
+        }
+
+        $driver = $this->driver();
+        $root = $this->temporaryRoots[array_key_last($this->temporaryRoots)];
+        mkdir($root, 0770, true);
+
+        $outside = $this->temporaryDirectory();
+        mkdir($outside, 0770, true);
+        $outsideFile = $outside.DIRECTORY_SEPARATOR.'secret.txt';
+        file_put_contents($outsideFile, 'outside secret');
+
+        if (@symlink($outside, $root.DIRECTORY_SEPARATOR.'linked-dir') === false) {
+            self::markTestSkipped('The test environment does not allow creating symbolic links.');
+        }
+
+        $this->expectException(StorageOperationFailedException::class);
+
+        $driver->readStream(new ReadStreamRequest('linked-dir/secret.txt'));
+    }
+
+    /**
+     * Verify that listings omit symlinks and recursive deletion never removes their targets.
+     */
+    public function test_directory_listing_and_recursive_delete_do_not_follow_symlinks(): void
+    {
+        if (function_exists('symlink') === false) {
+            self::markTestSkipped('Symbolic links are not available in this environment.');
+        }
+
+        $driver = $this->driver();
+        $root = $this->temporaryRoots[array_key_last($this->temporaryRoots)];
+        $outside = $this->temporaryDirectory();
+        mkdir($outside, 0770, true);
+
+        $outsideFile = $outside.DIRECTORY_SEPARATOR.'secret.txt';
+        file_put_contents($outsideFile, 'outside secret');
+
+        $driver->makeDirectory('documents');
+        $input = $this->inputStream('document');
+        $driver->writeStream(new WriteStreamRequest('documents/notes.txt', $input));
+        fclose($input);
+
+        if (@symlink($outsideFile, $root.DIRECTORY_SEPARATOR.'documents'.DIRECTORY_SEPARATOR.'external.txt') === false) {
+            self::markTestSkipped('The test environment does not allow creating symbolic links.');
+        }
+
+        $entries = $driver->listDirectory('documents');
+
+        self::assertSame(['notes.txt'], array_map(
+            static fn ($entry): string => $entry->name,
+            $entries,
+        ));
+
+        try {
+            $driver->deleteDirectory('documents', recursive: true);
+            self::fail('Recursive deletion must stop when a symbolic link is present.');
+        } catch (StorageOperationFailedException $exception) {
+            self::assertSame(StorixErrorCode::STORAGE_OPERATION_FAILED, $exception->errorCode);
+        }
+
+        self::assertFileExists($outsideFile);
+        self::assertFileExists($root.DIRECTORY_SEPARATOR.'documents'.DIRECTORY_SEPARATOR.'external.txt');
+    }
+
+    /**
      * Verify that a symlink pointing outside the root cannot be read as an object.
      */
     public function test_it_does_not_follow_symbolic_links_inside_the_storage_root(): void
