@@ -4,7 +4,7 @@
 **Epic dependency:** E01 Foundation  
 **Target:** PHP 8.5+ and Laravel 13.x  
 **Package:** `shamimstack/storix`  
-**Namespace:** `ShamimStack\\Storix`
+**Namespace:** `ShamimStack\Storix`
 
 ## 1. Objective
 
@@ -67,8 +67,8 @@ The transfer engine in later epics must consult these declarations rather than a
 The `DriverManager` owns an in-memory registry of `StorageDriver` implementations.
 
 ```php
-use ShamimStack\\Storix\\Contracts\\StorageDriver;
-use ShamimStack\\Storix\\Drivers\\DriverManager;
+use ShamimStack\Storix\Contracts\StorageDriver;
+use ShamimStack\Storix\Drivers\DriverManager;
 
 $manager = app(DriverManager::class);
 $manager->register('custom', app(CustomStorageDriver::class));
@@ -85,7 +85,7 @@ The manager exposes a sorted list of registered driver names. Registration is pr
 The service provider binds `DriverManager` and the `storix` manager in Laravel's service container. The facade exposes:
 
 ```php
-use ShamimStack\\Storix\\Facades\\Storix;
+use ShamimStack\Storix\Facades\Storix;
 
 $driver = Storix::driver('custom');
 $capabilities = Storix::capabilities('custom');
