@@ -16,7 +16,7 @@ Storix is an **API-first, backend-only Laravel package** designed to give applic
 
 Instead of coupling application code to a single provider, Storix places a stable PHP API over a capability-aware driver system. Its engineering design covers streaming I/O, large-file chunking, resumable transfers, retries, integrity verification, transfer observability, and tenant-aware access control.
 
-> **Project status:** E01 Foundation is implemented on the `feature/e01-foundation` branch and its CI checks pass. Storix is not yet a usable storage engine or production release; upload, chunking, drivers, persistence, and transfer features remain on the roadmap.
+> **Project status:** E01 Foundation is merged into `main`. E02 Contracts & API is in progress on `feature/e02-contracts-api`; typed DTOs, driver capabilities, the storage driver contract, driver registry, manager, and facade are being implemented. Storix is not yet a usable storage engine or production release; persistence, concrete drivers, uploads, chunking, and transfer execution remain on the roadmap.
 
 ## At a glance
 
@@ -237,6 +237,7 @@ The documentation portal is available at **[docs/index.html](docs/index.html)**.
 | [Configuration and operations](docs/12-configuration-and-operations.md) | Configuration, queues, scheduler, observability, and troubleshooting |
 | [Acceptance checklist](docs/13-acceptance-checklist.md) | Evidence-based release and production-readiness gates |
 | [Architecture decisions](docs/DECISIONS.md) | Confirmed decisions and unresolved engineering choices |
+| [E02 Contracts & API](docs/15-e02-contracts-and-api.md) | Public driver contract, DTOs, capabilities, exceptions, registration, facade, and acceptance criteria |
 
 ## Implementation roadmap
 
