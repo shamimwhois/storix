@@ -85,15 +85,17 @@ final class PersistenceRepositoryTest extends TestCase
         self::assertSame(1, Transfer::query()->count());
 
         $otherOwner = $repository->firstOrCreateIdempotent([...$attributes, 'owner_id' => 'owner-b']);
+        $otherTenant = $repository->firstOrCreateIdempotent([...$attributes, 'tenant_id' => 'tenant-b']);
 
         self::assertNotSame($first->id, $otherOwner->id);
+        self::assertNotSame($first->id, $otherTenant->id);
 
         $unscoped = [...$attributes, 'tenant_id' => null, 'owner_id' => null, 'idempotency_key' => 'unscoped-request'];
         $unscopedFirst = $repository->firstOrCreateIdempotent($unscoped);
         $unscopedSecond = $repository->firstOrCreateIdempotent($unscoped);
 
         self::assertSame($unscopedFirst->id, $unscopedSecond->id);
-        self::assertSame(3, Transfer::query()->count());
+        self::assertSame(4, Transfer::query()->count());
     }
 
     public function test_blank_idempotency_keys_are_rejected(): void
