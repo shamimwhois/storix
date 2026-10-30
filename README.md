@@ -16,7 +16,7 @@ Storix is an **API-first, backend-only Laravel package** designed to give applic
 
 Instead of coupling application code to a single provider, Storix places a stable PHP API over a capability-aware driver system. Its engineering design covers streaming I/O, large-file chunking, resumable transfers, retries, integrity verification, transfer observability, and tenant-aware access control.
 
-> **Project status:** E01 Foundation, E02 Contracts & API, and E03 Persistence are merged into `main`. E04 Local Driver is implemented in [PR #4](https://github.com/shamimwhois/storix/pull/4); the latest PHP 8.5 / Laravel 13 CI passes. Final review and merge are pending. E05 adds the basic upload workflow; chunked/resumable transfers and recovery remain later epics. Storix is not yet a production release.
+> **Project status:** E01 Foundation, E02 Contracts & API, E03 Persistence, and E04 Local Driver are merged into `main`. E04 provides the first local filesystem adapter with bounded streaming, checksums, safe key handling, range reads, and directory operations. E05 — Basic Upload is the next development epic; chunked/resumable transfers and recovery remain later epics. Storix is not yet a production release.
 
 ## At a glance
 
@@ -180,7 +180,7 @@ $status = Storix::transfers()->status($transfer->id);
 
 | Driver | Role | Status / boundary |
 |---|---|---|
-| Local | Baseline filesystem-backed storage | E04 implemented in PR #4; latest CI passed, review/merge pending |
+| Local | Baseline filesystem-backed storage | E04 complete and merged into `main` |
 | Telegram | Optional remote storage integration | Planned; must revalidate official API limits, policy, and deployment constraints |
 | S3-compatible | Object storage integration | Future extension |
 | Cloudflare R2 | S3-compatible backend candidate | Future extension |
@@ -248,7 +248,7 @@ Implementation is staged to reduce architectural risk:
 1. **E01 — Foundation:** Composer metadata, service provider, configuration, CI, and package conventions.
 2. **E02 — Contracts and API:** typed DTOs, exceptions, driver contracts, facade, and service bindings.
 3. **E03 — Persistence:** migrations, models, repositories, and transfer state machine.
-4. **E04 — Local driver:** safe stream-based local storage (implementation and CI complete; PR #4 review/merge pending).
+4. **E04 — Local driver:** safe stream-based local storage (complete and merged into `main`).
 5. **E05 — Basic upload:** validation, upload records, finalization, and checksum.
 6. **E06 — Chunk engine:** deterministic chunk planning and bounded concurrency.
 7. **E07 — Resume and idempotency:** fingerprinting and safe reconciliation.
