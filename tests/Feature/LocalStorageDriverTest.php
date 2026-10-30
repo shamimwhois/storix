@@ -43,6 +43,8 @@ final class LocalStorageDriverTest extends TestCase
 
         self::assertSame(['local'], $manager->names());
         self::assertInstanceOf(LocalStorageDriver::class, $manager->driver());
+        Storix::clearResolvedInstance('storix');
+
         self::assertSame($manager->driver(), Storix::driver());
     }
 
