@@ -106,6 +106,55 @@ final class LocalStorageDriverTest extends TestCase
     }
 
     /**
+     * Verify orphaned staging files remain hidden from object listings.
+     */
+    public function test_directory_listing_omits_orphaned_staging_files(): void
+    {
+        $driver = $this->driver();
+        $input = $this->inputStream('visible object');
+        $driver->writeStream(new WriteStreamRequest('visible.txt', $input));
+        fclose($input);
+
+        $root = $this->temporaryRoots[array_key_last($this->temporaryRoots)];
+        file_put_contents($root.DIRECTORY_SEPARATOR.'.storix-tmp-orphan', 'incomplete');
+
+        $entries = $driver->listDirectory();
+
+        self::assertSame(['visible.txt'], array_map(
+            static fn ($entry): string => $entry->name,
+            $entries,
+        ));
+    }
+
+    /**
+     * Verify a long-lived driver recreates its configured root after external removal.
+     */
+    public function test_it_recreates_a_removed_cached_storage_root(): void
+    {
+        $driver = $this->driver();
+        $root = $this->temporaryRoots[array_key_last($this->temporaryRoots)];
+
+        $first = $this->inputStream('first object');
+        $driver->writeStream(new WriteStreamRequest('first.txt', $first));
+        fclose($first);
+
+        self::assertFileExists($root.DIRECTORY_SEPARATOR.'first.txt');
+
+        unlink($root.DIRECTORY_SEPARATOR.'first.txt');
+        rmdir($root);
+
+        self::assertDirectoryDoesNotExist($root);
+
+        $second = $this->inputStream('second object');
+        $driver->writeStream(new WriteStreamRequest('second.txt', $second));
+        fclose($second);
+
+        self::assertDirectoryExists($root);
+        self::assertFileExists($root.DIRECTORY_SEPARATOR.'second.txt');
+        self::assertTrue($driver->exists('second.txt'));
+    }
+
+    /**
      * Verify successful replacement publishes only the completed object and hides staging files.
      */
     public function test_it_replaces_an_existing_object_and_cleans_temporary_files(): void
