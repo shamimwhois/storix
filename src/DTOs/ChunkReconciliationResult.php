@@ -11,12 +11,12 @@ final readonly class ChunkReconciliationResult
     /**
      * @param  list<Chunk>  $reusableChunks
      * @param  list<Chunk>  $invalidatedChunks
+     * @param  list<MultipartPartResult>  $reusableParts
      */
     public function __construct(
         public array $reusableChunks,
         public array $invalidatedChunks,
         public int $verifiedBytes,
-        /** @var list<MultipartPartResult> */
         public array $reusableParts = [],
     ) {}
 
