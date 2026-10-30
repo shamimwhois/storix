@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="./assets/app.css">
   <script defer src="./assets/app.js"></script>
 </head>
-<body x-data="docsApp" x-cloak>
+<body x-data="docsApp">
   <div class="docs-backdrop" :class="{ 'show': sidebarOpen }" @click="closeSidebar()" aria-hidden="true"></div>
 
   <aside id="docs-sidebar" class="docs-sidebar" :class="{ 'open': sidebarOpen }" aria-label="Documentation navigation">
@@ -30,32 +30,32 @@
     <nav class="docs-nav" aria-label="Documentation sections">
       <div class="docs-nav-group">
         <div class="docs-nav-heading">Getting started</div>
-        <a class="docs-nav-link active" href="#introduction" data-doc-link @click="closeSidebar()"><span>01</span> Introduction</a>
-        <a class="docs-nav-link" href="#quick-start" data-doc-link @click="closeSidebar()"><span>02</span> Quick start</a>
-        <a class="docs-nav-link" href="#why-storix" data-doc-link @click="closeSidebar()"><span>03</span> Why Storix</a>
-        <a class="docs-nav-link" href="#concepts" data-doc-link @click="closeSidebar()"><span>04</span> Core concepts</a>
+        <a class="docs-nav-link active" href="#introduction" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>01</span> Introduction</a>
+        <a class="docs-nav-link" href="#quick-start" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>02</span> Quick start</a>
+        <a class="docs-nav-link" href="#why-storix" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>03</span> Why Storix</a>
+        <a class="docs-nav-link" href="#concepts" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>04</span> Core concepts</a>
       </div>
       <div class="docs-nav-group">
         <div class="docs-nav-heading">Product guide</div>
-        <a class="docs-nav-link" href="#features" data-doc-link @click="closeSidebar()"><span>05</span> Features</a>
-        <a class="docs-nav-link" href="#architecture" data-doc-link @click="closeSidebar()"><span>06</span> Architecture</a>
-        <a class="docs-nav-link" href="#drivers" data-doc-link @click="closeSidebar()"><span>07</span> Storage drivers</a>
-        <a class="docs-nav-link" href="#transfers" data-doc-link @click="closeSidebar()"><span>08</span> Transfer lifecycle</a>
-        <a class="docs-nav-link" href="#security" data-doc-link @click="closeSidebar()"><span>09</span> Security model</a>
+        <a class="docs-nav-link" href="#features" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>05</span> Features</a>
+        <a class="docs-nav-link" href="#architecture" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>06</span> Architecture</a>
+        <a class="docs-nav-link" href="#drivers" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>07</span> Storage drivers</a>
+        <a class="docs-nav-link" href="#transfers" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>08</span> Transfer lifecycle</a>
+        <a class="docs-nav-link" href="#security" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>09</span> Security model</a>
       </div>
       <div class="docs-nav-group">
         <div class="docs-nav-heading">Developer guide</div>
-        <a class="docs-nav-link" href="#installation" data-doc-link @click="closeSidebar()"><span>10</span> Installation</a>
-        <a class="docs-nav-link" href="#api" data-doc-link @click="closeSidebar()"><span>11</span> PHP API</a>
-        <a class="docs-nav-link" href="#configuration" data-doc-link @click="closeSidebar()"><span>12</span> Configuration</a>
-        <a class="docs-nav-link" href="#operations" data-doc-link @click="closeSidebar()"><span>13</span> Operations</a>
-        <a class="docs-nav-link" href="#testing" data-doc-link @click="closeSidebar()"><span>14</span> Testing</a>
+        <a class="docs-nav-link" href="#installation" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>10</span> Installation</a>
+        <a class="docs-nav-link" href="#api" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>11</span> PHP API</a>
+        <a class="docs-nav-link" href="#configuration" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>12</span> Configuration</a>
+        <a class="docs-nav-link" href="#operations" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>13</span> Operations</a>
+        <a class="docs-nav-link" href="#testing" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>14</span> Testing</a>
       </div>
       <div class="docs-nav-group">
         <div class="docs-nav-heading">Reference</div>
-        <a class="docs-nav-link" href="#roadmap" data-doc-link @click="closeSidebar()"><span>15</span> Roadmap</a>
-        <a class="docs-nav-link" href="#documents" data-doc-link @click="closeSidebar()"><span>16</span> All documents</a>
-        <a class="docs-nav-link" href="#faq" data-doc-link @click="closeSidebar()"><span>17</span> FAQ</a>
+        <a class="docs-nav-link" href="#roadmap" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>15</span> Roadmap</a>
+        <a class="docs-nav-link" href="#documents" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>16</span> All documents</a>
+        <a class="docs-nav-link" href="#faq" x-show="matchesElement($el)" data-doc-link @click="closeSidebar()"><span>17</span> FAQ</a>
       </div>
     </nav>
 
@@ -84,7 +84,7 @@
     </header>
 
     <main class="docs-content">
-      <section id="introduction" class="docs-hero" data-doc-section>
+      <section id="introduction" class="docs-hero" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-eyebrow">Laravel storage infrastructure</div>
         <h1>One API.<br>Every Storage.</h1>
         <p>A unified, driver-based storage and transfer layer for Laravel. Store, retrieve, organize, and move files without coupling your application to a single provider.</p>
@@ -106,7 +106,7 @@
         <div class="docs-stat"><strong>Driver-based</strong><span>Storage architecture</span></div>
       </div>
 
-      <section id="quick-start" class="docs-section" data-doc-section>
+      <section id="quick-start" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">01</span><h2>Quick start</h2></div>
         <p class="docs-lead">Start with the product model, understand the driver boundary, then follow the implementation roadmap. Storix is a backend-only Composer package; it does not ship a dashboard or frontend.</p>
         <div class="docs-steps">
@@ -117,7 +117,7 @@
         </div>
       </section>
 
-      <section id="why-storix" class="docs-section" data-doc-section>
+      <section id="why-storix" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">02</span><h2>Why Storix?</h2></div>
         <p class="docs-lead">Storage providers expose different APIs and capabilities. Large transfers introduce interruptions, duplicate requests, rate limits, partial writes, and uncertainty about data integrity. Storix centralizes those concerns behind a consistent Laravel API.</p>
         <div class="docs-grid">
@@ -128,7 +128,7 @@
         </div>
       </section>
 
-      <section id="concepts" class="docs-section" data-doc-section>
+      <section id="concepts" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">03</span><h2>Core concepts</h2></div>
         <div class="docs-grid">
           <article class="docs-card"><h3>Storage driver</h3><p>A provider adapter implementing a provider-neutral contract. Each driver declares its capabilities and operational limits.</p></article>
@@ -140,7 +140,7 @@
         </div>
       </section>
 
-      <section id="features" class="docs-section" data-doc-section>
+      <section id="features" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">04</span><h2>Feature overview</h2></div>
         <p class="docs-lead">The following are planned capabilities defined by the current engineering specification.</p>
         <div class="docs-grid">
@@ -153,7 +153,7 @@
         </div>
       </section>
 
-      <section id="architecture" class="docs-section" data-doc-section>
+      <section id="architecture" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">05</span><h2>Architecture</h2></div>
         <p class="docs-lead">Storix uses a modular, domain-oriented core. Application services depend on contracts; infrastructure adapters integrate provider SDKs and Laravel facilities.</p>
         <pre class="docs-code"><button class="docs-copy" type="button" data-copy-button>Copy</button><code>Laravel Application / CLI / Optional REST
@@ -174,7 +174,7 @@
         <p>For detailed sequences and consistency rules, read <a href="02-system-architecture.md">System Architecture</a> and <a href="03-database-design.md">Database Design</a>.</p>
       </section>
 
-      <section id="drivers" class="docs-section" data-doc-section>
+      <section id="drivers" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">06</span><h2>Storage drivers</h2></div>
         <div class="docs-table-wrap"><table class="docs-table"><thead><tr><th>Driver</th><th>Purpose</th><th>Scope</th></tr></thead><tbody>
           <tr><td>Local</td><td>Baseline filesystem-backed storage</td><td>Planned first usable driver</td></tr>
@@ -185,7 +185,7 @@
         <div class="docs-callout"><strong>Scope boundary:</strong> Telegram Serverless is explicitly excluded. Storix must not assume Telegram-specific identifiers or behavior in its core domain.</div>
       </section>
 
-      <section id="transfers" class="docs-section" data-doc-section>
+      <section id="transfers" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">07</span><h2>Transfer lifecycle</h2></div>
         <p>Expected high-level lifecycle:</p>
         <pre class="docs-code"><button class="docs-copy" type="button" data-copy-button>Copy</button><code>pending → preparing → transferring → verifying → completed
@@ -204,7 +204,7 @@ Optional state: paused (only where safely supported)</code></pre>
         <p>See <a href="06-transfer-engine.md">Transfer Engine</a> for protocol and failure handling.</p>
       </section>
 
-      <section id="security" class="docs-section" data-doc-section>
+      <section id="security" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">08</span><h2>Security model</h2></div>
         <div class="docs-grid">
           <article class="docs-card"><h3>Authorization by scope</h3><p>Every read, write, list, resume, share, and delete operation must enforce owner and tenant access.</p></article>
@@ -215,14 +215,14 @@ Optional state: paused (only where safely supported)</code></pre>
         <p>Read the complete <a href="08-security-design.md">Security Design</a> before implementing access or sharing features.</p>
       </section>
 
-      <section id="installation" class="docs-section" data-doc-section>
+      <section id="installation" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">09</span><h2>Installation</h2></div>
         <p>Expected Composer installation after a compatible package release is published:</p>
         <pre class="docs-code"><button class="docs-copy" type="button" data-copy-button>Copy</button><code>composer require shamimstack/storix</code></pre>
         <div class="docs-callout">This is the intended distribution command. Until a tagged release is published, do not assume Packagist installation is available. Use the repository's development setup instructions for active implementation.</div>
       </section>
 
-      <section id="api" class="docs-section" data-doc-section>
+      <section id="api" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">10</span><h2>PHP API direction</h2></div>
         <p>The intended primary interface is PHP services/facade. Exact signatures and DTOs are subject to implementation and API review.</p>
         <pre class="docs-code"><button class="docs-copy" type="button" data-copy-button>Copy</button><code>use ShamimStack\\Storix\\Facades\\Storix;
@@ -244,7 +244,7 @@ $status = Storix::transfers()->status($transfer->id);</code></pre>
         <p>See <a href="05-core-api-and-rest-api.md">Core PHP API and REST API</a> for suggested routes, response envelopes, and error conventions.</p>
       </section>
 
-      <section id="configuration" class="docs-section" data-doc-section>
+      <section id="configuration" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">11</span><h2>Configuration</h2></div>
         <p>Configuration is expected to cover default driver, driver credentials/settings, chunk policy, concurrency, retry policy, session retention, progress persistence, quotas, and optional REST adapter settings.</p>
         <pre class="docs-code"><button class="docs-copy" type="button" data-copy-button>Copy</button><code>return [
@@ -262,7 +262,7 @@ $status = Storix::transfers()->status($transfer->id);</code></pre>
         <p>Values are illustrative only. See <a href="12-configuration-and-operations.md">Configuration & Operations</a> for the complete example and operational guidance.</p>
       </section>
 
-      <section id="operations" class="docs-section" data-doc-section>
+      <section id="operations" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">12</span><h2>Queues & operations</h2></div>
         <ul class="docs-list">
           <li>Use Laravel queues for long-running transfers.</li>
@@ -274,7 +274,7 @@ $status = Storix::transfers()->status($transfer->id);</code></pre>
         <p>Redis may improve queue/progress workloads but should not replace durable relational metadata.</p>
       </section>
 
-      <section id="testing" class="docs-section" data-doc-section>
+      <section id="testing" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">13</span><h2>Testing strategy</h2></div>
         <div class="docs-grid">
           <article class="docs-card"><h3>Unit tests</h3><p>State machine, chunk planner, fingerprinting, retry policy, DTO validation, and progress math.</p></article>
@@ -284,7 +284,7 @@ $status = Storix::transfers()->status($transfer->id);</code></pre>
         </div>
       </section>
 
-      <section id="roadmap" class="docs-section" data-doc-section>
+      <section id="roadmap" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">14</span><h2>Implementation roadmap</h2></div>
         <div class="docs-table-wrap"><table class="docs-table"><thead><tr><th>Epic</th><th>Scope</th></tr></thead><tbody>
           <tr><td>E01</td><td>Foundation — Composer, provider, config, CI</td></tr>
@@ -305,7 +305,7 @@ $status = Storix::transfers()->status($transfer->id);</code></pre>
         <p>Implement sequentially. Do not begin provider-specific work before core contracts and transfer state are stable. See the <a href="10-implementation-roadmap.md">full roadmap</a>.</p>
       </section>
 
-      <section id="documents" class="docs-section" data-doc-section>
+      <section id="documents" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">15</span><h2>Documentation library</h2></div>
         <p class="docs-lead">Each document is the detailed source of truth for its subject.</p>
         <div class="docs-doc-list">
@@ -326,7 +326,7 @@ $status = Storix::transfers()->status($transfer->id);</code></pre>
         </div>
       </section>
 
-      <section id="faq" class="docs-section" data-doc-section>
+      <section id="faq" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">16</span><h2>Frequently asked questions</h2></div>
         <h3>Does Storix include a frontend or dashboard?</h3><p>No. It is a backend-only package. Applications can build their own UI using the PHP API, events, or optional REST adapter.</p>
         <h3>Is Telegram required?</h3><p>No. Telegram is an optional driver. The core architecture is provider-neutral, and Telegram Serverless is excluded.</p>
