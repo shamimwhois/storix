@@ -22,6 +22,9 @@ final class LocalStorageDriverTest extends TestCase
     /** @var list<string> */
     private array $temporaryRoots = [];
 
+    /**
+     * Remove all per-test filesystem roots before delegating to the Testbench cleanup.
+     */
     protected function tearDown(): void
     {
         foreach ($this->temporaryRoots as $root) {
@@ -31,6 +34,9 @@ final class LocalStorageDriverTest extends TestCase
         parent::tearDown();
     }
 
+    /**
+     * Verify that the service provider registers the local adapter and exposes it through the facade.
+     */
     public function test_local_driver_is_registered_as_the_default_driver(): void
     {
         $root = $this->temporaryDirectory();
@@ -48,6 +54,9 @@ final class LocalStorageDriverTest extends TestCase
         self::assertSame($manager->driver(), Storix::driver());
     }
 
+    /**
+     * Verify binary-safe streaming, byte counts, SHA-256, MIME metadata, and private file permissions.
+     */
     public function test_it_writes_binary_streams_with_a_checksum_and_metadata(): void
     {
         $driver = $this->driver();
@@ -77,6 +86,9 @@ final class LocalStorageDriverTest extends TestCase
         fclose($input);
     }
 
+    /**
+     * Verify that writes start at the caller's current stream position and leave the source open.
+     */
     public function test_writes_from_the_current_input_position_without_closing_the_source(): void
     {
         $driver = $this->driver();
@@ -93,6 +105,9 @@ final class LocalStorageDriverTest extends TestCase
         fclose($input);
     }
 
+    /**
+     * Verify successful replacement publishes only the completed object and hides staging files.
+     */
     public function test_it_replaces_an_existing_object_and_cleans_temporary_files(): void
     {
         $driver = $this->driver();
@@ -115,6 +130,9 @@ final class LocalStorageDriverTest extends TestCase
         fclose($read);
     }
 
+    /**
+     * Verify offset reads and bounded reads return exactly the requested bytes.
+     */
     public function test_it_reads_full_streams_and_bounded_ranges(): void
     {
         $driver = $this->driver();
@@ -135,6 +153,9 @@ final class LocalStorageDriverTest extends TestCase
         fclose($shortRange);
     }
 
+    /**
+     * Verify stat metadata and that deleting a missing object remains safe.
+     */
     public function test_it_reports_metadata_and_deletes_objects_idempotently(): void
     {
         $driver = $this->driver();
@@ -155,6 +176,9 @@ final class LocalStorageDriverTest extends TestCase
         self::assertNull($driver->stat(new StatObjectRequest('metadata.txt')));
     }
 
+    /**
+     * Verify sorted immediate listings and the explicit recursive-delete safety boundary.
+     */
     public function test_it_supports_directory_creation_listing_and_safe_recursive_deletion(): void
     {
         $driver = $this->driver();
@@ -188,6 +212,9 @@ final class LocalStorageDriverTest extends TestCase
         self::assertSame([], $driver->listDirectory());
     }
 
+    /**
+     * Verify that callers cannot delete the configured storage root.
+     */
     public function test_it_rejects_deleting_the_storage_root(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -195,6 +222,9 @@ final class LocalStorageDriverTest extends TestCase
         $this->driver()->deleteDirectory('');
     }
 
+    /**
+     * Verify rejection of traversal, absolute, reserved, and malformed storage keys.
+     */
     public function test_it_rejects_traversal_absolute_and_ambiguous_keys(): void
     {
         $driver = $this->driver();
@@ -221,6 +251,9 @@ final class LocalStorageDriverTest extends TestCase
         }
     }
 
+    /**
+     * Verify that a symlink pointing outside the root cannot be read as an object.
+     */
     public function test_it_does_not_follow_symbolic_links_inside_the_storage_root(): void
     {
         if (function_exists('symlink') === false) {
@@ -245,6 +278,9 @@ final class LocalStorageDriverTest extends TestCase
         $driver->readStream(new ReadStreamRequest('linked/secret.txt'));
     }
 
+    /**
+     * Verify filesystem failures map to a stable package error without leaking the absolute root path.
+     */
     public function test_filesystem_failures_use_safe_package_errors(): void
     {
         $invalidRoot = $this->temporaryDirectory();
@@ -263,6 +299,9 @@ final class LocalStorageDriverTest extends TestCase
         }
     }
 
+    /**
+     * Verify the driver advertises only the capabilities it actually implements.
+     */
     public function test_local_capabilities_advertise_streaming_range_reads_and_atomic_finalize(): void
     {
         $capabilities = $this->driver()->capabilities();
@@ -274,11 +313,17 @@ final class LocalStorageDriverTest extends TestCase
         self::assertNull($capabilities->maxObjectSizeBytes);
     }
 
+    /**
+     * Create an isolated local driver using a fresh temporary root.
+     */
     private function driver(): LocalStorageDriver
     {
         return new LocalStorageDriver($this->temporaryDirectory());
     }
 
+    /**
+     * Reserve a unique per-test path and register it for teardown cleanup.
+     */
     private function temporaryDirectory(): string
     {
         $path = sys_get_temp_dir().DIRECTORY_SEPARATOR.'storix-test-'.bin2hex(random_bytes(8));
@@ -288,6 +333,7 @@ final class LocalStorageDriverTest extends TestCase
     }
 
     /**
+     * Create a rewound in-memory stream containing the supplied test payload.
      * @return resource
      */
     private function inputStream(string $contents): mixed
@@ -299,6 +345,9 @@ final class LocalStorageDriverTest extends TestCase
         return $stream;
     }
 
+    /**
+     * Remove a test filesystem path without traversing symbolic links.
+     */
     private function removePath(string $path): void
     {
         if (is_link($path) || is_file($path)) {
