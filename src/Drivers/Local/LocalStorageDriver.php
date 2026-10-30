@@ -30,6 +30,9 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
 
     private ?string $canonicalRoot = null;
 
+    /**
+     * Create the local adapter for an isolated storage root.
+     */
     public function __construct(private readonly string $root)
     {
         if (trim($this->root) === '') {
@@ -37,11 +40,17 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         }
     }
 
+    /**
+     * Return the stable driver identifier used by Storix registration.
+     */
     public function name(): string
     {
         return 'local';
     }
 
+    /**
+     * Describe the streaming and range-read capabilities of the local filesystem backend.
+     */
     public function capabilities(): DriverCapabilities
     {
         return new DriverCapabilities(
@@ -59,6 +68,9 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         );
     }
 
+    /**
+     * Stream the caller's input into a private staging file and atomically publish the completed object.
+     */
     public function writeStream(WriteStreamRequest $request): WriteResult
     {
         $path = $this->resolvePath($request->key, createParents: true, createRoot: true);
@@ -154,6 +166,7 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
     }
 
     /**
+     * Open an object as a readable stream, optionally returning only the requested byte range.
      * @return resource
      */
     public function readStream(ReadStreamRequest $request): mixed
@@ -228,6 +241,9 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         }
     }
 
+    /**
+     * Remove an object without treating an already-missing key as an error.
+     */
     public function delete(DeleteObjectRequest $request): void
     {
         $path = $this->resolvePath($request->key, createParents: false, createRoot: false);
@@ -241,6 +257,9 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         }
     }
 
+    /**
+     * Determine whether a regular object exists at the supplied storage key.
+     */
     public function exists(string $key): bool
     {
         $path = $this->resolvePath($key, createParents: false, createRoot: false);
@@ -248,6 +267,9 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         return $path !== null && is_file($path) && is_link($path) === false;
     }
 
+    /**
+     * Return the object's filesystem metadata, or null when the object is absent.
+     */
     public function stat(StatObjectRequest $request): ?StorageObjectMetadata
     {
         $path = $this->resolvePath($request->key, createParents: false, createRoot: false);
@@ -270,6 +292,9 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         );
     }
 
+    /**
+     * Create a directory and any missing parent directories below the storage root.
+     */
     public function makeDirectory(string $key): void
     {
         if ($key === '') {
@@ -289,6 +314,9 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         }
     }
 
+    /**
+     * List and sort the immediate file and directory entries without following symbolic links.
+     */
     public function listDirectory(string $key = ''): array
     {
         $path = $key === ''
@@ -338,6 +366,9 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         }
     }
 
+    /**
+     * Remove a directory, requiring explicit opt-in before recursively deleting its contents.
+     */
     public function deleteDirectory(string $key, bool $recursive = false): void
     {
         if ($key === '') {
@@ -365,6 +396,9 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         }
     }
 
+    /**
+     * Resolve and cache the canonical storage root, creating it only when the operation allows it.
+     */
     private function rootPath(bool $create): ?string
     {
         if ($this->canonicalRoot !== null) {
@@ -404,6 +438,9 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         return $this->canonicalRoot;
     }
 
+    /**
+     * Resolve a validated relative key beneath the storage root while rejecting symbolic-link components.
+     */
     private function resolvePath(string $key, bool $createParents, bool $createRoot): ?string
     {
         $segments = $this->segments($key);
@@ -454,6 +491,7 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
     }
 
     /**
+     * Validate a relative storage key and split it into safe POSIX-style path segments.
      * @return list<string>
      */
     private function segments(string $key): array
@@ -483,6 +521,9 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
     }
 
     /** @param resource $destination */
+    /**
+     * Write the complete buffer to a stream while handling partial writes.
+     */
     private function writeAll(mixed $destination, string $contents): void
     {
         $offset = 0;
@@ -499,6 +540,9 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         }
     }
 
+    /**
+     * Detect the object's MIME type when the PHP fileinfo extension is available.
+     */
     private function detectMimeType(string $path): ?string
     {
         if (class_exists(finfo::class) === false) {
@@ -510,6 +554,9 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         return is_string($detected) ? $detected : null;
     }
 
+    /**
+     * Convert the filesystem modification timestamp into an immutable date value.
+     */
     private function lastModified(string $path): ?DateTimeImmutable
     {
         $timestamp = @filemtime($path);
@@ -517,6 +564,9 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         return $timestamp === false ? null : new DateTimeImmutable('@'.$timestamp);
     }
 
+    /**
+     * Recursively remove regular files and directories while aborting on symbolic links.
+     */
     private function removeDirectoryTree(string $path): void
     {
         try {
