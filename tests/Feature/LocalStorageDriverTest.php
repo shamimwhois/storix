@@ -41,26 +41,26 @@ final class LocalStorageDriverTest extends TestCase
      */
     public function test_local_driver_is_registered_as_the_default_driver(): void
     {
-        fwrite(STDERR, "E07-DIAG-1\\n");
+        fwrite(STDERR, 'E07-DIAG-1\\n');
         $root = $this->temporaryDirectory();
         config(['storix.drivers.local.root' => $root]);
-        fwrite(STDERR, "E07-DIAG-2\\n");
+        fwrite(STDERR, 'E07-DIAG-2\\n');
         $this->app->forgetInstance(LocalStorageDriver::class);
         $this->app->forgetInstance(DriverManager::class);
         $this->app->forgetInstance('storix');
-        fwrite(STDERR, "E07-DIAG-3\\n");
+        fwrite(STDERR, 'E07-DIAG-3\\n');
 
         $manager = $this->app->make(DriverManager::class);
-        fwrite(STDERR, "E07-DIAG-4\\n");
+        fwrite(STDERR, 'E07-DIAG-4\\n');
 
         self::assertSame(['local'], $manager->names());
         self::assertInstanceOf(LocalStorageDriver::class, $manager->driver());
-        fwrite(STDERR, "E07-DIAG-5\\n");
+        fwrite(STDERR, 'E07-DIAG-5\\n');
         Storix::clearResolvedInstance('storix');
-        fwrite(STDERR, "E07-DIAG-6\\n");
+        fwrite(STDERR, 'E07-DIAG-6\\n');
 
         self::assertSame($manager->driver(), Storix::driver());
-        fwrite(STDERR, "E07-DIAG-7\\n");
+        fwrite(STDERR, 'E07-DIAG-7\\n');
     }
 
     /**
