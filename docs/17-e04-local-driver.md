@@ -158,5 +158,5 @@ Actual size and throughput depend on the host filesystem, available disk space, 
 - [x] Symlink checks cover path resolution, listing, and recursive deletion.
 - [x] Object metadata, existence, and deletion behavior are implemented.
 - [x] Latest E04 feature suite passes CI; consult the workflow for exact test and assertion totals.
-- [ ] Latest review findings are addressed and all review threads are resolved.
+- [x] All surfaced review findings are addressed and all inline review threads are resolved.
 - [ ] E04 is merged into main.
