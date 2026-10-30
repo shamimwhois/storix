@@ -68,6 +68,12 @@ final class LocalStorageDriverTest extends TestCase
         self::assertSame('backups/large.bin', $result->object->key);
         self::assertTrue($driver->exists('backups/large.bin'));
 
+        if (DIRECTORY_SEPARATOR !== '\\\\') {
+            $permissions = fileperms($this->temporaryRoots[array_key_last($this->temporaryRoots)].DIRECTORY_SEPARATOR.'backups'.DIRECTORY_SEPARATOR.'large.bin');
+            self::assertNotFalse($permissions);
+            self::assertSame(0600, $permissions & 0777);
+        }
+
         fclose($input);
     }
 
@@ -204,6 +210,7 @@ final class LocalStorageDriverTest extends TestCase
             'reserved/CON',
             'reserved/CON.txt',
             'reserved/NUL.log',
+            '.storix-tmp-private/object.bin',
         ] as $key) {
             try {
                 $driver->exists($key);
