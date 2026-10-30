@@ -474,6 +474,7 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
 
     /**
      * @param resource $destination
+     * @param string   $contents
      */
     private function writeAll(mixed $destination, string $contents): void
     {
