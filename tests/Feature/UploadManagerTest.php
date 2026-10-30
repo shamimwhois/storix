@@ -405,7 +405,7 @@ final class UploadManagerTest extends TestCase
         self::assertSame(1, StoredFile::query()->count());
         self::assertSame(
             [ChunkState::VERIFIED, ChunkState::VERIFIED, ChunkState::VERIFIED],
-            Chunk::query()->where('transfer_id', $transfer->id)->orderBy('chunk_index')->pluck('state')->all(),
+            Chunk::query()->where('transfer_id', $transfer->id)->orderBy('chunk_index')->get()->pluck('state')->all(),
         );
         self::assertSame($payload, file_get_contents($this->root.'/'.$storageKey));
     }
