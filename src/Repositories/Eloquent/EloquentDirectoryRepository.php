@@ -45,8 +45,9 @@ final class EloquentDirectoryRepository implements DirectoryRepository
         return (bool) $directory->delete();
     }
 
-    /** @param Builder<Directory> $query
-     *  @return Builder<Directory>
+    /**
+     * @param  Builder<Directory>  $query
+     * @return Builder<Directory>
      */
     private function applyScope(Builder $query, ?string $tenantId, ?string $ownerId): Builder
     {
