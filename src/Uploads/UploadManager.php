@@ -320,6 +320,10 @@ final class UploadManager
                 metadata: $request->metadata,
             ));
 
+            $transfer->multipart_upload_id = $uploadId;
+            $transfer->multipart_started_at = now();
+            $transfer = $this->transfers->save($transfer);
+
             $parts = [];
 
             foreach ($plan as $descriptor) {
@@ -356,6 +360,7 @@ final class UploadManager
                     $chunk->sha256 = strtolower($part->sha256);
                     $chunk->driver_reference = $part->driverReference;
                     $chunk->state = ChunkState::VERIFIED;
+                    $chunk->verified_at = now();
                     $this->chunks->save($chunk);
 
                     $parts[] = $part;
@@ -369,7 +374,7 @@ final class UploadManager
                 }
             }
 
-            return $driver->completeMultipartWrite(new CompleteMultipartWriteRequest(
+            $result = $driver->completeMultipartWrite(new CompleteMultipartWriteRequest(
                 uploadId: $uploadId,
                 key: $storageKey,
                 parts: $parts,
@@ -379,6 +384,11 @@ final class UploadManager
                 visibility: $request->visibility,
                 metadata: $request->metadata,
             ));
+
+            $transfer->multipart_upload_id = null;
+            $transfer = $this->transfers->save($transfer);
+
+            return $result;
         } catch (Throwable $exception) {
             try {
                 $errorCode = $exception instanceof StorixException
