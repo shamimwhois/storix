@@ -40,7 +40,7 @@ Directory listings return typed StorageDirectoryEntry values. The local storage 
 
 ## 3. Configuration and registration
 
-The configured local root is read from storix.drivers.local.root. The package default is storage/app/storix within the Laravel application storage directory.
+The configured local root is read from storix.drivers.local.root. The package default is storage/app/storix within the Laravel application storage directory. Unicode case folding and canonical normalization are provided by the package's declared Symfony polyfills.
 
 StorixServiceProvider registers a singleton LocalStorageDriver and registers it in DriverManager under the stable name local. The existing default-driver setting chooses which registered driver resolves when no name is supplied.
 
@@ -61,7 +61,7 @@ The local driver rejects:
 - Segments ending in a dot or space.
 - The reserved .storix-tmp- namespace used for internal staging files.
 
-The driver builds paths only below the configured root and checks existing path components for symbolic links. It rejects an existing path segment that differs only by letter case from the requested segment, preventing distinct keys from silently aliasing on case-insensitive filesystems. It does not follow symbolic links during directory listing or recursive deletion, and it refuses to delete the configured root. Public exception messages do not disclose absolute filesystem paths. Case-collision detection currently enumerates sibling names for each path segment; benchmark large flat directories and tune this cost in E11 before claiming high-cardinality directory performance.
+The driver builds paths only below the configured root and checks existing path components for symbolic links. It rejects an existing path segment that differs only by Unicode case folding or canonical Unicode normalization from the requested segment, preventing distinct keys from silently aliasing on case-insensitive or normalization-insensitive filesystems. It does not follow symbolic links during directory listing or recursive deletion, and it refuses to delete the configured root. Public exception messages do not disclose absolute filesystem paths. Case-collision detection currently enumerates sibling names for each path segment; benchmark large flat directories and tune this cost in E11 before claiming high-cardinality directory performance.
 
 These checks mitigate traversal and static symlink escapes. They do not guarantee race-free protection against a hostile local process concurrently replacing filesystem entries between checks and I/O. The configured storage root must be writable only by trusted application processes.
 
@@ -125,7 +125,7 @@ The E04 feature suite covers:
 - Rejection of final-component and intermediate-directory symlinks.
 - Symlink omission from directory listings.
 - Recursive deletion pre-scan failure when a symlink is present, preserving regular sibling files and the outside target.
-- Rejection of case-only aliases for existing directory and object path segments.
+- Rejection of Unicode case-folding and canonical-normalization aliases for existing directory and object path segments.
 - Missing-object lookup semantics when an intermediate parent is a regular file.
 - Stable package error codes and safe error messages.
 - Advertised capabilities.
