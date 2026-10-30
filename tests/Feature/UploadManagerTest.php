@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use ShamimStack\Storix\Contracts\MultipartStorageDriver;
+use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
 use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
 use ShamimStack\Storix\Contracts\StorageDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
@@ -190,8 +191,8 @@ final class UploadManagerTest extends TestCase
 
     public function test_it_aborts_multipart_write_and_preserves_upload_error_when_chunk_failure_persistence_fails(): void
     {
-        $chunkRepository = $this->app->make(\ShamimStack\Storix\Contracts\Repositories\ChunkRepository::class);
-        $failingRepository = $this->createMock(\ShamimStack\Storix\Contracts\Repositories\ChunkRepository::class);
+        $chunkRepository = $this->app->make(ChunkRepository::class);
+        $failingRepository = $this->createMock(ChunkRepository::class);
         $failingRepository->method('create')->willReturnCallback(
             fn (array $attributes) => $chunkRepository->create($attributes),
         );
@@ -208,7 +209,7 @@ final class UploadManagerTest extends TestCase
             new \RuntimeException('Simulated chunk persistence failure.'),
         );
         $this->app->instance(
-            \ShamimStack\Storix\Contracts\Repositories\ChunkRepository::class,
+            ChunkRepository::class,
             $failingRepository,
         );
 
