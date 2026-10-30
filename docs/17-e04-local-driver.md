@@ -1,6 +1,6 @@
 # E04 — Local Storage Driver
 
-**Status:** E04 implementation and final review fixes in progress; merge pending  
+**Status:** Complete — merged into `main` via PR #4  
 **Dependencies:** E02 Contracts & API  
 **Target:** PHP 8.5+ and Laravel 13.x  
 **Package:** shamimstack/storix  
@@ -159,4 +159,4 @@ Actual size and throughput depend on the host filesystem, available disk space, 
 - [x] Object metadata, existence, and deletion behavior are implemented.
 - [x] Latest E04 feature suite passes CI; consult the workflow for exact test and assertion totals.
 - [x] All surfaced review findings are addressed and all inline review threads are resolved.
-- [ ] E04 is merged into main.
+- [x] E04 is merged into main.
