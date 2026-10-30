@@ -10,9 +10,13 @@ use Illuminate\Support\Str;
 use ShamimStack\Storix\Contracts\MultipartStorageDriver;
 use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
 use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
+use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
+use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
 use ShamimStack\Storix\Contracts\StorageDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
+use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
 use ShamimStack\Storix\DTOs\DriverCapabilities;
+use ShamimStack\Storix\DTOs\WriteMultipartPartRequest;
 use ShamimStack\Storix\DTOs\ReadStreamRequest;
 use ShamimStack\Storix\DTOs\StatObjectRequest;
 use ShamimStack\Storix\DTOs\StorageObjectMetadata;
@@ -20,6 +24,8 @@ use ShamimStack\Storix\DTOs\UploadRequest;
 use ShamimStack\Storix\DTOs\WriteResult;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
 use ShamimStack\Storix\Enums\ChunkState;
+use ShamimStack\Storix\Enums\ObjectVisibility;
+use ShamimStack\Storix\Enums\TransferDirection;
 use ShamimStack\Storix\Enums\TransferState;
 use ShamimStack\Storix\Exceptions\IdempotencyConflictException;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
@@ -265,6 +271,143 @@ final class UploadManagerTest extends TestCase
         } finally {
             fclose($stream);
         }
+    }
+
+    public function test_it_resumes_an_existing_multipart_session_and_reuses_verified_parts(): void
+    {
+        config(['storix.transfers.chunk_size' => 4]);
+
+        $payload = 'abcdefghij';
+        $originalName = 'resume.txt';
+        $tenantId = 'tenant-resume';
+        $ownerId = 'owner-resume';
+        $idempotencyKey = 'resume-existing-session';
+        $stream = $this->stream($payload);
+        $metadata = [];
+        $fingerprint = hash('sha256', json_encode([
+            'sha256' => hash('sha256', $payload),
+            'size_bytes' => strlen($payload),
+            'original_name' => $originalName,
+            'tenant_id' => $tenantId,
+            'owner_id' => $ownerId,
+            'driver' => 'local',
+            'directory_id' => null,
+            'mime_type' => null,
+            'visibility' => ObjectVisibility::PRIVATE->value,
+            'metadata' => $metadata,
+        ], JSON_THROW_ON_ERROR));
+
+        $driver = $this->app->make(DriverManager::class)->driver('local');
+        self::assertInstanceOf(MultipartStorageDriver::class, $driver);
+
+        $storageKey = 'uploads/'.$originalName;
+        $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest(key: $storageKey));
+        $firstPartStream = $this->stream('abcd');
+
+        try {
+            $firstPart = $driver->writeMultipartPart(new WriteMultipartPartRequest(
+                uploadId: $uploadId,
+                partNumber: 1,
+                stream: $firstPartStream,
+            ));
+        } finally {
+            fclose($firstPartStream);
+        }
+
+        $file = $this->app->make(StoredFileRepository::class)->create([
+            'tenant_id' => $tenantId,
+            'owner_id' => $ownerId,
+            'directory_id' => null,
+            'driver' => 'local',
+            'name' => $originalName,
+            'original_name' => $originalName,
+            'extension' => 'txt',
+            'mime_type' => null,
+            'size_bytes' => strlen($payload),
+            'sha256' => hash('sha256', $payload),
+            'storage_key' => $storageKey,
+            'status' => 'processing',
+            'visibility' => ObjectVisibility::PRIVATE,
+            'metadata' => $metadata,
+        ]);
+
+        $transfer = $this->app->make(TransferRepository::class)->create([
+            'file_id' => $file->id,
+            'tenant_id' => $tenantId,
+            'owner_id' => $ownerId,
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::TRANSFERRING,
+            'source_name' => $originalName,
+            'total_bytes' => strlen($payload),
+            'transferred_bytes' => $firstPart->sizeBytes,
+            'total_chunks' => 3,
+            'completed_chunks' => 1,
+            'fingerprint' => $fingerprint,
+            'idempotency_key' => $idempotencyKey,
+            'attempts' => 1,
+            'max_attempts' => 1,
+            'multipart_upload_id' => $uploadId,
+            'multipart_started_at' => now(),
+        ]);
+
+        $chunks = $this->app->make(ChunkRepository::class);
+        $chunks->create([
+            'transfer_id' => $transfer->id,
+            'chunk_index' => 0,
+            'offset_bytes' => 0,
+            'size_bytes' => 4,
+            'sha256' => $firstPart->sha256,
+            'state' => ChunkState::VERIFIED,
+            'driver_reference' => $firstPart->driverReference,
+            'attempts' => 1,
+            'verified_at' => now(),
+        ]);
+        $chunks->create([
+            'transfer_id' => $transfer->id,
+            'chunk_index' => 1,
+            'offset_bytes' => 4,
+            'size_bytes' => 4,
+            'sha256' => null,
+            'state' => ChunkState::PENDING,
+            'attempts' => 0,
+        ]);
+        $chunks->create([
+            'transfer_id' => $transfer->id,
+            'chunk_index' => 2,
+            'offset_bytes' => 8,
+            'size_bytes' => 2,
+            'sha256' => null,
+            'state' => ChunkState::PENDING,
+            'attempts' => 0,
+        ]);
+
+        try {
+            $result = Storix::uploads()->upload(new UploadRequest(
+                stream: $stream,
+                originalName: $originalName,
+                tenantId: $tenantId,
+                ownerId: $ownerId,
+                idempotencyKey: $idempotencyKey,
+            ));
+        } finally {
+            fclose($stream);
+        }
+
+        self::assertSame($transfer->id, $result->transfer->id);
+        self::assertSame($file->id, $result->file->id);
+        self::assertSame(TransferState::COMPLETED, $result->transfer->state);
+        self::assertSame('available', $result->file->status);
+        self::assertSame(3, $result->transfer->completed_chunks);
+        self::assertSame(strlen($payload), $result->transfer->transferred_bytes);
+        self::assertNull($result->transfer->multipart_upload_id);
+        self::assertSame(1, Transfer::query()->count());
+        self::assertSame(1, StoredFile::query()->count());
+        self::assertSame(
+            [ChunkState::VERIFIED, ChunkState::VERIFIED, ChunkState::VERIFIED],
+            Chunk::query()->where('transfer_id', $transfer->id)->orderBy('chunk_index')->pluck('state')->all(),
+        );
+        self::assertSame($payload, file_get_contents($this->root.'/'.$storageKey));
     }
 
     public function test_it_replays_a_completed_idempotent_upload_without_writing_again(): void
