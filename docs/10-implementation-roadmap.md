@@ -125,7 +125,7 @@ Implement sequentially; do not start provider-specific work before core contract
 
 ## Milestone policy
 
-E05 Basic Upload is merged into main. E06 is implemented on feature/e06-chunk-engine as a synchronous sequential multipart workflow. E07 implementation is in progress on feature/e07-resume-idempotency, stacked on the E06 branch until PR #6 merges. Persisting session metadata is not yet equivalent to resumability: do not describe the current Local path as resumable until reconciliation and restart tests pass.
+E05 Basic Upload is merged into main. E06 is implemented on feature/e06-chunk-engine as a synchronous sequential multipart workflow. E07 implementation is in progress on feature/e07-resume-idempotency, stacked on the E06 branch until PR #6 merges. A pure ChunkReconciler and unit tests now validate deterministic layout, persisted verification timestamps, and freshly staged-byte digests; this is a foundation only and is not yet wired into multipart provider inspection or UploadManager resume. Persisting session metadata is not yet equivalent to resumability: do not describe the current Local path as resumable until provider-session reconciliation and restart tests pass.
 
 
 Do not call E01/E02 a production engine. A first usable local-storage release requires at least E01–E05. A resumable/recoverable release requires E01–E10. Production readiness requires all applicable release gates and real deployment validation. E04 is complete only after the current CI workflow passes, all required code and security review findings are addressed, all review threads are resolved, and the work is merged into `main`.
