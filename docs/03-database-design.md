@@ -7,7 +7,7 @@ Use UUID primary keys consistently for Storix-owned records; never expose sequen
 ## 2. Tables
 
 ### `storix_directories`
-- `id` UUID/ULID primary key
+- `id` UUID primary key
 - `tenant_id` varchar(64) nullable indexed
 - `owner_id` varchar(64) nullable indexed
 - `parent_id` nullable FK to directories
@@ -20,7 +20,7 @@ Use UUID primary keys consistently for Storix-owned records; never expose sequen
 - unique `(scope_hash, name_hash)` to prevent duplicate case-insensitive names within a tenant/owner/driver/parent scope; lookup index on `(tenant_id, owner_id, driver, parent_id, name)`. Soft-deleted directories reserve their names until restored or purged.
 
 ### `storix_files`
-- `id` UUID/ULID primary key
+- `id` UUID primary key
 - `tenant_id`, `owner_id` nullable `varchar(64)` scope fields; `directory_id` nullable FK
 - `driver` varchar(64)
 - `name`, `original_name`, `extension`, `mime_type`
@@ -34,7 +34,7 @@ Use UUID primary keys consistently for Storix-owned records; never expose sequen
 - indexes: scoped owner/tenant creation order, directory, driver+status, and scoped checksum lookup.
 
 ### `storix_transfers`
-- `id` UUID/ULID primary key
+- `id` UUID primary key
 - `file_id` nullable FK
 - `tenant_id`, `owner_id` nullable `varchar(64)` scope identifiers
 - `direction`: upload/download
