@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace ShamimStack\Storix\Repositories\Eloquent;
+namespace ShamimStack\\Storix\\Repositories\\Eloquent;
 
 use DateTimeInterface;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Collection;
+use Illuminate\\Database\\Eloquent\\Builder;
+use Illuminate\\Support\\Collection;
 use InvalidArgumentException;
 use LogicException;
-use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
-use ShamimStack\Storix\Enums\TransferState;
-use ShamimStack\Storix\Models\Transfer;
+use ShamimStack\\Storix\\Contracts\\Repositories\\TransferRepository;
+use ShamimStack\\Storix\\Enums\\TransferState;
+use ShamimStack\\Storix\\Models\\Transfer;
 
 final class EloquentTransferRepository implements TransferRepository
 {
@@ -61,6 +61,56 @@ final class EloquentTransferRepository implements TransferRepository
         $transfer->save();
 
         return $transfer->refresh();
+    }
+
+    public function claimResumeLease(
+        string $transferId,
+        string $token,
+        DateTimeInterface $now,
+        DateTimeInterface $expiresAt,
+    ): bool {
+        if ($token === '' || strlen($token) > 64) {
+            throw new InvalidArgumentException('Resume lease token must contain between 1 and 64 bytes.');
+        }
+
+        if ($expiresAt <= $now) {
+            throw new InvalidArgumentException('Resume lease expiry must be later than its acquisition time.');
+        }
+
+        return Transfer::query()
+            ->whereKey($transferId)
+            ->whereIn('state', [
+                TransferState::PENDING->value,
+                TransferState::PREPARING->value,
+                TransferState::TRANSFERRING->value,
+                TransferState::PAUSED->value,
+                TransferState::RETRY_WAIT->value,
+                TransferState::VERIFYING->value,
+            ])
+            ->where(function (Builder $query) use ($now): void {
+                $query->whereNull('resume_lease_expires_at')
+                    ->orWhere('resume_lease_expires_at', '<=', $now);
+            })
+            ->update([
+                'resume_lease_token' => $token,
+                'resume_lease_expires_at' => $expiresAt,
+                'updated_at' => $now,
+            ]) === 1;
+    }
+
+    public function releaseResumeLease(string $transferId, string $token): bool
+    {
+        if ($token === '' || strlen($token) > 64) {
+            throw new InvalidArgumentException('Resume lease token must contain between 1 and 64 bytes.');
+        }
+
+        return Transfer::query()
+            ->whereKey($transferId)
+            ->where('resume_lease_token', $token)
+            ->update([
+                'resume_lease_token' => null,
+                'resume_lease_expires_at' => null,
+            ]) === 1;
     }
 
     public function expiredBefore(DateTimeInterface $cutoff, int $limit = 100): Collection
