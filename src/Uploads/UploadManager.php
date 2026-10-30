@@ -416,8 +416,10 @@ final class UploadManager
                 if ($uploadId !== null) {
                     try {
                         $driver->abortMultipartWrite($uploadId);
+                        $transfer->multipart_upload_id = null;
+                        $this->transfers->save($transfer);
                     } catch (Throwable $abortException) {
-                        Log::warning('Storix multipart abort failed.', [
+                        Log::warning('Storix multipart abort or session cleanup failed.', [
                             'transfer_id' => $transfer->id,
                             'driver' => $driver->name(),
                             'error_code' => $abortException instanceof StorixException
