@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace ShamimStack\Storix\Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use PHPUnit\Framework\Attributes\DataProvider;
 use ShamimStack\Storix\Enums\TransferDirection;
 use ShamimStack\Storix\Enums\TransferState;
 use ShamimStack\Storix\Exceptions\InvalidTransferStateTransition;
