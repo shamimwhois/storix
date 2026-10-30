@@ -163,7 +163,7 @@ try {
 }
 ```
 
-The caller owns the source resource and closes it after the call. Storix reads from the resource's current position, stages bytes with bounded memory, and checks the actual byte count against `storix.uploads.max_file_size_bytes` (initial default: 64 MiB). The stream is not rewound or closed by Storix.
+The caller owns the source resource and closes it after the call. Storix reads from the resource's current position, stages bytes with bounded memory, and enforces the lower of `storix.uploads.max_file_size_bytes` (initial default: 64 MiB) and the selected driver's declared maximum object size. The stream is not rewound or closed by Storix. E05 currently accepts only `private` visibility; public/limited delivery requires later access-policy and sharing work.
 
 E05 creates scoped file and transfer records, writes through the selected driver's `writeStream()`, compares the write result against the staged SHA-256, then independently reads the stored object back as a stream and verifies its size and hash. The file is marked `available` only after verification succeeds.
 

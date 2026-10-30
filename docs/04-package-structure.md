@@ -96,7 +96,7 @@ storix/
 
 ## Deferred responsibilities
 
-- UploadManager, TransferOrchestrator, chunk planner, retry/recovery, and integrity verification are later epics.
+- Chunk planner, TransferOrchestrator, retry/recovery workers, and resumable transfer orchestration remain later epics.
 - E03 owns metadata persistence and transfer state.
 - E04 owns the concrete local filesystem driver.
 - E12 owns the optional Telegram adapter after current official constraints are verified.

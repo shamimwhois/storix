@@ -231,10 +231,10 @@ Optional state: paused (only where safely supported)</code></pre>
 
       <section id="upload" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">18</span><h2>Basic upload · E05</h2></div>
-        <p class="docs-lead">The next implementation milestone introduces a stream-first, single-object upload workflow built on the existing Local driver and persistence layer.</p>
+        <p class="docs-lead">E05 implements a stream-first, single-object upload workflow on the existing Local driver and persistence layer. CI verification and review are pending before merge.</p>
         <div class="docs-grid">
-          <article class="docs-card"><h3>Bounded input</h3><p>Readable PHP streams, 64 MiB initial configurable limit, 8 MiB memory spool threshold, and validation while bytes are read.</p></article>
-          <article class="docs-card"><h3>Durable metadata</h3><p>Scoped file and transfer records, a validated state lifecycle, and tenant/owner-aware directory lookup.</p></article>
+          <article class="docs-card"><h3>Bounded input</h3><p>Readable PHP streams, 64 MiB configured default (also capped by driver limits), 8 MiB memory spool threshold, and validation while bytes are read.</p></article>
+          <article class="docs-card"><h3>Durable metadata</h3><p>Scoped file and transfer records, a validated state lifecycle, tenant/owner-aware directory lookup, and private-only visibility.</p></article>
           <article class="docs-card"><h3>Integrity before availability</h3><p>Compare staged bytes, driver write metadata, stat size, and an independent streamed SHA-256 read-back.</p></article>
           <article class="docs-card"><h3>Safe replay</h3><p>Scoped idempotency returns an existing completed upload only for the same request fingerprint; conflicts never overwrite an object.</p></article>
         </div>

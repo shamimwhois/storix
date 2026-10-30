@@ -1,6 +1,6 @@
 # E05 — Basic Upload
 
-**Status:** Specification complete; implementation in progress  
+**Status:** Implementation complete on branch; CI verification and review pending  
 **Branch:** `feature/e05-basic-upload`  
 **Depends on:** E01 Foundation, E02 Contracts & API, E03 Persistence, E04 Local Driver  
 **Target:** PHP 8.5+, Laravel 13.x  
@@ -20,7 +20,7 @@ E05 is the first end-to-end upload path. It accepts a readable PHP stream, valid
 - A Laravel-resolvable `UploadManager`, exposed through `Storix::uploads()`.
 - Stream-first upload input; the caller retains ownership of the source stream.
 - Filename, MIME metadata, expected-size, identity-scope and directory validation.
-- Configurable maximum single-upload size; initial default is **64 MiB**.
+- Configurable maximum single-upload size; initial configured default is **64 MiB**, further capped by the selected driver's declared `maxObjectSizeBytes` when present.
 - A bounded-memory staging stream using `php://temp`; default in-memory threshold is **8 MiB**, with overflow spooled by PHP to its temporary-file backing store.
 - File and transfer metadata creation using the E03 repositories.
 - Optional idempotency-key replay protection and conflict handling.
@@ -80,7 +80,7 @@ $wasReplay = $result->replayed;
 | `directoryId` | no | Existing directory UUID in the same tenant/owner scope |
 | `driver` | no | Registered driver name; defaults to configured Storix driver |
 | `mimeType` | no | Optional validated MIME type |
-| `visibility` | no | Defaults to `private` |
+| `visibility` | no | Defaults to `private`; E05 currently accepts only `private` |
 | `expectedSizeBytes` | no | Optional caller-supplied size, checked against bytes actually read |
 | `idempotencyKey` | no | Optional stable key, maximum 128 bytes |
 | `metadata` | no | Provider-neutral scalar metadata only |
@@ -112,7 +112,8 @@ The size limit is checked while reading, not trusted from request metadata. Empt
 - If `directoryId` is supplied, resolve it using tenant/owner-scoped repository lookup and require its driver to match the upload driver.
 - Generate an opaque random storage key independently of the user's filename.
 - Let the driver enforce its own storage-key safety rules; never concatenate untrusted filename/path input into a storage key.
-- Reject uploads larger than `storix.uploads.max_file_size_bytes` before creating a file record.
+- Reject uploads larger than the lower of `storix.uploads.max_file_size_bytes` and the selected driver's `maxObjectSizeBytes`, when that driver limit is declared.
+- Reject `public` and `limited` visibility until authenticated delivery and sharing policies are implemented; E05 only stores private objects.
 
 ## 6. Idempotency
 
@@ -150,7 +151,7 @@ E05 is a single-object operation, not a chunked transfer. It records byte progre
 
 ## 8. Write, verify and finalize
 
-1. Resolve the requested/default driver and check that streaming read/write capabilities are declared.
+1. Resolve the requested/default driver; check streaming support and calculate the effective size cap from package configuration and driver capabilities.
 2. Validate directory access and stage the source while computing actual byte count and SHA-256.
 3. Claim the scoped idempotency key and create the file/transfer metadata.
 4. Transition the transfer through `preparing` to `transferring`.

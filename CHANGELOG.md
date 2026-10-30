@@ -4,8 +4,8 @@ All notable changes to Storix are documented in this file.
 
 ## Unreleased
 
-### In progress
-- E05 Basic Upload specification and implementation branch; not yet released or merged.
+### Implemented on feature branch — validation pending
+- E05 stream-first single-object upload API, bounded staging, scoped metadata, idempotency replay/conflict handling, and independent SHA-256 read-back verification. This change is not yet merged or released.
 
 
 ### Added
@@ -27,6 +27,10 @@ All notable changes to Storix are documented in this file.
 - E04 LocalStorageDriver with bounded stream writes, SHA-256 calculation, safe keys, and same-directory temporary-file finalization.
 - E04 full/range reads, object metadata, idempotent deletion, and optional directory operations.
 - E04 filesystem adapter tests for binary data, path traversal, symlink handling, and directory lifecycle.
+- E05 typed UploadRequest/UploadResult and Laravel UploadManager facade integration.
+- E05 configurable upload-size and staging-memory limits with driver capability enforcement.
+- E05 scoped idempotency, independent stored-object read-back verification, and compensating cleanup.
+- E05 upload validation, binary/empty-file, replay, scope, size-limit, and integrity-failure tests.
 
 ### Scope
 - E02 defines the contracts and public driver-resolution API only.

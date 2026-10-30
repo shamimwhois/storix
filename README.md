@@ -16,7 +16,7 @@ Storix is an **API-first, backend-only Laravel package** designed to give applic
 
 Instead of coupling application code to a single provider, Storix places a stable PHP API over a capability-aware driver system. Its engineering design covers streaming I/O, large-file chunking, resumable transfers, retries, integrity verification, transfer observability, and tenant-aware access control.
 
-> **Project status:** E01 Foundation, E02 Contracts & API, E03 Persistence, and E04 Local Driver are merged into `main`. E05 — Basic Upload is being implemented on `feature/e05-basic-upload`. This epic adds a bounded-size, single-object stream upload with durable metadata and independent SHA-256 read-back verification. Chunked/resumable transfers, automatic recovery and provider integrations remain later epics. Storix is not yet a production release.
+> **Project status:** E01–E04 are merged into `main`. E05 Basic Upload is implemented on `feature/e05-basic-upload`; CI verification and review are pending before merge. The implementation adds bounded-size stream uploads, durable metadata, scoped idempotency and independent SHA-256 read-back verification. Chunked/resumable transfers and automatic recovery remain later epics. Storix is not yet a production release.
 
 ## At a glance
 
