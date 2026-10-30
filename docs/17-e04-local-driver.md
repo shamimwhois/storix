@@ -80,7 +80,171 @@ The local driver rejects:
 - absolute paths and leading/trailing separators;
 - empty segments, . and .. traversal segments;
 - backslashes, null bytes, control characters, and platform-reserved filename characters;
-- Windows device names (including names with extensions and superscript aliases such as `COM¹` and `LPT³`), segments ending in a dot or space, and the reserved `.storix-tmp-` internal namespace.
+- Windows device and console aliases (including `CONIN# E04 — Local Storage Driver
+
+**Status:** Implementation in progress on feature/e04-local-driver; CI passing, code review and merge pending  
+**Dependencies:** E02 Contracts & API  
+**Target:** PHP 8.5+ and Laravel 13.x  
+**Package:** shamimstack/storix  
+**Namespace:** ShamimStack\\Storix
+
+## 1. Objective
+
+Deliver the first concrete Storix backend: a local filesystem driver that implements the provider-neutral StorageDriver contract. It must stream bytes with bounded PHP memory, protect the configured storage root from unsafe keys, and provide object metadata and basic directory operations.
+
+E04 makes storage-driver operations usable. It does not yet implement an upload workflow, database-backed file orchestration, chunk planning, resumability, retry workers, or downloads through transfer records.
+
+## 2. Public contracts
+
+### 2.1 StorageDriver
+
+LocalStorageDriver implements the existing E02 methods:
+
+| Method | Behavior |
+|---|---|
+| writeStream(WriteStreamRequest) | Stream to a same-directory temporary file, flush, then rename into place |
+| readStream(ReadStreamRequest) | Return a readable stream; optional offset/length range is supported |
+| delete(DeleteObjectRequest) | Delete a file; deleting a missing object is idempotent |
+| exists(string $key) | Return whether a regular object exists |
+| stat(StatObjectRequest) | Return provider-neutral metadata or null when absent |
+
+The driver reports streaming, range-read, and atomic-finalize capabilities. It does not claim multipart writes or pause/resume. A null maximum object size means no package-level limit is advertised; it is not a guarantee of unlimited file size.
+
+### 2.2 Optional DirectoryDriver
+
+The E02 object contract remains unchanged. Drivers that expose directory operations may additionally implement DirectoryDriver:
+
+- makeDirectory(string $key)
+- listDirectory(string $key = '') — immediate children only; an empty key denotes the configured root.
+- deleteDirectory(string $key, bool $recursive = false)
+
+Directory listing returns typed StorageDirectoryEntry values. The local storage root cannot be deleted. Recursive deletion is opt-in; a non-empty directory cannot be removed through the default non-recursive operation.
+
+Example:
+
+```php
+use ShamimStack\\Storix\\Contracts\\DirectoryDriver;
+use ShamimStack\\Storix\\Facades\\Storix;
+
+$driver = Storix::driver();
+
+if (! $driver instanceof DirectoryDriver) {
+    throw new RuntimeException('The selected driver does not expose directory operations.');
+}
+
+$driver->makeDirectory('documents/2026');
+$entries = $driver->listDirectory('documents');
+```
+
+## 3. Configuration and registration
+
+The configured local root is read from storix.drivers.local.root:
+
+```php
+// config/storix.php
+'drivers' => [
+    'local' => [
+        'root' => storage_path('app/storix'),
+    ],
+],
+```
+
+The package service provider registers a singleton LocalStorageDriver and registers it in DriverManager under the stable name local. The existing default-driver setting continues to choose which registered driver resolves when no name is supplied.
+
+Applications may still register custom drivers through DriverManager; Storix does not silently fall back when a requested driver is unavailable.
+
+## 4. Storage-key security
+
+A storage key is a relative, opaque POSIX-style key, not an operating-system path or a public URL.
+
+The local driver rejects:
+
+- absolute paths and leading/trailing separators;
+- empty segments, . and .. traversal segments;
+- backslashes, null bytes, control characters, and platform-reserved filename characters;
+, `CONOUT# E04 — Local Storage Driver
+
+**Status:** Implementation in progress on feature/e04-local-driver; CI passing, code review and merge pending  
+**Dependencies:** E02 Contracts & API  
+**Target:** PHP 8.5+ and Laravel 13.x  
+**Package:** shamimstack/storix  
+**Namespace:** ShamimStack\\Storix
+
+## 1. Objective
+
+Deliver the first concrete Storix backend: a local filesystem driver that implements the provider-neutral StorageDriver contract. It must stream bytes with bounded PHP memory, protect the configured storage root from unsafe keys, and provide object metadata and basic directory operations.
+
+E04 makes storage-driver operations usable. It does not yet implement an upload workflow, database-backed file orchestration, chunk planning, resumability, retry workers, or downloads through transfer records.
+
+## 2. Public contracts
+
+### 2.1 StorageDriver
+
+LocalStorageDriver implements the existing E02 methods:
+
+| Method | Behavior |
+|---|---|
+| writeStream(WriteStreamRequest) | Stream to a same-directory temporary file, flush, then rename into place |
+| readStream(ReadStreamRequest) | Return a readable stream; optional offset/length range is supported |
+| delete(DeleteObjectRequest) | Delete a file; deleting a missing object is idempotent |
+| exists(string $key) | Return whether a regular object exists |
+| stat(StatObjectRequest) | Return provider-neutral metadata or null when absent |
+
+The driver reports streaming, range-read, and atomic-finalize capabilities. It does not claim multipart writes or pause/resume. A null maximum object size means no package-level limit is advertised; it is not a guarantee of unlimited file size.
+
+### 2.2 Optional DirectoryDriver
+
+The E02 object contract remains unchanged. Drivers that expose directory operations may additionally implement DirectoryDriver:
+
+- makeDirectory(string $key)
+- listDirectory(string $key = '') — immediate children only; an empty key denotes the configured root.
+- deleteDirectory(string $key, bool $recursive = false)
+
+Directory listing returns typed StorageDirectoryEntry values. The local storage root cannot be deleted. Recursive deletion is opt-in; a non-empty directory cannot be removed through the default non-recursive operation.
+
+Example:
+
+```php
+use ShamimStack\\Storix\\Contracts\\DirectoryDriver;
+use ShamimStack\\Storix\\Facades\\Storix;
+
+$driver = Storix::driver();
+
+if (! $driver instanceof DirectoryDriver) {
+    throw new RuntimeException('The selected driver does not expose directory operations.');
+}
+
+$driver->makeDirectory('documents/2026');
+$entries = $driver->listDirectory('documents');
+```
+
+## 3. Configuration and registration
+
+The configured local root is read from storix.drivers.local.root:
+
+```php
+// config/storix.php
+'drivers' => [
+    'local' => [
+        'root' => storage_path('app/storix'),
+    ],
+],
+```
+
+The package service provider registers a singleton LocalStorageDriver and registers it in DriverManager under the stable name local. The existing default-driver setting continues to choose which registered driver resolves when no name is supplied.
+
+Applications may still register custom drivers through DriverManager; Storix does not silently fall back when a requested driver is unavailable.
+
+## 4. Storage-key security
+
+A storage key is a relative, opaque POSIX-style key, not an operating-system path or a public URL.
+
+The local driver rejects:
+
+- absolute paths and leading/trailing separators;
+- empty segments, . and .. traversal segments;
+- backslashes, null bytes, control characters, and platform-reserved filename characters;
+, names with extensions, and superscript aliases such as `COM¹` and `LPT³`), segments ending in a dot or space, and the reserved `.storix-tmp-` internal namespace.
 
 The driver builds paths only below the configured root, checks existing path components for symbolic links, does not follow symlinks during directory listing or recursive deletion, reserves the `.storix-tmp-` namespace for private temporary files, and refuses to delete the root directory. Error messages use stable package exceptions and do not include absolute filesystem paths.
 
