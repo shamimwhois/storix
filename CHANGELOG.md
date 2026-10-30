@@ -17,7 +17,8 @@ All notable changes to Storix are documented in this file.
 - E03 reversible migrations for directories, files, transfers, and chunks.
 - E03 UUID-backed Eloquent models, relationships, and scoped repository contracts/implementations.
 - E03 normalized idempotency scope, blank-key validation, and transfer state machine with guarded transitions.
-- E03 scoped child-directory lookups and host-compatible tenant/owner identifier storage.
+- E03 scoped child-directory lookups, case-insensitive directory uniqueness, and host-compatible tenant/owner identifier storage.
+- E03 repository guards prevent direct state-machine bypasses and normalize idempotency keys on both transfer creation paths.
 - E03 persistence schema, repository, and state-transition feature tests.
 
 ### Scope
