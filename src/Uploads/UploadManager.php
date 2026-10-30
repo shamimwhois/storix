@@ -638,6 +638,8 @@ final class UploadManager
             'sha256' => $staged['sha256'],
             'size_bytes' => $staged['size'],
             'original_name' => $request->originalName,
+            'tenant_id' => $request->tenantId,
+            'owner_id' => $request->ownerId,
             'driver' => $driverName,
             'directory_id' => $directory?->id,
             'mime_type' => $request->mimeType,
