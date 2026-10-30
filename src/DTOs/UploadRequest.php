@@ -63,10 +63,10 @@ final readonly class UploadRequest
             || $normalizedName === '.'
             || $normalizedName === '..'
             || strlen($normalizedName) > 255
+            || preg_match('//u', $normalizedName) !== 1
             || str_contains($normalizedName, '/')
             || str_contains($normalizedName, '\\')
             || preg_match('/[\x00-\x1F\x7F]/', $normalizedName) === 1
-            || preg_match('/[\/\\\x00-\x1F\x7F]/u', $normalizedName) === 1
         ) {
             throw new InvalidArgumentException('Original filename is invalid.');
         }
