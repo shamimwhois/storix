@@ -15,11 +15,12 @@ use ShamimStack\Storix\Repositories\Eloquent\EloquentChunkRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentDirectoryRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentStoredFileRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentTransferRepository;
+use ShamimStack\Storix\Uploads\UploadManager;
 
 final class StorixServiceProvider extends ServiceProvider
 {
     /**
-     * Merge package configuration and register the local driver, manager, and persistence repositories.
+     * Merge package configuration and register drivers, upload services and persistence repositories.
      */
     public function register(): void
     {
@@ -38,13 +39,18 @@ final class StorixServiceProvider extends ServiceProvider
             return $manager;
         });
 
+        $this->app->singleton(UploadManager::class);
+
         $this->app->bind(DirectoryRepository::class, EloquentDirectoryRepository::class);
         $this->app->bind(StoredFileRepository::class, EloquentStoredFileRepository::class);
         $this->app->bind(TransferRepository::class, EloquentTransferRepository::class);
         $this->app->bind(ChunkRepository::class, EloquentChunkRepository::class);
 
         $this->app->singleton('storix', function ($app): StorixManager {
-            return new StorixManager($app->make(DriverManager::class));
+            return new StorixManager(
+                $app->make(DriverManager::class),
+                $app->make(UploadManager::class),
+            );
         });
     }
 

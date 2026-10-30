@@ -10,6 +10,7 @@ use ShamimStack\Storix\DTOs\DriverCapabilities;
 use ShamimStack\Storix\Facades\Storix;
 use ShamimStack\Storix\StorixManager;
 use ShamimStack\Storix\Tests\TestCase;
+use ShamimStack\Storix\Uploads\UploadManager;
 
 final class StorixFacadeTest extends TestCase
 {
@@ -25,5 +26,10 @@ final class StorixFacadeTest extends TestCase
 
         self::assertSame($driver, Storix::driver());
         self::assertTrue(Storix::capabilities()->supportsRangeReads);
+    }
+
+    public function test_facade_exposes_the_upload_manager(): void
+    {
+        self::assertInstanceOf(UploadManager::class, Storix::uploads());
     }
 }

@@ -10,6 +10,7 @@ use ShamimStack\Storix\StorixManager;
 /**
  * @method static \ShamimStack\Storix\Contracts\StorageDriver driver(?string $name = null)
  * @method static \ShamimStack\Storix\DTOs\DriverCapabilities capabilities(?string $name = null)
+ * @method static \ShamimStack\Storix\Uploads\UploadManager uploads()
  * @method static list<string> drivers()
  *
  * @see StorixManager
