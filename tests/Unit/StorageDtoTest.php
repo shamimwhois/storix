@@ -46,6 +46,23 @@ final class StorageDtoTest extends TestCase
         );
     }
 
+    public function test_write_request_rejects_a_write_only_stream(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'storix-');
+        self::assertNotFalse($path);
+        $stream = fopen($path, 'w');
+
+        try {
+            $this->expectException(InvalidArgumentException::class);
+            $this->expectExceptionMessage('The write source stream must be readable.');
+
+            new WriteStreamRequest('documents/report.pdf', $stream);
+        } finally {
+            fclose($stream);
+            unlink($path);
+        }
+    }
+
     public function test_write_request_accepts_a_valid_stream(): void
     {
         $stream = fopen('php://temp', 'r+');
