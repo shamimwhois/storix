@@ -9,6 +9,9 @@ use InvalidArgumentException;
 
 final readonly class StorageDirectoryEntry
 {
+    /**
+     * Validate and store the normalized metadata for one immediate directory-listing entry.
+     */
     public function __construct(
         public string $name,
         public string $key,
