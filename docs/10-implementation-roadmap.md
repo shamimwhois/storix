@@ -90,6 +90,7 @@ Implement sequentially; do not start provider-specific work before core contract
 
 ### E11 Performance
 - Benchmark chunk sizes and concurrency.
+- Benchmark local key case/normalization collision checks and directory operations at high directory cardinality.
 - Enforce memory and disk budgets.
 - Add provider/tenant concurrency controls.
 - Document measured results and test environment.
