@@ -198,6 +198,25 @@ composer require shamimstack/storix
 
 > Until a tagged release is available on Packagist, this command is an installation target, not a guarantee that a published package exists. For development, follow the repository's implementation instructions and Composer path/VCS setup.
 
+## Documentation portal stack
+
+The interactive portal in [docs/index.html](docs/index.html) is built with:
+
+- Tailwind CSS v4 — compiled production CSS (no Tailwind runtime CDN).
+- Alpine.js 3 — navigation, search, theme toggle, and small UI interactions.
+- esbuild — bundles the Alpine application into a static JavaScript asset.
+- GitHub Actions — builds and deploys the static portal to GitHub Pages on changes to `main`.
+
+To build the portal locally:
+
+```bash
+cd docs
+npm install
+npm run build
+```
+
+The build writes `docs/assets/app.css` and `docs/assets/app.js`. The GitHub Pages workflow publishes the compiled site artifact; generated dependencies are not included in the published website.
+
 ## Documentation
 
 The documentation portal is available at **[docs/index.html](docs/index.html)**.
