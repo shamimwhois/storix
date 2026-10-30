@@ -237,6 +237,7 @@ The documentation portal is available at **[docs/index.html](docs/index.html)**.
 | [Configuration and operations](docs/12-configuration-and-operations.md) | Configuration, queues, scheduler, observability, and troubleshooting |
 | [Acceptance checklist](docs/13-acceptance-checklist.md) | Evidence-based release and production-readiness gates |
 | [Architecture decisions](docs/DECISIONS.md) | Confirmed decisions and unresolved engineering choices |
+| [E02 Contracts & API](docs/15-e02-contracts-and-api.md) | Public driver contract, DTOs, capabilities, exceptions, registration, facade, and acceptance criteria |
 
 ## Implementation roadmap
 
