@@ -12,7 +12,6 @@ use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
 use ShamimStack\Storix\Enums\ChunkState;
 use ShamimStack\Storix\Enums\TransferDirection;
 use ShamimStack\Storix\Enums\TransferState;
-use ShamimStack\Storix\Models\Chunk;
 use ShamimStack\Storix\Models\Directory;
 use ShamimStack\Storix\Models\StoredFile;
 use ShamimStack\Storix\Models\Transfer;
