@@ -4,9 +4,9 @@ All notable changes to Storix are documented in this file.
 
 ## Unreleased
 
-### Implemented on feature branch — validation pending
-- E05 stream-first single-object upload API, bounded staging, scoped metadata, idempotency replay/conflict handling, and independent SHA-256 read-back verification. This change is not yet merged or released.
-
+### Added
+- E06 capability-gated multipart chunk uploads with deterministic planning, durable per-chunk state, SHA-256 part verification, bounded temporary staging, and atomic final-object publication on the Local driver.
+- E06 regression coverage for chunk planning, multipart DTO validation, local finalization, workspace isolation, and cleanup.
 
 ### Added
 - E01 Composer package foundation for PHP 8.5 and Laravel 13.

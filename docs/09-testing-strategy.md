@@ -81,3 +81,13 @@ A feature is done only when implementation, tests, docs, failure behavior, autho
 
 
 ---
+
+
+## E06 chunk and multipart coverage
+
+- Deterministic chunk offsets, configured-size clamping, empty transfers and the 10000-part ceiling.
+- Multipart DTO ordering, part-number constraints and checksum-shape validation.
+- Per-part checksum verification and final aggregate size/hash verification.
+- Local multipart finalization, caller-owned stream lifetime, session-to-key binding and abort idempotency.
+- Upload-level persistence of chunk offsets, sizes, attempts, checksums and VERIFIED state.
+- Failure-path assertions ensure failed file/transfer state is persisted after provider failures.

@@ -17,12 +17,14 @@ use ShamimStack\Storix\DTOs\StorageObjectMetadata;
 use ShamimStack\Storix\DTOs\UploadRequest;
 use ShamimStack\Storix\DTOs\WriteResult;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
+use ShamimStack\Storix\Enums\ChunkState;
 use ShamimStack\Storix\Enums\TransferState;
 use ShamimStack\Storix\Exceptions\IdempotencyConflictException;
 use ShamimStack\Storix\Exceptions\UploadIntegrityException;
 use ShamimStack\Storix\Exceptions\UploadTooLargeException;
 use ShamimStack\Storix\Exceptions\UploadValidationException;
 use ShamimStack\Storix\Facades\Storix;
+use ShamimStack\Storix\Models\Chunk;
 use ShamimStack\Storix\Models\StoredFile;
 use ShamimStack\Storix\Models\Transfer;
 use ShamimStack\Storix\Tests\TestCase;
@@ -68,7 +70,8 @@ final class UploadManagerTest extends TestCase
             self::assertSame(hash('sha256', $contents), $result->file->sha256);
             self::assertSame(TransferState::COMPLETED, $result->transfer->state);
             self::assertSame(strlen($contents), $result->transfer->transferred_bytes);
-            self::assertSame(0, $result->transfer->total_chunks);
+            self::assertSame(1, $result->transfer->total_chunks);
+            self::assertSame(1, $result->transfer->completed_chunks);
             self::assertFileExists($this->root.'/'.$result->file->storage_key);
             self::assertSame(1, StoredFile::query()->count());
             self::assertSame(1, Transfer::query()->count());
@@ -97,6 +100,47 @@ final class UploadManagerTest extends TestCase
         }
 
         self::assertSame(2, StoredFile::query()->count());
+    }
+
+    public function test_it_plans_persists_and_verifies_multiple_chunks(): void
+    {
+        config(['storix.transfers.chunk_size' => 4]);
+        $contents = 'abcdefghij';
+        $stream = $this->stream($contents);
+
+        try {
+            $result = Storix::uploads()->upload(new UploadRequest(
+                stream: $stream,
+                originalName: 'chunked.txt',
+            ));
+
+            self::assertSame(3, $result->transfer->total_chunks);
+            self::assertSame(3, $result->transfer->completed_chunks);
+            self::assertSame(strlen($contents), $result->transfer->transferred_bytes);
+
+            $chunks = Chunk::query()
+                ->where('transfer_id', $result->transfer->id)
+                ->orderBy('chunk_index')
+                ->get();
+
+            self::assertCount(3, $chunks);
+            self::assertSame([0, 4, 8], $chunks->pluck('offset_bytes')->all());
+            self::assertSame([4, 4, 2], $chunks->pluck('size_bytes')->all());
+            self::assertSame(
+                [
+                    hash('sha256', 'abcd'),
+                    hash('sha256', 'efgh'),
+                    hash('sha256', 'ij'),
+                ],
+                $chunks->pluck('sha256')->all(),
+            );
+
+            foreach ($chunks as $chunk) {
+                self::assertSame(ChunkState::VERIFIED, $chunk->state);
+            }
+        } finally {
+            fclose($stream);
+        }
     }
 
     public function test_it_accepts_an_empty_file(): void
