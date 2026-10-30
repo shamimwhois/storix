@@ -97,7 +97,6 @@ final class UploadManager
         $objectMayExist = false;
         $resumeLeaseToken = null;
         $isResume = false;
-        $preserveSessionOnFailure = false;
 
         try {
             $directory = $this->resolveDirectory($request, $driverName);
@@ -166,7 +165,6 @@ final class UploadManager
 
                 $storageKey = $file->storage_key;
                 $isResume = true;
-                $preserveSessionOnFailure = true;
             }
 
             $resumeLeaseToken = Str::random(64);
