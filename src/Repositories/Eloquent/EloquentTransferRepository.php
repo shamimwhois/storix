@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ShamimStack\Storix\Repositories\Eloquent;
 
 use DateTimeInterface;
+use InvalidArgumentException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
@@ -38,8 +39,16 @@ final class EloquentTransferRepository implements TransferRepository
             return $this->create($attributes);
         }
 
-        $tenantId = $attributes['tenant_id'] ?? null;
-        $ownerId = $attributes['owner_id'] ?? null;
+        if (! is_string($key) || trim($key) === '') {
+            throw new InvalidArgumentException('Idempotency key must be a non-empty string.');
+        }
+
+        if (strlen($key) > 128) {
+            throw new InvalidArgumentException('Idempotency key must not exceed 128 bytes.');
+        }
+
+        $tenantId = isset($attributes['tenant_id']) ? (string) $attributes['tenant_id'] : null;
+        $ownerId = isset($attributes['owner_id']) ? (string) $attributes['owner_id'] : null;
         $scopeHash = hash('sha256', json_encode([$tenantId, $ownerId], JSON_THROW_ON_ERROR));
         $attributes['idempotency_scope'] = $scopeHash;
 
