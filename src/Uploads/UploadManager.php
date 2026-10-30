@@ -133,6 +133,10 @@ final class UploadManager
                     return $this->resolveExisting($transfer, $fingerprint);
                 }
 
+                if ($transfer->state->isTerminal()) {
+                    throw new IdempotencyConflictException;
+                }
+
                 if (
                     $multipartDriver === null
                     || $transfer->state->isTerminal()
