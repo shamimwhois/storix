@@ -239,7 +239,7 @@ final class UploadManagerTest extends TestCase
                 )),
             );
 
-            self::assertSame('multipart_write', $exception->errorCode->value);
+            self::assertSame(StorixErrorCode::STORAGE_OPERATION_FAILED, $exception->errorCode);
         } finally {
             fclose($stream);
         }
