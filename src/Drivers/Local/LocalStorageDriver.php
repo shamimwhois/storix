@@ -573,7 +573,7 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
     }
 
     /**
-     * Reject an existing path segment that differs only by letter case from the requested key.
+     * Reject an existing path segment that differs only by Unicode case folding from the requested key.
      */
     private function assertNoCaseCollision(string $directory, string $segment): void
     {
@@ -581,7 +581,7 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
             foreach (new FilesystemIterator($directory, FilesystemIterator::SKIP_DOTS) as $item) {
                 $existingName = $item->getFilename();
 
-                if ($existingName !== $segment && strcasecmp($existingName, $segment) === 0) {
+                if ($existingName !== $segment && $this->caseFold($existingName) === $this->caseFold($segment)) {
                     throw new InvalidArgumentException('Storage keys must not differ only by letter case.');
                 }
             }
@@ -590,6 +590,18 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
         } catch (Throwable $exception) {
             throw new StorageOperationFailedException('resolve_path', $exception);
         }
+    }
+
+    /**
+     * Apply Unicode case folding to valid UTF-8 names while preserving support for arbitrary byte names.
+     */
+    private function caseFold(string $value): string
+    {
+        if (preg_match('//u', $value) === 1) {
+            return mb_convert_case($value, MB_CASE_FOLD, 'UTF-8');
+        }
+
+        return strtolower($value);
     }
 
     /**
