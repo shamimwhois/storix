@@ -1,6 +1,6 @@
 # E04 — Local Storage Driver
 
-**Status:** Implementation in progress on feature/e04-local-driver; latest CI validation pending, code review and merge pending  
+**Status:** E04 implementation and final review fixes in progress; merge pending  
 **Dependencies:** E02 Contracts & API  
 **Target:** PHP 8.5+ and Laravel 13.x  
 **Package:** shamimstack/storix  
@@ -61,7 +61,7 @@ The local driver rejects:
 - Segments ending in a dot or space.
 - The reserved .storix-tmp- namespace used for internal staging files.
 
-The driver builds paths only below the configured root and checks existing path components for symbolic links. It does not follow symbolic links during directory listing or recursive deletion, and it refuses to delete the configured root. Public exception messages do not disclose absolute filesystem paths.
+The driver builds paths only below the configured root and checks existing path components for symbolic links. It rejects an existing path segment that differs only by letter case from the requested segment, preventing distinct keys from silently aliasing on case-insensitive filesystems. It does not follow symbolic links during directory listing or recursive deletion, and it refuses to delete the configured root. Public exception messages do not disclose absolute filesystem paths.
 
 These checks mitigate traversal and static symlink escapes. They do not guarantee race-free protection against a hostile local process concurrently replacing filesystem entries between checks and I/O. The configured storage root must be writable only by trusted application processes.
 
@@ -102,10 +102,11 @@ The local visibility field is metadata only. It does not publish objects through
 - Missing exists checks return false.
 - Missing stat calls return null.
 - Deleting a missing object or directory is a no-op.
+- Lookup beneath an existing regular-file parent treats the requested child as missing: exists returns false, stat returns null, and delete is a no-op. Writes below a regular-file parent fail.
 - Read, write, stat, list, and delete failures use StorageOperationFailedException with STORAGE_OPERATION_FAILED.
 - Invalid keys fail validation with InvalidArgumentException.
 - Non-recursive deletion of a non-empty directory fails.
-- Recursive directory deletion aborts if it encounters a symbolic link.
+- Recursive directory deletion performs a read-only tree scan and aborts before deleting entries if a symbolic link is present. A concurrent local filesystem mutation after the scan remains outside the guarantee.
 - Filesystem paths are not included in public operation-failure messages.
 
 ## 7. Test requirements
@@ -123,7 +124,9 @@ The E04 feature suite covers:
 - Windows device names, superscript aliases, and console aliases.
 - Rejection of final-component and intermediate-directory symlinks.
 - Symlink omission from directory listings.
-- Recursive deletion failure when a symlink is present, while preserving the outside target.
+- Recursive deletion pre-scan failure when a symlink is present, preserving regular sibling files and the outside target.
+- Rejection of case-only aliases for existing directory and object path segments.
+- Missing-object lookup semantics when an intermediate parent is a regular file.
 - Stable package error codes and safe error messages.
 - Advertised capabilities.
 
