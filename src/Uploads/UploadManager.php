@@ -152,39 +152,64 @@ final class UploadManager
                     throw new IdempotencyConflictException;
                 }
 
-                if (
-                    $multipartDriver === null
-                    || in_array($transfer->state, [
-                        TransferState::PREPARING,
-                        TransferState::TRANSFERRING,
-                        TransferState::PAUSED,
-                        TransferState::RETRY_WAIT,
-                    ], true) === false
-                    || is_string($transfer->multipart_upload_id) === false
-                    || $transfer->multipart_upload_id === ''
-                    || $transfer->file_id === null
-                ) {
-                    throw new UploadInProgressException;
+                $isFreshRetry = $transfer->state === TransferState::RETRY_WAIT
+                    && $transfer->multipart_upload_id === null;
+
+                if ($isFreshRetry) {
+                    if ($transfer->file_id !== null) {
+                        $file = $this->files->findScoped(
+                            (string) $transfer->file_id,
+                            $request->tenantId,
+                            $request->ownerId,
+                        );
+
+                        if (
+                            $file === null
+                            || $file->driver !== $driverName
+                            || in_array($file->status, ['pending', 'processing', 'failed'], true) === false
+                            || is_string($file->storage_key) === false
+                            || $file->storage_key === ''
+                        ) {
+                            throw new IdempotencyConflictException;
+                        }
+
+                        $storageKey = $file->storage_key;
+                    }
+                } else {
+                    if (
+                        $multipartDriver === null
+                        || in_array($transfer->state, [
+                            TransferState::PREPARING,
+                            TransferState::TRANSFERRING,
+                            TransferState::PAUSED,
+                            TransferState::RETRY_WAIT,
+                        ], true) === false
+                        || is_string($transfer->multipart_upload_id) === false
+                        || $transfer->multipart_upload_id === ''
+                        || $transfer->file_id === null
+                    ) {
+                        throw new UploadInProgressException;
+                    }
+
+                    $file = $this->files->findScoped(
+                        (string) $transfer->file_id,
+                        $request->tenantId,
+                        $request->ownerId,
+                    );
+
+                    if (
+                        $file === null
+                        || $file->driver !== $driverName
+                        || in_array($file->status, ['pending', 'processing'], true) === false
+                        || is_string($file->storage_key) === false
+                        || $file->storage_key === ''
+                    ) {
+                        throw new IdempotencyConflictException;
+                    }
+
+                    $storageKey = $file->storage_key;
+                    $isResume = true;
                 }
-
-                $file = $this->files->findScoped(
-                    (string) $transfer->file_id,
-                    $request->tenantId,
-                    $request->ownerId,
-                );
-
-                if (
-                    $file === null
-                    || $file->driver !== $driverName
-                    || in_array($file->status, ['pending', 'processing'], true) === false
-                    || is_string($file->storage_key) === false
-                    || $file->storage_key === ''
-                ) {
-                    throw new IdempotencyConflictException;
-                }
-
-                $storageKey = $file->storage_key;
-                $isResume = true;
             }
 
             $resumeLeaseToken = Str::random(64);
@@ -232,9 +257,14 @@ final class UploadManager
 
             if ($isResume === false) {
                 $transfer->total_chunks = count($chunkPlan);
+                $transfer->transferred_bytes = 0;
+                $transfer->completed_chunks = 0;
+                $transfer->multipart_upload_id = null;
+                $transfer->multipart_started_at = null;
                 $transfer = $this->transfers->save($transfer);
 
                 [$file, $transfer] = DB::transaction(function () use (
+                    $file,
                     $request,
                     $directory,
                     $driverName,
@@ -244,22 +274,39 @@ final class UploadManager
                     $transfer,
                     $chunkPlan,
                 ): array {
-                    $file = $this->files->create([
-                        'tenant_id' => $request->tenantId,
-                        'owner_id' => $request->ownerId,
-                        'directory_id' => $directory?->id,
-                        'driver' => $driverName,
-                        'name' => $request->originalName,
-                        'original_name' => $request->originalName,
-                        'extension' => $extension,
-                        'mime_type' => $request->mimeType,
-                        'size_bytes' => $staged['size'],
-                        'sha256' => $staged['sha256'],
-                        'storage_key' => $storageKey,
-                        'status' => 'pending',
-                        'visibility' => $request->visibility,
-                        'metadata' => $request->metadata,
-                    ]);
+                    $this->chunks->deleteForTransfer((string) $transfer->id);
+
+                    if ($file === null) {
+                        $file = $this->files->create([
+                            'tenant_id' => $request->tenantId,
+                            'owner_id' => $request->ownerId,
+                            'directory_id' => $directory?->id,
+                            'driver' => $driverName,
+                            'name' => $request->originalName,
+                            'original_name' => $request->originalName,
+                            'extension' => $extension,
+                            'mime_type' => $request->mimeType,
+                            'size_bytes' => $staged['size'],
+                            'sha256' => $staged['sha256'],
+                            'storage_key' => $storageKey,
+                            'status' => 'pending',
+                            'visibility' => $request->visibility,
+                            'metadata' => $request->metadata,
+                        ]);
+                    } else {
+                        $file->directory_id = $directory?->id;
+                        $file->name = $request->originalName;
+                        $file->original_name = $request->originalName;
+                        $file->extension = $extension;
+                        $file->mime_type = $request->mimeType;
+                        $file->size_bytes = $staged['size'];
+                        $file->sha256 = $staged['sha256'];
+                        $file->storage_key = $storageKey;
+                        $file->status = 'pending';
+                        $file->visibility = $request->visibility;
+                        $file->metadata = $request->metadata;
+                        $file = $this->files->save($file);
+                    }
 
                     $transfer->file_id = $file->id;
                     $transfer = $this->transfers->save($transfer);
