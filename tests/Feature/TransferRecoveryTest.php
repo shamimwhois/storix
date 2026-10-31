@@ -209,7 +209,7 @@ final class TransferRecoveryTest extends TestCase
         ?string $lastErrorCode = null,
         mixed $expiresAt = null,
     ): Transfer {
-        return Transfer::query()->create([
+        $transfer = Transfer::query()->create([
             'file_id' => $file?->id,
             'tenant_id' => 'tenant-e08',
             'owner_id' => 'owner-e08',
@@ -226,9 +226,14 @@ final class TransferRecoveryTest extends TestCase
             'max_attempts' => 5,
             'last_error_code' => $lastErrorCode,
             'expires_at' => $expiresAt ?? now()->addDay(),
+        ]);
+
+        $transfer->forceFill([
             'updated_at' => now()->subMinutes(10),
             'created_at' => now()->subMinutes(20),
-        ]);
+        ])->save();
+
+        return $transfer->refresh();
     }
 
     /** @return resource */
