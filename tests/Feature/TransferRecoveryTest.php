@@ -137,7 +137,7 @@ final class TransferRecoveryTest extends TestCase
     public function test_recovery_never_promotes_a_same_size_corrupt_final_object(): void
     {
         $expected = 'expected-final-payload';
-        $corrupt = 'corrupted-final-payload';
+        $corrupt = 'expectxd-final-payload';
         self::assertSame(strlen($expected), strlen($corrupt));
 
         $file = $this->makeFile($expected, 'processing');
