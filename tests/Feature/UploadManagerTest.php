@@ -440,8 +440,29 @@ final class UploadManagerTest extends TestCase
         self::assertSame(TransferState::RETRY_WAIT, $interrupted->state);
         self::assertSame($uploadId, $interrupted->multipart_upload_id);
         self::assertNotNull($interrupted->last_error_code);
+        self::assertNotNull($interrupted->next_retry_at);
+        self::assertTrue($interrupted->next_retry_at->isFuture());
         self::assertNull($interrupted->resume_lease_token);
         self::assertSame('processing', StoredFile::query()->findOrFail($file->id)->status);
+
+        $earlyRetryStream = $this->stream($payload);
+
+        try {
+            $this->assertUploadException(
+                UploadInProgressException::class,
+                fn () => Storix::uploads()->upload(new UploadRequest(
+                    stream: $earlyRetryStream,
+                    originalName: $originalName,
+                    tenantId: $tenantId,
+                    ownerId: $ownerId,
+                    idempotencyKey: $idempotencyKey,
+                )),
+            );
+        } finally {
+            fclose($earlyRetryStream);
+        }
+
+        $this->travelTo($interrupted->next_retry_at->copy()->addSecond());
 
         $stream = $this->stream($payload);
 
