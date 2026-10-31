@@ -212,6 +212,74 @@ final class PersistenceRepositoryTest extends TestCase
         self::assertNull($repository->findScoped($transfer->id, null, null)?->resume_lease_token);
     }
 
+    public function test_resume_lease_grace_delays_takeover_after_expiry(): void
+    {
+        $repository = $this->app->make(TransferRepository::class);
+        $transfer = $repository->create([
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::TRANSFERRING,
+            'total_bytes' => 12,
+        ]);
+        $now = now()->startOfSecond();
+
+        self::assertTrue($repository->claimResumeLease(
+            $transfer->id,
+            'worker-token-a',
+            $now,
+            $now->copy()->addSeconds(30),
+        ));
+
+        $afterExpiry = $now->copy()->addSeconds(31);
+        $graceCutoff = $afterExpiry->copy()->subSeconds(60);
+
+        self::assertFalse($repository->claimResumeLease(
+            $transfer->id,
+            'worker-token-b',
+            $afterExpiry,
+            $afterExpiry->copy()->addSeconds(30),
+            $graceCutoff,
+        ));
+
+        $afterGrace = $now->copy()->addSeconds(91);
+        self::assertTrue($repository->claimResumeLease(
+            $transfer->id,
+            'worker-token-b',
+            $afterGrace,
+            $afterGrace->copy()->addSeconds(30),
+            $afterGrace->copy()->subSeconds(60),
+        ));
+    }
+
+    public function test_upload_lease_ownership_is_locked_and_late_provider_publication_is_marked_for_cleanup(): void
+    {
+        $repository = $this->app->make(TransferRepository::class);
+        $transfer = $repository->create([
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::TRANSFERRING,
+            'total_bytes' => 12,
+        ]);
+        $now = now();
+
+        self::assertTrue($repository->claimResumeLease(
+            $transfer->id,
+            'worker-token-a',
+            $now,
+            $now->copy()->addSeconds(30),
+        ));
+        self::assertTrue($repository->ownsResumeLease($transfer->id, 'worker-token-a', $now));
+        self::assertFalse($repository->ownsResumeLease($transfer->id, 'worker-token-b', $now));
+
+        self::assertTrue($repository->markCleanupPending($transfer->id, $now));
+        self::assertTrue($repository->findScoped($transfer->id, null, null)?->cleanup_pending);
+        self::assertFalse($repository->ownsResumeLease(
+            $transfer->id,
+            'worker-token-a',
+            $now->copy()->addSeconds(31),
+        ));
+    }
+
     public function test_resume_lease_can_only_be_renewed_by_its_owner_before_expiry(): void
     {
         $repository = $this->app->make(TransferRepository::class);
