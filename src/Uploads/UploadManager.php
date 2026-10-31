@@ -1045,6 +1045,7 @@ final class UploadManager
 
                 $current = $this->states->transition($current->id, TransferState::FAILED);
                 $current->last_error_code = $this->retryPolicy->errorCode($exception);
+                $current->cleanup_pending = $cleanupFailed;
                 $current->next_retry_at = null;
                 $current->last_error_message = $cleanupFailed
                     ? 'Upload failed and storage cleanup also failed.'
