@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace ShamimStack\Storix\Tests\Unit;
 
 use InvalidArgumentException;
-use RuntimeException;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 use ShamimStack\Storix\Enums\FailureCategory;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Exceptions\UploadInProgressException;
@@ -39,8 +39,7 @@ final class RetryPolicyTest extends TestCase
 
     public function test_it_preserves_provider_rate_limit_classification_through_wrapped_exceptions(): void
     {
-        $rateLimited = new class('provider rate limit') extends RuntimeException
-        {
+        $rateLimited = new class('provider rate limit') extends RuntimeException {
             public function getStatusCode(): int
             {
                 return 429;
