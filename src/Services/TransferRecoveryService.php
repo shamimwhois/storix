@@ -38,7 +38,7 @@ final class TransferRecoveryService
      * object have been cleaned successfully. Other transfers are moved to retry_wait and
      * require the caller to resubmit the original source stream.
      *
-     * @return array{examined:int,recovered:int,expired:int,waiting:int,skipped:int,failed:int}
+     * @return array{examined:int,recovered:int,cleaned:int,expired:int,waiting:int,skipped:int,failed:int}
      */
     public function recover(int $limit = 100, int $staleSeconds = 300, bool $dryRun = false): array
     {
@@ -156,17 +156,42 @@ final class TransferRecoveryService
                     continue;
                 }
 
-                $this->deferForSourceRetry($transfer, $token);
-                $summary['waiting']++;
+                if ($this->deferForSourceRetry($transfer, $token)) {
+                    $summary['waiting']++;
+                } else {
+                    $summary['skipped']++;
+                }
             } catch (Throwable $exception) {
-                $summary['failed']++;
+                $retryScheduled = false;
+
+                try {
+                    $current = Transfer::query()->find($candidate->id);
+
+                    if (
+                        $current !== null
+                        && $current->state->isTerminal() === false
+                        && $current->resume_lease_token === $token
+                    ) {
+                        $retryScheduled = $this->recordRecoveryFailure($current, $token, $exception);
+                    }
+                } catch (Throwable) {
+                    Log::error('Storix could not persist the recovery failure state.', [
+                        'transfer_id' => $candidate->id,
+                        'error_code' => StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                    ]);
+                }
+
+                if ($retryScheduled) {
+                    $summary['waiting']++;
+                } else {
+                    $summary['failed']++;
+                }
 
                 Log::warning('Storix stale transfer recovery failed.', [
                     'transfer_id' => $candidate->id,
                     'driver' => $candidate->driver,
-                    'error_code' => $exception instanceof \ShamimStack\Storix\Exceptions\StorixException
-                        ? $exception->errorCode->value
-                        : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                    'error_code' => $this->retryPolicy->errorCode($exception),
+                    'retry_scheduled' => $retryScheduled,
                 ]);
             } finally {
                 try {
@@ -391,9 +416,7 @@ final class TransferRecoveryService
         $maxAttempts = max(1, (int) $transfer->max_attempts);
 
         if ($this->retryPolicy->shouldRetry($exception, $attempt, $maxAttempts)) {
-            $this->deferForSourceRetry($transfer, $token, $exception);
-
-            return true;
+            return $this->deferForSourceRetry($transfer, $token, $exception);
         }
 
         $failureCode = $this->retryPolicy->isPermanent($exception)
@@ -409,12 +432,12 @@ final class TransferRecoveryService
         Transfer $transfer,
         string $token,
         ?Throwable $failure = null,
-    ): void {
-        DB::transaction(function () use ($transfer, $token, $failure): void {
+    ): bool {
+        return DB::transaction(function () use ($transfer, $token, $failure): bool {
             $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
 
             if ($current->state->isTerminal() || $current->resume_lease_token !== $token) {
-                return;
+                return false;
             }
 
             if ($current->state !== TransferState::RETRY_WAIT) {
@@ -445,6 +468,8 @@ final class TransferRecoveryService
             }
             $current->last_heartbeat_at = now();
             $this->transfers->save($current);
+
+            return true;
         });
     }
 
