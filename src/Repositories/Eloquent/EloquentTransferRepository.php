@@ -93,7 +93,10 @@ final class EloquentTransferRepository implements TransferRepository
                         TransferState::FAILED->value,
                         TransferState::CANCELLED->value,
                         TransferState::EXPIRED->value,
-                    ])->whereNotNull('multipart_upload_id');
+                    ])->where(function (Builder $cleanup): void {
+                        $cleanup->whereNotNull('multipart_upload_id')
+                            ->orWhere('cleanup_pending', true);
+                    });
                 });
             })
             ->where(function (Builder $query) use ($now): void {
