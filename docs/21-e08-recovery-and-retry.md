@@ -12,6 +12,7 @@ E08 is not complete until the SQLite, MySQL 8.4, and PostgreSQL 17 CI matrix pas
 - Apply a bounded exponential retry delay with configurable jitter and a persisted `next_retry_at`.
 - Prevent an idempotent resume request from bypassing its retry deadline.
 - Use an atomic transfer lease and heartbeat while the recovery process owns a transfer.
+- Delay lease takeover until a configurable `resume_lease_grace_seconds` interval after expiry, and lock the transfer row while upload finalization verifies its owner token.
 - Recover the narrow crash window where the provider has published the final object but the database still records an unfinished transfer.
 - Expire abandoned sessions and safely clean multipart workspaces left by active or terminal transfers.
 - Make recovery observable and bounded through a Laravel console command with a dry-run option.
@@ -46,11 +47,11 @@ The package does not persist the original upload bytes. A scheduled recovery run
 
 ## Recovery lease and heartbeat
 
-Recovery claims a transfer using the existing token-owned resume lease. The repository conditionally claims only an expired or unowned lease, then renews it while long-running verification is in progress.
+Recovery claims a transfer using the existing token-owned resume lease. The repository conditionally claims only a lease that expired before the configured `resume_lease_grace_seconds` cutoff, then renews it while long-running verification is in progress. UploadManager uses the same grace cutoff. The final file-availability transaction locks the transfer row and verifies the current token before committing completion. If an old worker returns after losing ownership, it cannot commit file availability and marks `cleanup_pending` so any late provider publication is reconciled by a subsequent sweep.
 
 The recovery command is bounded by a maximum candidate count. It does not mutate transfers in dry-run mode. Terminal transfers that still contain a multipart upload identifier can be leased for cleanup without changing their terminal state.
 
-Heartbeat renewal during checksum streaming uses `heartbeat_interval_seconds`. A single synchronous driver call cannot be interrupted by a PHP-level heartbeat; configure driver/network timeouts so one blocking call does not exceed the lease lifetime. Provider-specific cancellation and background heartbeat workers are future hardening.
+Heartbeat renewal during checksum streaming uses `heartbeat_interval_seconds`. A single synchronous driver call cannot be interrupted by a PHP-level heartbeat; configure driver/network timeouts so one blocking call returns before the lease expires. The grace interval gives a returning stale worker time to observe lease loss and record a late-publication cleanup marker; it is not a substitute for a bounded provider timeout. Provider-specific cancellation and background heartbeat workers are future hardening.
 
 ## Post-provider-completion crash recovery
 
@@ -106,6 +107,7 @@ The package configuration under `storix.transfers` includes:
 |---|---:|---|
 | `max_attempts` | 5 | Maximum upload/resume attempts |
 | `resume_lease_seconds` | 300 | Upload/resume lease duration |
+| `resume_lease_grace_seconds` | 60 | Additional time after lease expiry before another worker may take over |
 | `recovery_lease_seconds` | 300 | Recovery lease duration |
 | `recovery_stale_seconds` | 300 | Minimum stale age used by the command |
 | `heartbeat_interval_seconds` | 15 | Minimum interval between streamed recovery heartbeat updates |
