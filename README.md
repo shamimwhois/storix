@@ -219,8 +219,7 @@ The build writes `docs/assets/app.css` and `docs/assets/app.js`. The GitHub Page
 
 ## Autonomous Engineering and CI
 
-The repository includes a PHP 8.5 / Laravel 13 CI matrix for SQLite, MySQL 8.4, and PostgreSQL 17, plus a Composer dependency audit. Stacked feature-branch pull requests are included in the PR validation trigger. An opt-in `ai-task` issue label prepares a versioned task-context artifact for a future external agent runner; it does not execute an AI agent or grant repository write, merge, or deployment permissions. See [Autonomous Engineering & CI Control Plane](docs/22-autonomous-engineering.md).
-
+The repository includes PHP 8.5 / Laravel 13 CI, Composer dependency auditing, opt-in AI task intake, a scheduled task event bridge to an external RabbitMQ-backed control plane, and a protected deployment request gate. See [Autonomous Engineering & CI](docs/22-autonomous-engineering.md) and [Scheduled Autonomous Pipeline](docs/23-scheduled-autonomous-pipeline.md).
 ## Documentation
 
 The documentation portal is available at **[docs/index.html](docs/index.html)**.
