@@ -50,6 +50,9 @@ final class StorixServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(UploadManager::class, function ($app): UploadManager {
+            fwrite(STDERR, 'STORIX-CLASS-BEFORE\\n');
+            class_exists(UploadManager::class);
+            fwrite(STDERR, 'STORIX-CLASS-AFTER\\n');
             fwrite(STDERR, 'STORIX-UPLOAD-BEFORE\\n');
             $manager = new UploadManager(
                 $app->make(DriverManager::class),
