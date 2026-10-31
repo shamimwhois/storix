@@ -111,14 +111,27 @@ final class EloquentTransferRepository implements TransferRepository
             throw new InvalidArgumentException('Resume lease expiry must be later than its renewal time.');
         }
 
-        return Transfer::query()
+        $updated = Transfer::query()
             ->whereKey($transferId)
             ->where('resume_lease_token', $token)
             ->where('resume_lease_expires_at', '>', $now)
             ->update([
                 'resume_lease_expires_at' => $expiresAt,
                 'updated_at' => $now,
-            ]) === 1;
+            ]);
+
+        if ($updated === 1) {
+            return true;
+        }
+
+        // MySQL reports changed rows, not matched rows. A same-second renewal can
+        // round to the existing TIMESTAMP value; confirm the lease is still owned
+        // and unexpired instead of treating that no-op update as a lost lease.
+        return Transfer::query()
+            ->whereKey($transferId)
+            ->where('resume_lease_token', $token)
+            ->where('resume_lease_expires_at', '>', $now)
+            ->exists();
     }
 
     public function releaseResumeLease(string $transferId, string $token): bool
