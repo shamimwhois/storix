@@ -6,9 +6,11 @@ namespace ShamimStack\Storix\Tests\Unit;
 
 use InvalidArgumentException;
 use RuntimeException;
+use RuntimeException;
 use PHPUnit\Framework\TestCase;
 use ShamimStack\Storix\Enums\FailureCategory;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
+use ShamimStack\Storix\Exceptions\UploadInProgressException;
 use ShamimStack\Storix\Services\ErrorClassifier;
 use ShamimStack\Storix\Services\RetryPolicy;
 
@@ -25,6 +27,14 @@ final class RetryPolicyTest extends TestCase
         self::assertSame(
             FailureCategory::PERMANENT,
             $classifier->classify(new InvalidArgumentException('invalid key')),
+        );
+        self::assertSame(
+            FailureCategory::TRANSIENT,
+            $classifier->classify(new UploadInProgressException),
+        );
+        self::assertSame(
+            'UNKNOWN_FAILURE',
+            $classifier->codeFor(new RuntimeException('unclassified')),
         );
     }
 
@@ -60,6 +70,7 @@ final class RetryPolicyTest extends TestCase
 
         self::assertTrue($policy->shouldRetryCode('STORAGE_OPERATION_FAILED', 1, 5));
         self::assertTrue($policy->shouldRetryCode('RATE_LIMITED', 1, 5));
+        self::assertTrue($policy->shouldRetryCode('UNKNOWN_FAILURE', 1, 5));
         self::assertSame(
             FailureCategory::RATE_LIMITED,
             (new ErrorClassifier)->classifyCode('RATE_LIMITED'),
