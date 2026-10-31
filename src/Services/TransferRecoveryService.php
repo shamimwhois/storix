@@ -39,7 +39,7 @@ final class TransferRecoveryService
      * object have been cleaned successfully. Other transfers are moved to retry_wait and
      * require the caller to resubmit the original source stream.
      *
-     * @return array{examined:int,recovered:int,cleaned:int,expired:int,waiting:int,skipped:int,failed:int}
+     * @return array{examined:int,recovered:int,cleaned:int,expired:int,waiting:int,cleanup_pending:int,skipped:int,terminated:int,failed:int}
      */
     public function recover(int $limit = 100, int $staleSeconds = 300, bool $dryRun = false): array
     {
@@ -89,6 +89,7 @@ final class TransferRecoveryService
             'cleaned' => 0,
             'expired' => 0,
             'waiting' => 0,
+            'cleanup_pending' => 0,
             'skipped' => 0,
             'terminated' => 0,
             'failed' => 0,
@@ -199,7 +200,9 @@ final class TransferRecoveryService
                     ]);
                 }
 
-                if ($retryScheduled) {
+                if ($retryScheduled && $cleanupOnly) {
+                    $summary['cleanup_pending']++;
+                } elseif ($retryScheduled) {
                     $summary['waiting']++;
                 } else {
                     $summary['failed']++;
@@ -465,46 +468,51 @@ final class TransferRecoveryService
         Throwable $exception,
         bool $cleanupOnly = false,
     ): bool {
-        if ($cleanupOnly) {
-            return DB::transaction(function () use ($transfer, $token, $exception): bool {
-                $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
-
-                if ($current->state->isTerminal() || $this->ownsRecoveryLease($current, $token) === false) {
-                    return false;
-                }
-
-                $delay = $this->retryPolicy->delayMilliseconds(
-                    max(1, (int) $current->attempts),
-                    (int) config('storix.transfers.retry_base_seconds', 2),
-                    (int) config('storix.transfers.retry_max_seconds', 300),
-                    (int) config('storix.transfers.retry_jitter_percent', 20),
-                );
-
-                $current->cleanup_pending = true;
-                $current->next_retry_at = now()->addMilliseconds($delay);
-                $current->last_error_code = $this->retryPolicy->errorCode($exception);
-                $current->last_error_message = 'Storage cleanup failed; recovery will retry cleanup before upload can resume.';
-                $current->last_heartbeat_at = now();
-                $this->transfers->save($current);
-
-                return true;
-            });
-        }
-
         $attempt = max(1, (int) $transfer->attempts);
         $maxAttempts = max(1, (int) $transfer->max_attempts);
 
-        if ($this->retryPolicy->shouldRetry($exception, $attempt, $maxAttempts)) {
-            return $this->deferForSourceRetry($transfer, $token, $exception);
+        if ($cleanupOnly || $this->retryPolicy->shouldRetry($exception, $attempt, $maxAttempts) === false) {
+            $failureCode = $cleanupOnly
+                ? $this->retryPolicy->errorCode($exception)
+                : ($this->retryPolicy->isPermanent($exception)
+                    ? $this->retryPolicy->errorCode($exception)
+                    : StorixErrorCode::MAX_RETRIES_EXCEEDED->value);
+
+            return $this->scheduleCleanupRetry($transfer, $token, $exception, $failureCode);
         }
 
-        $failureCode = $this->retryPolicy->isPermanent($exception)
-            ? $this->retryPolicy->errorCode($exception)
-            : StorixErrorCode::MAX_RETRIES_EXCEEDED->value;
+        return $this->deferForSourceRetry($transfer, $token, $exception);
+    }
 
-        $this->failExhaustedTransfer($transfer, $token, $failureCode);
+    private function scheduleCleanupRetry(
+        Transfer $transfer,
+        string $token,
+        Throwable $exception,
+        string $failureCode,
+    ): bool {
+        return DB::transaction(function () use ($transfer, $token, $exception, $failureCode): bool {
+            $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
 
-        return false;
+            if ($current->state->isTerminal() || $this->ownsRecoveryLease($current, $token) === false) {
+                return false;
+            }
+
+            $delay = $this->retryPolicy->delayMilliseconds(
+                max(1, (int) $current->attempts),
+                (int) config('storix.transfers.retry_base_seconds', 2),
+                (int) config('storix.transfers.retry_max_seconds', 300),
+                (int) config('storix.transfers.retry_jitter_percent', 20),
+            );
+
+            $current->cleanup_pending = true;
+            $current->next_retry_at = now()->addMilliseconds($delay);
+            $current->last_error_code = $failureCode;
+            $current->last_error_message = 'Storage cleanup failed; recovery will retry cleanup before upload can resume.';
+            $current->last_heartbeat_at = now();
+            $this->transfers->save($current);
+
+            return true;
+        });
     }
 
     private function deferForSourceRetry(
