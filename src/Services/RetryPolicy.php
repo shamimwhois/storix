@@ -40,9 +40,9 @@ final class RetryPolicy
         $maximumMilliseconds = max(max(1, $baseSeconds), $maximumSeconds) * 1000;
         $exponent = min(20, max(0, $attempt - 1));
         $baseDelay = min($maximumMilliseconds, $baseMilliseconds * (2 ** $exponent));
-        $spread = (int) floor($un-jittered * min(100, max(0, $jitterPercent)) / 100);
-        $minimum = max(0, (int) $un-jittered - $spread);
-        $maximum = min($maximumMilliseconds, (int) $un-jittered + $spread);
+        $spread = (int) floor($baseDelay * min(100, max(0, $jitterPercent)) / 100);
+        $minimum = max(0, (int) $baseDelay - $spread);
+        $maximum = min($maximumMilliseconds, (int) $baseDelay + $spread);
 
         return random_int($minimum, max($minimum, $maximum));
     }
