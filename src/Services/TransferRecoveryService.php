@@ -48,14 +48,23 @@ final class TransferRecoveryService
 
         $candidates = Transfer::query()
             ->with('file')
-            ->whereIn('state', [
-                TransferState::PENDING->value,
-                TransferState::PREPARING->value,
-                TransferState::TRANSFERRING->value,
-                TransferState::PAUSED->value,
-                TransferState::RETRY_WAIT->value,
-                TransferState::VERIFYING->value,
-            ])
+            ->where(function (Builder $query): void {
+                $query->whereIn('state', [
+                    TransferState::PENDING->value,
+                    TransferState::PREPARING->value,
+                    TransferState::TRANSFERRING->value,
+                    TransferState::PAUSED->value,
+                    TransferState::RETRY_WAIT->value,
+                    TransferState::VERIFYING->value,
+                ])->orWhere(function (Builder $terminal): void {
+                    $terminal->whereIn('state', [
+                        TransferState::COMPLETED->value,
+                        TransferState::FAILED->value,
+                        TransferState::CANCELLED->value,
+                        TransferState::EXPIRED->value,
+                    ])->whereNotNull('multipart_upload_id');
+                });
+            })
             ->where('updated_at', '<=', $cutoff)
             ->where(function (Builder $query) use ($now): void {
                 $query->whereNull('resume_lease_expires_at')
@@ -72,6 +81,7 @@ final class TransferRecoveryService
         $summary = [
             'examined' => $candidates->count(),
             'recovered' => 0,
+            'cleaned' => 0,
             'expired' => 0,
             'waiting' => 0,
             'skipped' => 0,
@@ -100,6 +110,13 @@ final class TransferRecoveryService
 
             try {
                 $transfer = Transfer::query()->with('file')->findOrFail($candidate->id);
+
+                if ($transfer->state->isTerminal()) {
+                    $this->cleanupTerminalSession($transfer, $token);
+                    $summary['cleaned']++;
+
+                    continue;
+                }
 
                 if ($this->recoverPublishedObject($transfer, $token)) {
                     $summary['recovered']++;
@@ -285,6 +302,24 @@ final class TransferRecoveryService
         });
 
         return true;
+    }
+
+    private function cleanupTerminalSession(Transfer $transfer, string $token): void
+    {
+        $this->cleanupUnpublishedTransfer($transfer, $token);
+
+        DB::transaction(function () use ($transfer, $token): void {
+            $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
+
+            if ($current->state->isTerminal() === false || $current->resume_lease_token !== $token) {
+                return;
+            }
+
+            $current->multipart_upload_id = null;
+            $current->next_retry_at = null;
+            $current->last_heartbeat_at = now();
+            $this->transfers->save($current);
+        });
     }
 
     private function expireTransfer(Transfer $transfer, string $token): void
