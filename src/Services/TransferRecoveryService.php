@@ -170,7 +170,7 @@ final class TransferRecoveryService
                     if (
                         $current !== null
                         && $current->state->isTerminal() === false
-                        && $current->resume_lease_token === $token
+                        && $this->ownsRecoveryLease($current, $token)
                     ) {
                         $retryScheduled = $this->recordRecoveryFailure($current, $token, $exception);
                     }
@@ -263,6 +263,8 @@ final class TransferRecoveryService
             }
         }
 
+        $this->renewRecoveryLease((string) $transfer->id, $token);
+
         if (
             $verified['size'] !== (int) $transfer->total_bytes
             || hash_equals(strtolower($file->sha256), $verified['sha256']) === false
@@ -297,9 +299,7 @@ final class TransferRecoveryService
 
             if (
                 $current->state->isTerminal()
-                || $current->resume_lease_token !== $token
-                || $current->resume_lease_expires_at === null
-                || $current->resume_lease_expires_at->isPast()
+                || $this->ownsRecoveryLease($current, $token) === false
             ) {
                 throw new RuntimeException('Transfer recovery ownership changed before finalization.');
             }
@@ -338,7 +338,7 @@ final class TransferRecoveryService
         DB::transaction(function () use ($transfer, $token): void {
             $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
 
-            if ($current->state->isTerminal() === false || $current->resume_lease_token !== $token) {
+            if ($current->state->isTerminal() === false || $this->ownsRecoveryLease($current, $token) === false) {
                 return;
             }
 
@@ -356,7 +356,7 @@ final class TransferRecoveryService
         DB::transaction(function () use ($transfer, $token): void {
             $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
 
-            if ($current->state->isTerminal() || $current->resume_lease_token !== $token) {
+            if ($current->state->isTerminal() || $this->ownsRecoveryLease($current, $token) === false) {
                 return;
             }
 
@@ -387,7 +387,7 @@ final class TransferRecoveryService
         DB::transaction(function () use ($transfer, $token, $failureCode): void {
             $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
 
-            if ($current->state->isTerminal() || $current->resume_lease_token !== $token) {
+            if ($current->state->isTerminal() || $this->ownsRecoveryLease($current, $token) === false) {
                 return;
             }
 
@@ -448,7 +448,11 @@ final class TransferRecoveryService
                 $current = $this->states->transition($current->id, TransferState::RETRY_WAIT);
             }
 
-            if ($failure !== null || $current->next_retry_at === null) {
+            if (
+                $failure !== null
+                || $current->next_retry_at === null
+                || $current->next_retry_at->lte(now())
+            ) {
                 $delay = $this->retryPolicy->delayMilliseconds(
                     max(1, (int) $current->attempts),
                     (int) config('storix.transfers.retry_base_seconds', 2),
@@ -543,6 +547,13 @@ final class TransferRecoveryService
             : $query->where('owner_id', $transfer->owner_id);
 
         return $query->lockForUpdate()->first();
+    }
+
+    private function ownsRecoveryLease(Transfer $transfer, string $token): bool
+    {
+        return $transfer->resume_lease_token === $token
+            && $transfer->resume_lease_expires_at !== null
+            && $transfer->resume_lease_expires_at->isFuture();
     }
 
     private function renewRecoveryLease(string $transferId, string $token): void
