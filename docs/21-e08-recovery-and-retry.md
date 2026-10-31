@@ -60,12 +60,13 @@ Only an exact size and checksum match allows recovery to mark the file available
 
 ## Stale and terminal session cleanup
 
-The recovery command examines stale active transfers and terminal records that still carry a multipart session identifier.
+The recovery command examines stale active transfers and terminal records that carry a multipart session identifier or the durable `cleanup_pending` marker.
 
 - An expired active transfer is cleaned before the transfer is marked expired.
 - A transfer that exhausted its retry budget, or has a known permanent error, is cleaned and marked failed.
 - A terminal transfer with a leftover multipart identifier has that session cleaned without deleting a file already marked available.
-- Cleanup failures are logged with a stable error code and leave the session metadata available for a later recovery attempt.
+- A terminal failed transfer with an object-delete failure retains `cleanup_pending`; later sweeps retry deleting that unpublished object even when no multipart identifier remains.
+- Cleanup failures leave the multipart identifier or cleanup marker intact for a later recovery attempt; a successful cleanup clears the marker so it is not scanned indefinitely.
 
 The Local driver treats abort of a missing multipart workspace as idempotent. Remote providers must implement equivalent safe abort semantics before they are considered compatible with this recovery flow.
 
