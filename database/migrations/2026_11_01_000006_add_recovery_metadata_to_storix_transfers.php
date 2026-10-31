@@ -13,6 +13,7 @@ return new class extends Migration
         Schema::table('storix_transfers', function (Blueprint $table): void {
             $table->timestamp('next_retry_at')->nullable()->after('resume_lease_expires_at');
             $table->timestamp('last_heartbeat_at')->nullable()->after('next_retry_at');
+            $table->boolean('cleanup_pending')->default(false)->after('last_heartbeat_at');
             $table->index(['state', 'next_retry_at'], 'storix_transfers_next_retry_index');
         });
     }
@@ -21,7 +22,7 @@ return new class extends Migration
     {
         Schema::table('storix_transfers', function (Blueprint $table): void {
             $table->dropIndex('storix_transfers_next_retry_index');
-            $table->dropColumn(['next_retry_at', 'last_heartbeat_at']);
+            $table->dropColumn(['next_retry_at', 'last_heartbeat_at', 'cleanup_pending']);
         });
     }
 };
