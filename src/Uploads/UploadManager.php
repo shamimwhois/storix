@@ -189,12 +189,17 @@ final class UploadManager
 
             $resumeLeaseToken = Str::random(64);
             $leaseSeconds = max(30, (int) $this->config->get('storix.transfers.resume_lease_seconds', 300));
+            $claimNow = now();
+            $claimExpiredBefore = $claimNow->copy()->subSeconds(
+                max(30, (int) $this->config->get('storix.transfers.resume_lease_grace_seconds', 60)),
+            );
 
             if ($this->transfers->claimResumeLease(
                 (string) $transfer->id,
                 $resumeLeaseToken,
-                now(),
-                now()->addSeconds($leaseSeconds),
+                $claimNow,
+                $claimNow->copy()->addSeconds($leaseSeconds),
+                $claimExpiredBefore,
             ) === false) {
                 throw new UploadInProgressException;
             }
@@ -362,13 +367,24 @@ final class UploadManager
                 $transfer,
                 $writeResult,
                 $staged,
+                $resumeLeaseToken,
             ): array {
+                if ($this->transfers->ownsResumeLease(
+                    (string) $transfer->id,
+                    $resumeLeaseToken,
+                    now(),
+                ) === false) {
+                    throw new UploadInProgressException;
+                }
+
                 $file->size_bytes = $staged['size'];
                 $file->sha256 = $staged['sha256'];
                 $file->mime_type = $writeResult->object->mimeType ?? $file->mime_type;
                 $file->status = 'available';
                 $file = $this->files->save($file);
 
+                $transfer->cleanup_pending = false;
+                $transfer = $this->transfers->save($transfer);
                 $transfer = $this->states->transition($transfer->id, TransferState::COMPLETED);
 
                 return [$file, $transfer];
@@ -392,6 +408,19 @@ final class UploadManager
                 }
 
                 if ($leaseStillOwned === false) {
+                    if ($objectMayExist && $transfer !== null) {
+                        try {
+                            $this->transfers->markCleanupPending((string) $transfer->id, now());
+                        } catch (Throwable $cleanupMarkerException) {
+                            Log::error('Storix could not mark a possible late provider publication for cleanup.', [
+                                'transfer_id' => $transfer->id,
+                                'error_code' => $cleanupMarkerException instanceof StorixException
+                                    ? $cleanupMarkerException->errorCode->value
+                                    : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                            ]);
+                        }
+                    }
+
                     throw $exception;
                 }
 
