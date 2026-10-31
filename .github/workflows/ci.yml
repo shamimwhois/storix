@@ -11,13 +11,50 @@ permissions:
   contents: read
 
 concurrency:
-  group: storix-ci-${{ github.ref }}
+  group: storix-ci-${{ github.ref }}-${{ matrix.database }}
   cancel-in-progress: true
 
 jobs:
   tests:
-    name: PHP 8.5 / Laravel 13
+    name: PHP 8.5 / Laravel 13 / ${{ matrix.database }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, mysql, pgsql]
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: storix
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: storix
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d storix"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_HOST: 127.0.0.1
+      DB_PORT: ${{ matrix.database == 'mysql' && '3306' || '5432' }}
+      DB_DATABASE: storix
+      DB_USERNAME: ${{ matrix.database == 'mysql' && 'root' || 'postgres' }}
+      DB_PASSWORD: ${{ matrix.database == 'mysql' && 'root' || 'postgres' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,6 +64,7 @@ jobs:
           php-version: "8.5"
           coverage: none
           tools: composer:v2
+          extensions: pdo_sqlite, pdo_mysql, pdo_pgsql
       - name: Validate Composer metadata
         run: composer validate --strict
       - name: Install dependencies
