@@ -556,7 +556,6 @@ final class LocalStorageDriverTest extends TestCase
         }
     }
 
-
     public function test_multipart_cleanup_failure_does_not_publish_the_final_object(): void
     {
         $driver = $this->driver();
