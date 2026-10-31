@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ShamimStack\Storix\Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -62,6 +63,60 @@ final class UploadManagerTest extends TestCase
         File::deleteDirectory($this->root);
 
         parent::tearDown();
+    }
+
+    public function test_worker_losing_its_lease_during_provider_write_cannot_finalize_and_marks_late_publication(): void
+    {
+        $driver = $this->createMock(StorageDriver::class);
+        $driver->method('name')->willReturn('fenced');
+        $driver->method('capabilities')->willReturn(new DriverCapabilities);
+        $driver->method('writeStream')->willReturnCallback(function (WriteStreamRequest $request): WriteResult {
+            $contents = stream_get_contents($request->stream);
+            $transfer = Transfer::query()->where('idempotency_key', 'late-provider-write')->firstOrFail();
+            $repository = $this->app->make(TransferRepository::class);
+            $now = now();
+
+            DB::table('storix_transfers')->where('id', $transfer->id)->update([
+                'resume_lease_expires_at' => $now->copy()->subSeconds(61),
+            ]);
+
+            self::assertTrue($repository->claimResumeLease(
+                (string) $transfer->id,
+                'replacement-worker-token',
+                $now,
+                $now->copy()->addMinutes(5),
+                $now->copy()->subSeconds(60),
+            ));
+
+            return new WriteResult(new StorageObjectMetadata(
+                key: $request->key,
+                sizeBytes: strlen($contents),
+                checksumSha256: hash('sha256', $contents),
+            ));
+        });
+
+        $this->app->make(DriverManager::class)->register('fenced', $driver);
+        $stream = $this->stream('late provider publication');
+
+        try {
+            $this->assertUploadException(UploadInProgressException::class, fn () => Storix::uploads()->upload(new UploadRequest(
+                stream: $stream,
+                originalName: 'late.txt',
+                ownerId: 'owner-late',
+                idempotencyKey: 'late-provider-write',
+                driver: 'fenced',
+            )));
+        } finally {
+            fclose($stream);
+        }
+
+        $transfer = Transfer::query()->where('idempotency_key', 'late-provider-write')->firstOrFail();
+        $file = StoredFile::query()->findOrFail($transfer->file_id);
+
+        self::assertSame('replacement-worker-token', $transfer->resume_lease_token);
+        self::assertTrue($transfer->cleanup_pending);
+        self::assertSame('processing', $file->status);
+        self::assertNotSame(TransferState::COMPLETED, $transfer->state);
     }
 
     public function test_it_uploads_a_binary_stream_and_verifies_the_persisted_object(): void
