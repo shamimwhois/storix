@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace ShamimStack\Storix\Tests\Feature;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use ShamimStack\Storix\Tests\TestCase;
 
 final class RecoveryCommandTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_recovery_command_is_registered_and_dry_run_is_safe(): void
     {
         $this->artisan('storix:transfers:recover', [
