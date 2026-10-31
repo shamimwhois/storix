@@ -1,0 +1,141 @@
+name: Storix Autonomous Pipeline — RabbitMQ Bridge
+
+on:
+  repository_dispatch:
+    types:
+      - storix.task.scheduled
+      - storix.task.ready
+      - storix.agent.stage.completed
+      - storix.review.requested
+  workflow_dispatch:
+    inputs:
+      task_id:
+        description: Existing task ID in the Autonomous Engineering control plane
+        required: true
+        type: string
+      event_type:
+        description: Pipeline event to enqueue
+        required: true
+        type: choice
+        options:
+          - storix.task.ready
+          - storix.task.scheduled
+          - storix.review.requested
+
+permissions:
+  contents: read
+
+concurrency:
+  group: storix-agent-task-${{ github.event.client_payload.task_id || inputs.task_id || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  validate-event:
+    name: Validate task event
+    runs-on: ubuntu-latest
+    outputs:
+      task_id: ${{ steps.validate.outputs.task_id }}
+      event_type: ${{ steps.validate.outputs.event_type }}
+      schedule_id: ${{ steps.validate.outputs.schedule_id }}
+    steps:
+      - name: Validate payload
+        id: validate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TASK_ID: ${{ inputs.task_id }}
+          INPUT_EVENT_TYPE: ${{ inputs.event_type }}
+          PAYLOAD_TASK_ID: ${{ github.event.client_payload.task_id }}
+          PAYLOAD_EVENT_TYPE: ${{ github.event.action }}
+          PAYLOAD_SCHEDULE_ID: ${{ github.event.client_payload.schedule_id }}
+        run: |
+          set -euo pipefail
+          task_id="$INPUT_TASK_ID"
+          event_type="$INPUT_EVENT_TYPE"
+          schedule_id=""
+
+          if [ "$EVENT_NAME" = "repository_dispatch" ]; then
+            task_id="$PAYLOAD_TASK_ID"
+            event_type="$PAYLOAD_EVENT_TYPE"
+            schedule_id="$PAYLOAD_SCHEDULE_ID"
+          fi
+
+          if ! printf '%s' "$task_id" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$'; then
+            echo "::error::Invalid or missing task_id"
+            exit 1
+          fi
+
+          case "$event_type" in
+            storix.task.ready|storix.task.scheduled|storix.agent.stage.completed|storix.review.requested) ;;
+            *)
+              echo "::error::Unsupported pipeline event"
+              exit 1
+              ;;
+          esac
+
+          if [ -n "$schedule_id" ] && ! printf '%s' "$schedule_id" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$'; then
+            echo "::error::Invalid schedule_id"
+            exit 1
+          fi
+
+          echo "task_id=$task_id" >> "$GITHUB_OUTPUT"
+          echo "event_type=$event_type" >> "$GITHUB_OUTPUT"
+          echo "schedule_id=$schedule_id" >> "$GITHUB_OUTPUT"
+
+  enqueue-rabbitmq:
+    name: Publish event through agent control plane
+    needs: validate-event
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require configured runner
+        env:
+          RUNNER_URL: ${{ vars.STORIX_AGENT_RUNNER_URL }}
+          RUNNER_TOKEN: ${{ secrets.STORIX_AGENT_RUNNER_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$RUNNER_URL" ] || [ -z "$RUNNER_TOKEN" ]; then
+            echo "::error::Configure STORIX_AGENT_RUNNER_URL and STORIX_AGENT_RUNNER_TOKEN before enabling agent execution."
+            exit 1
+          fi
+          case "$RUNNER_URL" in
+            https://*) ;;
+            *) echo "::error::Agent runner URL must use HTTPS"; exit 1 ;;
+          esac
+
+      - name: Enqueue idempotent pipeline event
+        env:
+          RUNNER_URL: ${{ vars.STORIX_AGENT_RUNNER_URL }}
+          RUNNER_TOKEN: ${{ secrets.STORIX_AGENT_RUNNER_TOKEN }}
+          TASK_ID: ${{ needs.validate-event.outputs.task_id }}
+          EVENT_TYPE: ${{ needs.validate-event.outputs.event_type }}
+          SCHEDULE_ID: ${{ needs.validate-event.outputs.schedule_id }}
+          DELIVERY_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          payload="$(jq -n \
+            --arg task_id "$TASK_ID" \
+            --arg event_type "$EVENT_TYPE" \
+            --arg schedule_id "$SCHEDULE_ID" \
+            --arg delivery_id "$DELIVERY_ID" \
+            --arg repository "$REPOSITORY" \
+            --arg sha "$SHA" \
+            '{
+              schema_version: 1,
+              task_id: $task_id,
+              event_type: $event_type,
+              schedule_id: (if $schedule_id == "" then null else $schedule_id end),
+              delivery_id: $delivery_id,
+              repository: $repository,
+              commit_sha: $sha,
+              source: "github-actions"
+            }')"
+
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-all-errors --retry-delay 2 \
+            --request POST \
+            --header "Authorization: Bearer $RUNNER_TOKEN" \
+            --header "Content-Type: application/json" \
+            --header "Idempotency-Key: $DELIVERY_ID" \
+            --data "$payload" \
+            "${RUNNER_URL%/}/v1/github/events"
