@@ -44,10 +44,11 @@ final class RecoverStaleTransfersCommand extends Command
         );
 
         $this->table(
-            ['Examined', 'Recovered', 'Expired', 'Waiting', 'Skipped', 'Failed'],
+            ['Examined', 'Recovered', 'Cleaned', 'Expired', 'Waiting', 'Skipped', 'Failed'],
             [[
                 $summary['examined'],
                 $summary['recovered'],
+                $summary['cleaned'],
                 $summary['expired'],
                 $summary['waiting'],
                 $summary['skipped'],
