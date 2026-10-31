@@ -121,6 +121,13 @@ final class TransferRecoveryService
 
             try {
                 $transfer = Transfer::query()->findOrFail($candidate->id);
+                $cleanupOnly = $this->isExpired($transfer)
+                    || ($transfer->max_attempts > 0 && $transfer->attempts >= $transfer->max_attempts)
+                    || $this->retryPolicy->shouldRetryCode(
+                        $transfer->last_error_code,
+                        max(1, (int) $transfer->attempts),
+                        max(1, (int) $transfer->max_attempts),
+                    ) === false;
 
                 if ($transfer->state->isTerminal()) {
                     $this->cleanupTerminalSession($transfer, $token);
