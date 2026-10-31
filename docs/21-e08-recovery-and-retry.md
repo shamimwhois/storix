@@ -2,9 +2,9 @@
 
 ## Status
 
-Implementation in progress on `feature/e08-recovery-retry`, stacked on E07. This branch adds failure classification, bounded exponential backoff with jitter, persisted retry deadlines, token-owned recovery leases, a stale-transfer command, verified post-finalization recovery, and terminal multipart-session cleanup.
+Implementation is complete on `feature/e08-recovery-retry`, stacked on E07. The current head `0ffd52150f1135770f82587247e012a9edeaf6d8` passes Composer validation, Pint, and PHPUnit on SQLite, MySQL 8.4, and PostgreSQL 17. The latest full CodeRabbit review is pending; keep the PR draft until review findings are checked and the stacked PR sequence is ready.
 
-E08 is not complete until the SQLite, MySQL 8.4, and PostgreSQL 17 CI matrix passes, the code review findings are addressed, and the E08 pull request is reviewed. Do not merge this branch directly into `main`; E07 remains stacked on E06.
+The E08 migration rollback/reapply and preservation tests are included in the passing CI matrix. E08 is ready for final review, but is not merged or release-complete. Do not merge this branch directly into `main`; E07 remains stacked on E06.
 
 ## Goals
 
@@ -41,7 +41,7 @@ baseDelay = min(maxDelay, baseSeconds * 2^(attempt - 1))
 delay     = random(baseDelay - jitter, baseDelay + jitter)
 ```
 
-Storix persists the resulting deadline in `storix_transfers.next_retry_at`. A retry request with the same idempotency key and fingerprint receives `UPLOAD_IN_PROGRESS` while that deadline is in the future. Once the deadline passes, the caller can submit the original source stream again; Storix resumes the existing transfer and does not create another file or multipart session.
+Storix persists the resulting deadline in `storix_transfers.next_retry_at`. A retry request with the same idempotency key and fingerprint receives `UPLOAD_IN_PROGRESS` while that deadline is in the future. Once the deadline passes, the caller can submit the original source stream again. Storix retains the existing transfer and idempotency identity, reuses the scoped file row when it still exists (or creates a replacement if it is missing), clears stale chunk state, and starts a fresh multipart attempt.
 
 The package does not persist the original upload bytes. A scheduled recovery run cannot invent or reconstruct a lost source stream. Automatic queue orchestration for source re-submission remains outside this milestone.
 
@@ -74,7 +74,7 @@ The Local driver treats abort of a missing multipart workspace as idempotent. Re
 
 ## Command
 
-Inspect eligible transfers without mutation:
+Preview aggregate recovery counts without mutation. Dry-run does not list individual transfers or predict per-record cleanup actions:
 
 ```bash
 php artisan storix:transfers:recover --dry-run
