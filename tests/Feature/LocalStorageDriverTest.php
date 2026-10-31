@@ -8,7 +8,6 @@ use InvalidArgumentException;
 use ShamimStack\Storix\Contracts\DirectoryDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
-use ShamimStack\Storix\Facades\Storix;
 use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
 use ShamimStack\Storix\DTOs\DeleteObjectRequest;
 use ShamimStack\Storix\DTOs\ReadStreamRequest;
@@ -17,6 +16,7 @@ use ShamimStack\Storix\DTOs\WriteMultipartPartRequest;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
 use ShamimStack\Storix\Enums\StorixErrorCode;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
+use ShamimStack\Storix\Facades\Storix;
 use ShamimStack\Storix\Tests\TestCase;
 
 final class LocalStorageDriverTest extends TestCase
