@@ -329,6 +329,51 @@ final class TransferRecoveryTest extends TestCase
         self::assertDirectoryDoesNotExist(sys_get_temp_dir().DIRECTORY_SEPARATOR.'storix-multipart-'.$uploadId);
     }
 
+    public function test_it_retries_cleanup_for_failed_transfers_with_an_orphaned_final_object(): void
+    {
+        $contents = 'orphaned-final-object';
+        $file = $this->makeFile($contents, 'failed');
+        $driver = $this->app->make(DriverManager::class)->driver('local');
+        $stream = $this->stream($contents);
+
+        try {
+            $driver->writeStream(new WriteStreamRequest(
+                key: $file->storage_key,
+                stream: $stream,
+            ));
+        } finally {
+            fclose($stream);
+        }
+
+        $transfer = $this->makeTransfer(
+            $file,
+            TransferState::FAILED,
+            attempts: 1,
+            lastErrorCode: 'STORAGE_OPERATION_FAILED',
+            cleanupPending: true,
+        );
+
+        $summary = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 10,
+            staleSeconds: 60,
+        );
+
+        $transfer->refresh();
+
+        self::assertSame(1, $summary['examined']);
+        self::assertSame(1, $summary['cleaned']);
+        self::assertSame(TransferState::FAILED, $transfer->state);
+        self::assertFalse($transfer->cleanup_pending);
+        self::assertFalse($driver->exists($file->storage_key));
+
+        $secondPass = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 10,
+            staleSeconds: 60,
+        );
+
+        self::assertSame(0, $secondPass['examined']);
+    }
+
     public function test_it_schedules_a_bounded_retry_when_provider_metadata_lookup_fails(): void
     {
         $file = $this->makeFile('provider-read-failure', 'processing', 'test');
@@ -415,6 +460,7 @@ final class TransferRecoveryTest extends TestCase
         ?string $lastErrorCode = null,
         mixed $expiresAt = null,
         string $driver = 'local',
+        bool $cleanupPending = false,
     ): Transfer {
         $transfer = Transfer::query()->create([
             'file_id' => $file?->id,
@@ -432,6 +478,7 @@ final class TransferRecoveryTest extends TestCase
             'attempts' => $attempts,
             'max_attempts' => 5,
             'last_error_code' => $lastErrorCode,
+            'cleanup_pending' => $cleanupPending,
             'expires_at' => $expiresAt ?? now()->addDay(),
         ]);
 
