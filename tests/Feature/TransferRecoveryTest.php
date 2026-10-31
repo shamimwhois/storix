@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ShamimStack\Storix\Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
@@ -228,10 +229,10 @@ final class TransferRecoveryTest extends TestCase
             'expires_at' => $expiresAt ?? now()->addDay(),
         ]);
 
-        $transfer->forceFill([
+        DB::table('storix_transfers')->where('id', $transfer->id)->update([
             'updated_at' => now()->subMinutes(10),
             'created_at' => now()->subMinutes(20),
-        ])->save();
+        ]);
 
         return $transfer->refresh();
     }
