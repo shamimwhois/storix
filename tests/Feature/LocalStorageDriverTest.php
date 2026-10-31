@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use ShamimStack\Storix\Contracts\DirectoryDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
+use ShamimStack\Storix\Facades\Storix;
 use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
 use ShamimStack\Storix\DTOs\DeleteObjectRequest;
 use ShamimStack\Storix\DTOs\ReadStreamRequest;
@@ -50,6 +51,8 @@ final class LocalStorageDriverTest extends TestCase
 
         self::assertSame(['local'], $manager->names());
         self::assertInstanceOf(LocalStorageDriver::class, $manager->driver());
+        Storix::clearResolvedInstance('storix');
+        self::assertSame($manager->driver(), Storix::driver());
     }
 
     /**
