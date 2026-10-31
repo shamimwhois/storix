@@ -54,8 +54,6 @@ final class UploadManager
 {
     private const int STAGING_CHUNK_BYTES = 1_048_576;
 
-    private readonly MultipartSessionReconciler $multipartSessions;
-
     public function __construct(
         private readonly DriverManager $drivers,
         private readonly StoredFileRepository $files,
@@ -65,9 +63,7 @@ final class UploadManager
         private readonly ChunkPlanner $chunkPlanner,
         private readonly TransferStateMachine $states,
         private readonly ConfigRepository $config,
-    ) {
-        $this->multipartSessions = new MultipartSessionReconciler(new ChunkReconciler);
-    }
+    ) {}
 
     public function upload(UploadRequest $request): UploadResult
     {
@@ -519,7 +515,7 @@ final class UploadManager
             $partsByNumber = [];
 
             if ($resume) {
-                $reconciliation = $this->multipartSessions->reconcile(
+                $reconciliation = (new MultipartSessionReconciler(new ChunkReconciler))->reconcile(
                     $driver,
                     $uploadId,
                     $plan,
