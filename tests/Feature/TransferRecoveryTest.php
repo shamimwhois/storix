@@ -375,7 +375,8 @@ final class TransferRecoveryTest extends TestCase
         $transfer->refresh();
         $file->refresh();
 
-        self::assertSame(1, $summary['failed']);
+        self::assertSame(0, $summary['failed']);
+        self::assertSame(1, $summary['terminated']);
         self::assertSame(TransferState::FAILED, $transfer->state);
         self::assertSame('UPLOAD_INTEGRITY_FAILED', $transfer->last_error_code);
         self::assertSame('failed', $file->status);
