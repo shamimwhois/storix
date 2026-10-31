@@ -275,26 +275,36 @@ final class TransferRecoveryService
             return false;
         }
 
-        if (
-            is_string($transfer->multipart_upload_id)
-            && $transfer->multipart_upload_id !== ''
-            && $driver instanceof MultipartStorageDriver
-        ) {
-            try {
-                $this->renewRecoveryLease((string) $transfer->id, $token);
-                $driver->abortMultipartWrite($transfer->multipart_upload_id);
-                $this->renewRecoveryLease((string) $transfer->id, $token);
-            } catch (Throwable $exception) {
-                // The provider may already have consumed the multipart session during completion.
-                Log::warning('Storix verified object but could not confirm multipart workspace cleanup.', [
+        $multipartSessionCleaned = $transfer->multipart_upload_id === null;
+
+        if (is_string($transfer->multipart_upload_id) && $transfer->multipart_upload_id !== '') {
+            if ($driver instanceof MultipartStorageDriver) {
+                try {
+                    $this->renewRecoveryLease((string) $transfer->id, $token);
+                    $driver->abortMultipartWrite($transfer->multipart_upload_id);
+                    $this->renewRecoveryLease((string) $transfer->id, $token);
+                    $multipartSessionCleaned = true;
+                } catch (Throwable $exception) {
+                    $multipartSessionCleaned = false;
+
+                    Log::warning('Storix verified object but could not confirm multipart workspace cleanup.', [
+                        'transfer_id' => $transfer->id,
+                        'driver' => $transfer->driver,
+                        'error_code' => $this->retryPolicy->errorCode($exception),
+                    ]);
+                }
+            } else {
+                $multipartSessionCleaned = false;
+
+                Log::warning('Storix verified object but its driver no longer supports multipart cleanup.', [
                     'transfer_id' => $transfer->id,
                     'driver' => $transfer->driver,
-                    'error_code' => StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                    'error_code' => StorixErrorCode::UNSUPPORTED_CAPABILITY->value,
                 ]);
             }
         }
 
-        DB::transaction(function () use ($transfer, $token, $verified): void {
+        DB::transaction(function () use ($transfer, $token, $verified, $multipartSessionCleaned): void {
             $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
 
             if (
@@ -316,7 +326,9 @@ final class TransferRecoveryService
             $file->status = 'available';
             $file->save();
 
-            $current->multipart_upload_id = null;
+            $current->multipart_upload_id = $multipartSessionCleaned
+                ? null
+                : $transfer->multipart_upload_id;
             $current->next_retry_at = null;
             $current->transferred_bytes = $current->total_bytes;
             $current->completed_chunks = $current->total_chunks;
@@ -481,11 +493,11 @@ final class TransferRecoveryService
     {
         $driver = $this->drivers->driver($transfer->driver);
 
-        if (
-            is_string($transfer->multipart_upload_id)
-            && $transfer->multipart_upload_id !== ''
-            && $driver instanceof MultipartStorageDriver
-        ) {
+        if (is_string($transfer->multipart_upload_id) && $transfer->multipart_upload_id !== '') {
+            if ($driver instanceof MultipartStorageDriver === false) {
+                throw new UnsupportedCapabilityException('multipart_writes', $driver->name());
+            }
+
             $this->renewRecoveryLease((string) $transfer->id, $token);
             $driver->abortMultipartWrite($transfer->multipart_upload_id);
             $this->renewRecoveryLease((string) $transfer->id, $token);
