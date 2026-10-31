@@ -165,6 +165,17 @@ final class TransferRecoveryTest extends TestCase
     {
         $file = $this->makeFile('already-published', 'available');
         $driver = $this->app->make(DriverManager::class)->driver('local');
+        $publishedStream = $this->stream('already-published');
+
+        try {
+            $driver->writeStream(new WriteStreamRequest(
+                key: $file->storage_key,
+                stream: $publishedStream,
+            ));
+        } finally {
+            fclose($publishedStream);
+        }
+
         $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest(
             key: $file->storage_key,
         ));
