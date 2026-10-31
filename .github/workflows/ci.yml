@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: storix-ci-${{ github.ref }}-${{ matrix.database }}
+  group: storix-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
