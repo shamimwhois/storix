@@ -4,7 +4,15 @@ declare(strict_types=1);
 
 namespace ShamimStack\Storix\Tests\Feature;
 
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
+use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
+use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
+use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
+use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
 use ShamimStack\Storix\Drivers\DriverManager;
+use ShamimStack\Storix\Services\ChunkPlanner;
+use ShamimStack\Storix\Services\MultipartSessionReconciler;
+use ShamimStack\Storix\Services\TransferStateMachine;
 use ShamimStack\Storix\StorixManager;
 use ShamimStack\Storix\Tests\TestCase;
 use ShamimStack\Storix\Uploads\UploadManager;
@@ -24,14 +32,14 @@ final class ServiceProviderTest extends TestCase
     {
         $this->assertInstanceOf(DriverManager::class, $this->app->make(DriverManager::class));
         $dependencies = [
-            \ShamimStack\Storix\Contracts\Repositories\StoredFileRepository::class,
-            \ShamimStack\Storix\Contracts\Repositories\TransferRepository::class,
-            \ShamimStack\Storix\Contracts\Repositories\DirectoryRepository::class,
-            \ShamimStack\Storix\Contracts\Repositories\ChunkRepository::class,
-            \ShamimStack\Storix\Services\ChunkPlanner::class,
-            \ShamimStack\Storix\Services\MultipartSessionReconciler::class,
-            \ShamimStack\Storix\Services\TransferStateMachine::class,
-            \Illuminate\Contracts\Config\Repository::class,
+            StoredFileRepository::class,
+            TransferRepository::class,
+            DirectoryRepository::class,
+            ChunkRepository::class,
+            ChunkPlanner::class,
+            MultipartSessionReconciler::class,
+            TransferStateMachine::class,
+            ConfigRepository::class,
         ];
         foreach ($dependencies as $index => $dependency) {
             fwrite(STDERR, 'DEP-'.($index + 1).'-BEFORE'.PHP_EOL);
