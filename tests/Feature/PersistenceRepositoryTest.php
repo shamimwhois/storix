@@ -251,6 +251,34 @@ final class PersistenceRepositoryTest extends TestCase
         ));
     }
 
+    public function test_terminal_transfer_lease_requires_explicit_cleanup_authorization(): void
+    {
+        $repository = $this->app->make(TransferRepository::class);
+        $transfer = $repository->create([
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::COMPLETED,
+            'total_bytes' => 12,
+            'cleanup_pending' => true,
+        ]);
+        $now = now();
+
+        self::assertFalse($repository->claimResumeLease(
+            $transfer->id,
+            'upload-worker-token',
+            $now,
+            $now->copy()->addMinutes(5),
+        ));
+
+        self::assertTrue($repository->claimResumeLease(
+            $transfer->id,
+            'recovery-worker-token',
+            $now,
+            $now->copy()->addMinutes(5),
+            allowTerminalCleanup: true,
+        ));
+    }
+
     public function test_upload_lease_ownership_is_locked_and_late_provider_publication_is_marked_for_cleanup(): void
     {
         $repository = $this->app->make(TransferRepository::class);
