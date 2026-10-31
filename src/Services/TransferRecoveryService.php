@@ -175,9 +175,11 @@ final class TransferRecoveryService
 
                     if (
                         $current !== null
-                        && $this->ownsRecoveryLease($current, $token)
+                        && ($current->state->isTerminal() || $this->ownsRecoveryLease($current, $token))
                     ) {
                         if ($current->state->isTerminal()) {
+                            // Terminal state cannot transition back to an active upload.
+                            // Preserve cleanup work even if the provider call outlived our lease.
                             $this->transfers->markCleanupPending((string) $current->id, now());
                         } else {
                             $retryScheduled = $this->recordRecoveryFailure($current, $token, $exception);
