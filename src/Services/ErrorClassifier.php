@@ -56,12 +56,15 @@ final class ErrorClassifier
             }
         }
 
+        if ($exception instanceof UploadInProgressException) {
+            return FailureCategory::TRANSIENT;
+        }
+
         if (
             $exception instanceof InvalidArgumentException
             || $exception instanceof LogicException
             || $exception instanceof TypeError
             || $exception instanceof IdempotencyConflictException
-            || $exception instanceof UploadInProgressException
             || $exception instanceof UploadIntegrityException
             || $exception instanceof UploadTooLargeException
             || $exception instanceof UploadValidationException
@@ -117,9 +120,11 @@ final class ErrorClassifier
             return $exception->errorCode->value;
         }
 
-        return $category === FailureCategory::PERMANENT
-            ? StorixErrorCode::PERMANENT_FAILURE->value
-            : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
+        return match ($category) {
+            FailureCategory::PERMANENT => StorixErrorCode::PERMANENT_FAILURE->value,
+            FailureCategory::UNKNOWN => StorixErrorCode::UNKNOWN_FAILURE->value,
+            default => StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+        };
     }
 
     /**
@@ -135,6 +140,7 @@ final class ErrorClassifier
             StorixErrorCode::STORAGE_OPERATION_FAILED->value,
             StorixErrorCode::UPLOAD_IN_PROGRESS->value => FailureCategory::TRANSIENT,
             StorixErrorCode::RATE_LIMITED->value => FailureCategory::RATE_LIMITED,
+            StorixErrorCode::UNKNOWN_FAILURE->value => FailureCategory::UNKNOWN,
 
             StorixErrorCode::DRIVER_NOT_FOUND->value,
             StorixErrorCode::INVALID_REQUEST->value,
