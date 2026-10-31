@@ -16,6 +16,7 @@ use ShamimStack\Storix\DTOs\WriteMultipartPartRequest;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
 use ShamimStack\Storix\Enums\StorixErrorCode;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
+use ShamimStack\Storix\Facades\Storix;
 use ShamimStack\Storix\Tests\TestCase;
 
 final class LocalStorageDriverTest extends TestCase
@@ -50,6 +51,8 @@ final class LocalStorageDriverTest extends TestCase
 
         self::assertSame(['local'], $manager->names());
         self::assertInstanceOf(LocalStorageDriver::class, $manager->driver());
+        Storix::clearResolvedInstance('storix');
+        self::assertSame($manager->driver(), Storix::driver());
     }
 
     /**
