@@ -71,16 +71,18 @@ Unknown, duplicate, out-of-range or mismatched chunk records make the session no
 - Store opaque multipart session ID and session start timestamp on the transfer.
 - Store a verified timestamp on each chunk.
 - Preserve existing unique constraints on idempotency scope/key and transfer/chunk index.
-- Add migration rollback coverage and test supported database drivers.
+- Cover migration rollback/reapply on SQLite and preserve existing transfer rows. MySQL/PostgreSQL compatibility remains unclaimed until those engines are added to CI.
 
 ## Required tests
 
 - Same key + same payload/scope replays completed transfer.
 - Same key + changed bytes, metadata, filename, destination, driver or security scope conflicts.
-- Concurrent same-key requests create one transfer.
-- A matching in-progress transfer is not duplicated.
-- Restart reconciliation reuses only chunks whose staged bytes match persisted SHA-256 and session identity.
+- Concurrent same-key requests create one transfer; an UploadManager feature test verifies a second resume is rejected while another worker holds the lease.
+- A matching in-progress transfer is not duplicated; a changed payload using the same active idempotency key conflicts without mutating the persisted session.
+- Restart reconciliation reuses only chunks whose staged bytes match persisted SHA-256 and session identity; a file-backed SQLite test recreates the Laravel application container and resumes from the persisted provider workspace.
 - Changed chunk size/layout invalidates the session rather than corrupting it.
+- A full UploadManager resume test tampers with a provider-side part and verifies it is discarded and rewritten from the staged source bytes.
+- Migration down/up removes and restores all E07 columns and the lease index without losing transfer records (SQLite).
 - Missing, duplicate and out-of-range chunk rows fail closed.
 - Progress counters are recomputed from verified chunks.
 - Expired/abandoned sessions are handed to E08 recovery, not resumed blindly.
