@@ -539,7 +539,7 @@ final class UploadManager
                             }
                         }
 
-                        $this->markFailed($transfer, $file, $request, $exception, $cleanupFailed);
+                        $this->markFailed($transfer, $file, $request, $exception, $cleanupFailed, $resumeLeaseToken);
                     }
                 } else {
                     $cleanupFailed = false;
@@ -1113,16 +1113,20 @@ final class UploadManager
         UploadRequest $request,
         Throwable $exception,
         bool $cleanupFailed,
+        string $resumeLeaseToken,
     ): void {
         if ($transfer === null) {
             return;
         }
 
         try {
-            DB::transaction(function () use ($transfer, $file, $request, $exception, $cleanupFailed): void {
-                if ($file !== null) {
-                    $file->status = 'failed';
-                    $this->files->save($file);
+            DB::transaction(function () use ($transfer, $file, $request, $exception, $cleanupFailed, $resumeLeaseToken): void {
+                if ($this->transfers->ownsResumeLease(
+                    (string) $transfer->id,
+                    $resumeLeaseToken,
+                    now(),
+                ) === false) {
+                    return;
                 }
 
                 $current = $this->transfers->findScoped(
@@ -1133,6 +1137,11 @@ final class UploadManager
 
                 if ($current === null || $current->state->isTerminal()) {
                     return;
+                }
+
+                if ($file !== null) {
+                    $file->status = 'failed';
+                    $this->files->save($file);
                 }
 
                 $current = $this->states->transition($current->id, TransferState::FAILED);
