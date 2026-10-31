@@ -25,6 +25,7 @@ return [
         'resume_lease_seconds' => 300,
         'recovery_lease_seconds' => 300,
         'recovery_stale_seconds' => 300,
+        'heartbeat_interval_seconds' => 15,
         'session_ttl_hours' => 24,
         'retry_base_seconds' => 2,
         'retry_max_seconds' => 300,
