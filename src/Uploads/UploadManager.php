@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ShamimStack\Storix\Uploads;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -39,10 +40,13 @@ use ShamimStack\Storix\Exceptions\UploadInProgressException;
 use ShamimStack\Storix\Exceptions\UploadIntegrityException;
 use ShamimStack\Storix\Exceptions\UploadTooLargeException;
 use ShamimStack\Storix\Exceptions\UploadValidationException;
+use ShamimStack\Storix\Models\Chunk;
 use ShamimStack\Storix\Models\Directory;
 use ShamimStack\Storix\Models\StoredFile;
 use ShamimStack\Storix\Models\Transfer;
 use ShamimStack\Storix\Services\ChunkPlanner;
+use ShamimStack\Storix\Services\ChunkReconciler;
+use ShamimStack\Storix\Services\MultipartSessionReconciler;
 use ShamimStack\Storix\Services\TransferStateMachine;
 use Throwable;
 
@@ -93,6 +97,8 @@ final class UploadManager
         $storageKey = null;
         $ownsTransfer = false;
         $objectMayExist = false;
+        $resumeLeaseToken = null;
+        $isResume = false;
 
         try {
             $directory = $this->resolveDirectory($request, $driverName);
@@ -115,16 +121,82 @@ final class UploadManager
                 'fingerprint' => $fingerprint,
                 'idempotency_key' => $request->idempotencyKey,
                 'attempts' => 0,
-                'max_attempts' => 1,
+                'max_attempts' => max(1, (int) $this->config->get('storix.transfers.max_attempts', 5)),
             ]);
 
             if ($transfer->wasRecentlyCreated === false) {
-                return $this->resolveExisting($transfer, $fingerprint);
+                if ($transfer->fingerprint !== $fingerprint) {
+                    throw new IdempotencyConflictException;
+                }
+
+                if ($transfer->state === TransferState::COMPLETED) {
+                    return $this->resolveExisting($transfer, $fingerprint);
+                }
+
+                if ($transfer->state->isTerminal()) {
+                    throw new IdempotencyConflictException;
+                }
+
+                if (
+                    $multipartDriver === null
+                    || in_array($transfer->state, [
+                        TransferState::PREPARING,
+                        TransferState::TRANSFERRING,
+                        TransferState::PAUSED,
+                        TransferState::RETRY_WAIT,
+                    ], true) === false
+                    || is_string($transfer->multipart_upload_id) === false
+                    || $transfer->multipart_upload_id === ''
+                    || $transfer->file_id === null
+                ) {
+                    throw new UploadInProgressException;
+                }
+
+                $file = $this->files->findScoped(
+                    (string) $transfer->file_id,
+                    $request->tenantId,
+                    $request->ownerId,
+                );
+
+                if (
+                    $file === null
+                    || $file->driver !== $driverName
+                    || in_array($file->status, ['pending', 'processing'], true) === false
+                    || is_string($file->storage_key) === false
+                    || $file->storage_key === ''
+                ) {
+                    throw new IdempotencyConflictException;
+                }
+
+                $storageKey = $file->storage_key;
+                $isResume = true;
+            }
+
+            $resumeLeaseToken = Str::random(64);
+            $leaseSeconds = max(30, (int) $this->config->get('storix.transfers.resume_lease_seconds', 300));
+
+            if ($this->transfers->claimResumeLease(
+                (string) $transfer->id,
+                $resumeLeaseToken,
+                now(),
+                now()->addSeconds($leaseSeconds),
+            ) === false) {
+                throw new UploadInProgressException;
             }
 
             $ownsTransfer = true;
+            $renewLease = function () use ($transfer, $resumeLeaseToken, $leaseSeconds): void {
+                $this->renewResumeLease($transfer, $resumeLeaseToken, $leaseSeconds);
+            };
 
-            if ($multipartDriver !== null && $staged['size'] > 0) {
+            if ($isResume) {
+                $persistedChunks = $this->chunks->forTransfer((string) $transfer->id);
+                $chunkPlan = $this->chunkPlanFromPersisted($persistedChunks, $staged['size']);
+
+                if (count($chunkPlan) !== $transfer->total_chunks) {
+                    throw new UploadIntegrityException;
+                }
+            } elseif ($multipartDriver !== null && $staged['size'] > 0) {
                 $chunkPlan = $this->chunkPlanner->plan(
                     $staged['size'],
                     $capabilities,
@@ -132,60 +204,66 @@ final class UploadManager
                 );
             }
 
-            $transfer->total_chunks = count($chunkPlan);
-            $transfer = $this->transfers->save($transfer);
-
-            [$file, $transfer] = DB::transaction(function () use (
-                $request,
-                $directory,
-                $driverName,
-                $storageKey,
-                $extension,
-                $staged,
-                $transfer,
-                $chunkPlan,
-            ): array {
-                $file = $this->files->create([
-                    'tenant_id' => $request->tenantId,
-                    'owner_id' => $request->ownerId,
-                    'directory_id' => $directory?->id,
-                    'driver' => $driverName,
-                    'name' => $request->originalName,
-                    'original_name' => $request->originalName,
-                    'extension' => $extension,
-                    'mime_type' => $request->mimeType,
-                    'size_bytes' => $staged['size'],
-                    'sha256' => $staged['sha256'],
-                    'storage_key' => $storageKey,
-                    'status' => 'pending',
-                    'visibility' => $request->visibility,
-                    'metadata' => $request->metadata,
-                ]);
-
-                $transfer->file_id = $file->id;
+            if ($isResume === false) {
+                $transfer->total_chunks = count($chunkPlan);
                 $transfer = $this->transfers->save($transfer);
 
-                foreach ($chunkPlan as $descriptor) {
-                    $this->chunks->create([
-                        'transfer_id' => $transfer->id,
-                        'chunk_index' => $descriptor->index,
-                        'offset_bytes' => $descriptor->offsetBytes,
-                        'size_bytes' => $descriptor->sizeBytes,
-                        'sha256' => null,
-                        'state' => ChunkState::PENDING,
-                        'driver_reference' => null,
-                        'attempts' => 0,
-                        'last_error_code' => null,
+                [$file, $transfer] = DB::transaction(function () use (
+                    $request,
+                    $directory,
+                    $driverName,
+                    $storageKey,
+                    $extension,
+                    $staged,
+                    $transfer,
+                    $chunkPlan,
+                ): array {
+                    $file = $this->files->create([
+                        'tenant_id' => $request->tenantId,
+                        'owner_id' => $request->ownerId,
+                        'directory_id' => $directory?->id,
+                        'driver' => $driverName,
+                        'name' => $request->originalName,
+                        'original_name' => $request->originalName,
+                        'extension' => $extension,
+                        'mime_type' => $request->mimeType,
+                        'size_bytes' => $staged['size'],
+                        'sha256' => $staged['sha256'],
+                        'storage_key' => $storageKey,
+                        'status' => 'pending',
+                        'visibility' => $request->visibility,
+                        'metadata' => $request->metadata,
                     ]);
-                }
 
-                return [$file, $transfer];
-            });
+                    $transfer->file_id = $file->id;
+                    $transfer = $this->transfers->save($transfer);
+
+                    foreach ($chunkPlan as $descriptor) {
+                        $this->chunks->create([
+                            'transfer_id' => $transfer->id,
+                            'chunk_index' => $descriptor->index,
+                            'offset_bytes' => $descriptor->offsetBytes,
+                            'size_bytes' => $descriptor->sizeBytes,
+                            'sha256' => null,
+                            'state' => ChunkState::PENDING,
+                            'driver_reference' => null,
+                            'attempts' => 0,
+                            'last_error_code' => null,
+                        ]);
+                    }
+
+                    return [$file, $transfer];
+                });
+            } elseif (in_array($transfer->state, [TransferState::PREPARING, TransferState::TRANSFERRING], true)) {
+                $transfer = $this->states->transition($transfer->id, TransferState::PAUSED);
+            }
 
             $transfer = $this->states->transition($transfer->id, TransferState::PREPARING);
             $file->status = 'processing';
             $file = $this->files->save($file);
-            $transfer->attempts = 1;
+            $transfer->attempts++;
+            $transfer->last_error_code = null;
+            $transfer->last_error_message = null;
             $transfer = $this->transfers->save($transfer);
             $transfer = $this->states->transition($transfer->id, TransferState::TRANSFERRING);
 
@@ -199,8 +277,11 @@ final class UploadManager
                     $storageKey,
                     $staged,
                     $chunkPlan,
+                    $renewLease,
+                    $isResume,
                 );
             } else {
+                $renewLease();
                 $writeResult = $driver->writeStream(new WriteStreamRequest(
                     key: $storageKey,
                     stream: $staged['stream'],
@@ -208,6 +289,7 @@ final class UploadManager
                     visibility: $request->visibility,
                     metadata: $request->metadata,
                 ));
+                $renewLease();
             }
 
             if ($writeResult->object->key !== $storageKey || $writeResult->object->sizeBytes !== $staged['size']) {
@@ -224,6 +306,7 @@ final class UploadManager
             $transfer->transferred_bytes = $staged['size'];
             $transfer->completed_chunks = count($chunkPlan);
             $transfer = $this->transfers->save($transfer);
+            $renewLease();
             $transfer = $this->states->transition($transfer->id, TransferState::VERIFYING);
 
             $storedMetadata = $driver->stat(new StatObjectRequest($storageKey));
@@ -232,6 +315,7 @@ final class UploadManager
                 throw new UploadIntegrityException;
             }
 
+            $renewLease();
             $readBack = $driver->readStream(new ReadStreamRequest($storageKey));
 
             if (is_resource($readBack) === false || get_resource_type($readBack) !== 'stream') {
@@ -245,6 +329,8 @@ final class UploadManager
                     fclose($readBack);
                 }
             }
+
+            $renewLease();
 
             if ($verified['size'] !== $staged['size'] || $verified['sha256'] !== $staged['sha256']) {
                 throw new UploadIntegrityException;
@@ -270,31 +356,125 @@ final class UploadManager
             return new UploadResult($file, $transfer);
         } catch (Throwable $exception) {
             if ($ownsTransfer) {
-                $cleanupFailed = false;
+                $leaseStillOwned = false;
 
-                if ($objectMayExist && $storageKey !== null) {
+                try {
+                    $this->renewResumeLease($transfer, $resumeLeaseToken, $leaseSeconds);
+                    $leaseStillOwned = true;
+                } catch (Throwable $leaseException) {
+                    Log::warning('Storix upload ownership could not be confirmed after failure.', [
+                        'transfer_id' => $transfer?->id,
+                        'error_code' => $leaseException instanceof StorixException
+                            ? $leaseException->errorCode->value
+                            : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                    ]);
+                }
+
+                if ($leaseStillOwned === false) {
+                    throw $exception;
+                }
+
+                if ($isResume && $transfer->multipart_upload_id !== null) {
                     try {
-                        $driver->delete(new DeleteObjectRequest($storageKey));
-                    } catch (Throwable $cleanupException) {
-                        $cleanupFailed = true;
-                        Log::warning('Storix upload cleanup failed.', [
+                        $transfer = $this->states->transition($transfer->id, TransferState::RETRY_WAIT);
+                        $transfer->last_error_code = $exception instanceof StorixException
+                            ? $exception->errorCode->value
+                            : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
+                        $transfer->last_error_message = 'Multipart upload paused after an interrupted resume attempt.';
+                        $this->transfers->save($transfer);
+                    } catch (Throwable $persistenceException) {
+                        Log::error('Storix could not persist resumable upload state.', [
                             'transfer_id' => $transfer?->id,
-                            'driver' => $driverName,
-                            'error_code' => $cleanupException instanceof StorixException
-                                ? $cleanupException->errorCode->value
+                            'error_code' => $persistenceException instanceof StorixException
+                                ? $persistenceException->errorCode->value
                                 : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
                         ]);
                     }
-                }
+                } else {
+                    $cleanupFailed = false;
 
-                $this->markFailed($transfer, $file, $request, $exception, $cleanupFailed);
+                    if ($objectMayExist && $storageKey !== null) {
+                        try {
+                            $driver->delete(new DeleteObjectRequest($storageKey));
+                        } catch (Throwable $cleanupException) {
+                            $cleanupFailed = true;
+                            Log::warning('Storix upload cleanup failed.', [
+                                'transfer_id' => $transfer?->id,
+                                'driver' => $driverName,
+                                'error_code' => $cleanupException instanceof StorixException
+                                    ? $cleanupException->errorCode->value
+                                    : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                            ]);
+                        }
+                    }
+
+                    $this->markFailed($transfer, $file, $request, $exception, $cleanupFailed);
+                }
             }
 
             throw $exception;
         } finally {
+            if ($resumeLeaseToken !== null && $transfer !== null) {
+                try {
+                    $this->transfers->releaseResumeLease((string) $transfer->id, $resumeLeaseToken);
+                } catch (Throwable $leaseException) {
+                    Log::warning('Storix resume lease release failed.', [
+                        'transfer_id' => $transfer->id,
+                        'error_code' => $leaseException instanceof StorixException
+                            ? $leaseException->errorCode->value
+                            : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                    ]);
+                }
+            }
+
             if (is_resource($staged['stream'])) {
                 fclose($staged['stream']);
             }
+        }
+    }
+
+    /**
+     * Rebuild the original deterministic chunk layout rather than applying today's chunk-size config.
+     *
+     * @param  Collection<int, Chunk>  $chunks
+     * @return list<ChunkDescriptor>
+     */
+    private function chunkPlanFromPersisted(Collection $chunks, int $totalBytes): array
+    {
+        $plan = [];
+        $expectedOffset = 0;
+
+        foreach ($chunks as $index => $chunk) {
+            $chunkIndex = (int) $chunk->getRawOriginal('chunk_index');
+            $offset = (int) $chunk->getRawOriginal('offset_bytes');
+            $size = (int) $chunk->getRawOriginal('size_bytes');
+
+            if ($chunkIndex !== $index || $offset !== $expectedOffset || $size < 1) {
+                throw new UploadIntegrityException;
+            }
+
+            $plan[] = new ChunkDescriptor($chunkIndex, $offset, $size);
+            $expectedOffset += $size;
+        }
+
+        if ($expectedOffset !== $totalBytes || ($totalBytes > 0 && $plan === [])) {
+            throw new UploadIntegrityException;
+        }
+
+        return $plan;
+    }
+
+    private function renewResumeLease(Transfer $transfer, string $token, int $leaseSeconds): void
+    {
+        $now = now();
+
+        if ($this->transfers->renewResumeLease(
+            (string) $transfer->id,
+            $token,
+            $now,
+            $now->copy()->addSeconds($leaseSeconds + 1),
+        ) === false) {
+            throw new UploadInProgressException;
         }
     }
 
@@ -309,24 +489,81 @@ final class UploadManager
         string $storageKey,
         array $staged,
         array $plan,
+        callable $renewLease,
+        bool $resume,
     ): WriteResult {
-        $uploadId = null;
+        $uploadId = $resume ? (string) $transfer->multipart_upload_id : null;
 
         try {
-            $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest(
-                key: $storageKey,
-                mimeType: $request->mimeType,
-                visibility: $request->visibility,
-                metadata: $request->metadata,
-            ));
+            $renewLease();
 
-            $parts = [];
+            if ($resume === false) {
+                $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest(
+                    key: $storageKey,
+                    mimeType: $request->mimeType,
+                    visibility: $request->visibility,
+                    metadata: $request->metadata,
+                ));
+
+                $transfer->multipart_upload_id = $uploadId;
+                $transfer->multipart_started_at = now();
+                $transfer = $this->transfers->save($transfer);
+            }
+
+            if ($uploadId === null || $uploadId === '') {
+                throw new UploadIntegrityException;
+            }
+
+            $partsByNumber = [];
+
+            if ($resume) {
+                $reconciliation = (new MultipartSessionReconciler(new ChunkReconciler))->reconcile(
+                    $driver,
+                    $uploadId,
+                    $plan,
+                    $this->chunks->forTransfer((string) $transfer->id),
+                    function (ChunkDescriptor $descriptor) use ($staged): string {
+                        $part = $this->stageChunk($staged['stream'], $descriptor);
+
+                        try {
+                            return $part['sha256'];
+                        } finally {
+                            if (is_resource($part['stream'])) {
+                                fclose($part['stream']);
+                            }
+                        }
+                    },
+                    $renewLease,
+                );
+
+                foreach ($reconciliation->invalidatedChunks as $chunk) {
+                    $chunk->state = ChunkState::PENDING;
+                    $chunk->sha256 = null;
+                    $chunk->driver_reference = null;
+                    $chunk->verified_at = null;
+                    $chunk->last_error_code = null;
+                    $this->chunks->save($chunk);
+                }
+
+                foreach ($reconciliation->reusableParts as $part) {
+                    $partsByNumber[$part->partNumber] = $part;
+                }
+
+                $transfer->transferred_bytes = $reconciliation->verifiedBytes;
+                $transfer->completed_chunks = $reconciliation->completedChunks();
+                $transfer = $this->transfers->save($transfer);
+            }
 
             foreach ($plan as $descriptor) {
+                $renewLease();
                 $chunk = $this->chunks->findByIndex((string) $transfer->id, $descriptor->index);
 
                 if ($chunk === null) {
                     throw new StorageOperationFailedException('chunk_lookup');
+                }
+
+                if (isset($partsByNumber[$descriptor->index + 1])) {
+                    continue;
                 }
 
                 $chunk->state = ChunkState::UPLOADING;
@@ -344,6 +581,7 @@ final class UploadManager
                         partNumber: $descriptor->index + 1,
                         stream: $partStream,
                     ));
+                    $renewLease();
 
                     if (
                         $part->partNumber !== $descriptor->index + 1
@@ -356,9 +594,10 @@ final class UploadManager
                     $chunk->sha256 = strtolower($part->sha256);
                     $chunk->driver_reference = $part->driverReference;
                     $chunk->state = ChunkState::VERIFIED;
+                    $chunk->verified_at = now();
                     $this->chunks->save($chunk);
 
-                    $parts[] = $part;
+                    $partsByNumber[$part->partNumber] = $part;
                     $transfer->transferred_bytes += $part->sizeBytes;
                     $transfer->completed_chunks++;
                     $this->transfers->save($transfer);
@@ -369,7 +608,11 @@ final class UploadManager
                 }
             }
 
-            return $driver->completeMultipartWrite(new CompleteMultipartWriteRequest(
+            ksort($partsByNumber);
+            $parts = array_values($partsByNumber);
+
+            $renewLease();
+            $result = $driver->completeMultipartWrite(new CompleteMultipartWriteRequest(
                 uploadId: $uploadId,
                 key: $storageKey,
                 parts: $parts,
@@ -379,6 +622,11 @@ final class UploadManager
                 visibility: $request->visibility,
                 metadata: $request->metadata,
             ));
+
+            $transfer->multipart_upload_id = null;
+            $transfer = $this->transfers->save($transfer);
+
+            return $result;
         } catch (Throwable $exception) {
             try {
                 $errorCode = $exception instanceof StorixException
@@ -386,11 +634,13 @@ final class UploadManager
                     : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
 
                 try {
-                    foreach ($this->chunks->forTransfer((string) $transfer->id) as $chunk) {
-                        if ($chunk->state !== ChunkState::VERIFIED) {
-                            $chunk->state = ChunkState::FAILED;
-                            $chunk->last_error_code = $errorCode;
-                            $this->chunks->save($chunk);
+                    if ($resume === false) {
+                        foreach ($this->chunks->forTransfer((string) $transfer->id) as $chunk) {
+                            if ($chunk->state !== ChunkState::VERIFIED) {
+                                $chunk->state = ChunkState::FAILED;
+                                $chunk->last_error_code = $errorCode;
+                                $this->chunks->save($chunk);
+                            }
                         }
                     }
                 } catch (Throwable $persistenceException) {
@@ -403,11 +653,13 @@ final class UploadManager
                     ]);
                 }
             } finally {
-                if ($uploadId !== null) {
+                if ($uploadId !== null && $resume === false) {
                     try {
                         $driver->abortMultipartWrite($uploadId);
+                        $transfer->multipart_upload_id = null;
+                        $this->transfers->save($transfer);
                     } catch (Throwable $abortException) {
-                        Log::warning('Storix multipart abort failed.', [
+                        Log::warning('Storix multipart abort or session cleanup failed.', [
                             'transfer_id' => $transfer->id,
                             'driver' => $driver->name(),
                             'error_code' => $abortException instanceof StorixException
@@ -638,6 +890,8 @@ final class UploadManager
             'sha256' => $staged['sha256'],
             'size_bytes' => $staged['size'],
             'original_name' => $request->originalName,
+            'tenant_id' => $request->tenantId,
+            'owner_id' => $request->ownerId,
             'driver' => $driverName,
             'directory_id' => $directory?->id,
             'mime_type' => $request->mimeType,

@@ -16,6 +16,10 @@ interface MultipartStorageDriver extends StorageDriver
 
     public function writeMultipartPart(WriteMultipartPartRequest $request): MultipartPartResult;
 
+    public function inspectMultipartPart(string $uploadId, int $partNumber): ?MultipartPartResult;
+
+    public function discardMultipartPart(string $uploadId, int $partNumber): void;
+
     public function completeMultipartWrite(CompleteMultipartWriteRequest $request): WriteResult;
 
     public function abortMultipartWrite(string $uploadId): void;

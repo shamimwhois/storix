@@ -38,6 +38,10 @@ final class Transfer extends Model
         'idempotency_key',
         'idempotency_scope',
         'fingerprint',
+        'multipart_upload_id',
+        'multipart_started_at',
+        'resume_lease_token',
+        'resume_lease_expires_at',
         'attempts',
         'max_attempts',
         'last_error_code',
@@ -45,6 +49,11 @@ final class Transfer extends Model
         'started_at',
         'finished_at',
         'expires_at',
+    ];
+
+    protected $hidden = [
+        'multipart_upload_id',
+        'resume_lease_token',
     ];
 
     protected function casts(): array
@@ -62,6 +71,8 @@ final class Transfer extends Model
             'max_attempts' => 'integer',
             'started_at' => 'immutable_datetime',
             'finished_at' => 'immutable_datetime',
+            'multipart_started_at' => 'immutable_datetime',
+            'resume_lease_expires_at' => 'immutable_datetime',
             'expires_at' => 'immutable_datetime',
         ];
     }

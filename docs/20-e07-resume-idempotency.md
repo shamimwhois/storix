@@ -1,0 +1,98 @@
+# E07 — Resume & Idempotency
+
+## Status
+
+Implementation and verification complete on `feature/e07-resume-idempotency`: 102 tests and 424 assertions pass on SQLite, MySQL 8.4 and PostgreSQL 17, including active-lease concurrency, changed-payload conflict, file-backed application-container restart, provider-part tamper recovery and migration rollback/reapply. PR #7 remains a draft stacked on E06 because PR #6 is still open; integration into `main` requires E06 to merge, PR #7 to be retargeted and CI to be rerun.
+
+## Goals
+
+- Make the request identity include the complete security scope.
+- Preserve idempotency uniqueness across concurrent requests.
+- Persist enough multipart session and chunk-verification metadata to reconcile after a process restart.
+- Inspect provider-side parts and discard stale or mismatched local parts before retrying a part number.
+- Resume only when the staged payload, owner/tenant scope, destination, driver and transfer plan match.
+- Never trust a persisted provider reference without re-verifying the corresponding bytes.
+- Keep the existing `Storix::uploads()->upload(UploadRequest)` API backward compatible.
+
+## Non-goals
+
+- Retry/backoff policy, stale-session sweeper and scheduled recovery (E08).
+- Parallel chunk execution and queue orchestration.
+- Download resume.
+- Provider-specific multipart behavior beyond the optional `MultipartStorageDriver` contract.
+
+## Identity and security scope
+
+The canonical fingerprint is SHA-256 over a deterministic JSON document containing:
+
+- Payload SHA-256 and byte length.
+- Original filename.
+- Tenant ID and owner ID (including explicit null values).
+- Driver name and directory ID.
+- MIME type and visibility.
+- Metadata with recursively deterministic key ordering.
+
+The database idempotency scope remains a SHA-256 digest of the tenant/owner tuple. The unique pair `(idempotency_scope, idempotency_key)` is the final concurrency guard; application-level lookup alone is insufficient.
+
+An idempotency replay with a different fingerprint must fail with `IdempotencyConflictException`. A matching completed transfer may be replayed only if its file remains available and is still in the same scope.
+
+## Durable multipart session
+
+A transfer may persist an opaque provider multipart session identifier. Treat it as sensitive operational metadata: do not expose it in public DTOs, logs, events, API responses or exception messages.
+
+Session identity is bound to the transfer's immutable storage key, driver and fingerprint. The session may be resumed only by the same driver and only after reconciliation verifies the persisted chunk layout.
+
+## Chunk reconciliation
+
+For every expected chunk index:
+
+1. Compare persisted offset and size with the deterministic current plan.
+2. A chunk is reusable only when its state is `verified`, its SHA-256 is valid, and its provider reference belongs to the persisted multipart session.
+3. Re-stage the corresponding byte range from the newly supplied source stream and recompute SHA-256.
+4. Inspect the provider-side part and compare its part number, byte length, digest and provider reference with the persisted chunk.
+5. If either source bytes or provider-side state differs, discard the provider part, invalidate the chunk and rewrite that part number.
+6. Never infer completion from byte counters alone; recompute transfer progress from provider-verified reusable chunks.
+
+Unknown, duplicate, out-of-range or mismatched chunk records make the session non-resumable and require safe failure/cleanup. Do not silently reshape a live session when chunk-size configuration changes.
+
+## Concurrency
+
+- Serialize idempotency acquisition using a database transaction and row-level lock where supported.
+- Keep the unique database constraint as the race-safe invariant.
+- Use a transfer-level lease before mutating session/chunk state. The repository exposes atomic conditional claim, token-owned renewal and token-checked release; expired leases may be claimed by a new worker.
+- A second matching request must receive an in-progress response while a valid lease is held; it must not create another provider session.
+- UploadManager renews the lease around multipart writes and integrity verification. The duration is configurable through `storix.transfers.resume_lease_seconds` (default 300 seconds).
+- A matching existing multipart transfer with a persisted file and session ID can be claimed, moved through the controlled paused/preparing state transitions, reconciled against the newly staged payload, and resumed without creating a new file or provider session.
+- Resume failures preserve a still-open multipart session and persist `retry_wait`; initial-upload failures retain E06 abort/cleanup behavior.
+- Lease heartbeat scheduling between long blocking provider calls and abandoned-session recovery remain operational hardening tasks.
+
+## Persistence additions
+
+- Store opaque multipart session ID and session start timestamp on the transfer.
+- Store a verified timestamp on each chunk.
+- Preserve existing unique constraints on idempotency scope/key and transfer/chunk index.
+- Cover migration rollback/reapply on SQLite, MySQL 8.4 and PostgreSQL 17 while preserving existing transfer rows; the CI matrix runs all three engines.
+
+## Required tests
+
+- Same key + same payload/scope replays completed transfer.
+- Same key + changed bytes, metadata, filename, destination, driver or security scope conflicts.
+- Concurrent same-key requests create one transfer; an UploadManager feature test verifies a second resume is rejected while another worker holds the lease.
+- A matching in-progress transfer is not duplicated; a changed payload using the same active idempotency key conflicts without mutating the persisted session.
+- Restart reconciliation reuses only chunks whose staged bytes match persisted SHA-256 and session identity; a file-backed SQLite test recreates the Laravel application container and resumes from the persisted provider workspace.
+- Changed chunk size/layout invalidates the session rather than corrupting it.
+- A full UploadManager resume test tampers with a provider-side part and verifies it is discarded and rewritten from the staged source bytes.
+- Migration down/up removes and restores all E07 columns and the lease index without losing transfer records on SQLite, MySQL 8.4 and PostgreSQL 17.
+- Same-second lease renewal is treated as successful when the owner token still holds an unexpired lease, avoiding MySQL's changed-row count behavior.
+- Missing, duplicate and out-of-range chunk rows fail closed.
+- Progress counters are recomputed from verified chunks.
+- Expired/abandoned sessions are handed to E08 recovery, not resumed blindly.
+
+## Implementation sequence
+
+1. Add durable session and verification timestamps.
+2. Include tenant/owner security scope in the canonical request fingerprint.
+3. Add repository-level atomic idempotency acquisition and transfer lease claim/release operations.
+4. Implement chunk and provider-session reconciliation with fail-closed validation.
+5. Extend UploadManager to claim/renew a lease for an existing matching multipart transfer, reconcile provider parts, reuse verified parts, rewrite missing/mismatched parts and recompute progress.
+6. Add process-restart, concurrent-worker, tamper and regression tests; update docs and roadmap.

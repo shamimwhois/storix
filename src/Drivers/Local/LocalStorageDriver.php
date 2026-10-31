@@ -207,6 +207,86 @@ final class LocalStorageDriver implements DirectoryDriver, MultipartStorageDrive
     }
 
     /**
+     * Inspect an existing part without trusting its persisted database checksum.
+     */
+    public function inspectMultipartPart(string $uploadId, int $partNumber): ?MultipartPartResult
+    {
+        if ($partNumber < 1 || $partNumber > 10_000) {
+            throw new InvalidArgumentException('Multipart part number is invalid.');
+        }
+
+        $directory = $this->existingMultipartDirectory($uploadId);
+        $path = $directory.DIRECTORY_SEPARATOR.'part-'.$partNumber.'.bin';
+
+        if (is_link($path)) {
+            throw new StorageOperationFailedException('multipart_inspect');
+        }
+
+        if (is_file($path) === false) {
+            return null;
+        }
+
+        $source = @fopen($path, 'rb');
+
+        if ($source === false) {
+            throw new StorageOperationFailedException('multipart_inspect');
+        }
+
+        $hash = hash_init('sha256');
+        $size = 0;
+
+        try {
+            while (feof($source) === false) {
+                $buffer = @fread($source, self::IO_CHUNK_BYTES);
+
+                if ($buffer === false) {
+                    throw new StorageOperationFailedException('multipart_inspect');
+                }
+
+                if ($buffer === '') {
+                    if (feof($source)) {
+                        break;
+                    }
+
+                    throw new StorageOperationFailedException('multipart_inspect');
+                }
+
+                hash_update($hash, $buffer);
+                $size += strlen($buffer);
+            }
+        } finally {
+            @fclose($source);
+        }
+
+        return new MultipartPartResult(
+            partNumber: $partNumber,
+            sizeBytes: $size,
+            sha256: hash_final($hash),
+        );
+    }
+
+    /**
+     * Remove a stale or mismatched part so the same part number can be safely uploaded again.
+     */
+    public function discardMultipartPart(string $uploadId, int $partNumber): void
+    {
+        if ($partNumber < 1 || $partNumber > 10_000) {
+            throw new InvalidArgumentException('Multipart part number is invalid.');
+        }
+
+        $directory = $this->existingMultipartDirectory($uploadId);
+        $path = $directory.DIRECTORY_SEPARATOR.'part-'.$partNumber.'.bin';
+
+        if (file_exists($path) === false && is_link($path) === false) {
+            return;
+        }
+
+        if (is_link($path) || is_file($path) === false || @unlink($path) === false) {
+            throw new StorageOperationFailedException('multipart_discard');
+        }
+    }
+
+    /**
      * Re-verify every part, assemble the object with bounded memory, and publish it atomically.
      */
     public function completeMultipartWrite(CompleteMultipartWriteRequest $request): WriteResult

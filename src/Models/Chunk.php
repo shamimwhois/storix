@@ -29,6 +29,7 @@ final class Chunk extends Model
         'driver_reference',
         'attempts',
         'last_error_code',
+        'verified_at',
     ];
 
     protected function casts(): array
@@ -39,6 +40,7 @@ final class Chunk extends Model
             'size_bytes' => 'integer',
             'state' => ChunkState::class,
             'attempts' => 'integer',
+            'verified_at' => 'immutable_datetime',
         ];
     }
 

@@ -63,6 +63,92 @@ final class EloquentTransferRepository implements TransferRepository
         return $transfer->refresh();
     }
 
+    public function claimResumeLease(
+        string $transferId,
+        string $token,
+        DateTimeInterface $now,
+        DateTimeInterface $expiresAt,
+    ): bool {
+        if ($token === '' || strlen($token) > 64) {
+            throw new InvalidArgumentException('Resume lease token must contain between 1 and 64 bytes.');
+        }
+
+        if ($expiresAt <= $now) {
+            throw new InvalidArgumentException('Resume lease expiry must be later than its acquisition time.');
+        }
+
+        return Transfer::query()
+            ->whereKey($transferId)
+            ->whereIn('state', [
+                TransferState::PENDING->value,
+                TransferState::PREPARING->value,
+                TransferState::TRANSFERRING->value,
+                TransferState::PAUSED->value,
+                TransferState::RETRY_WAIT->value,
+            ])
+            ->where(function (Builder $query) use ($now): void {
+                $query->whereNull('resume_lease_expires_at')
+                    ->orWhere('resume_lease_expires_at', '<=', $now);
+            })
+            ->update([
+                'resume_lease_token' => $token,
+                'resume_lease_expires_at' => $expiresAt,
+                'updated_at' => $now,
+            ]) === 1;
+    }
+
+    public function renewResumeLease(
+        string $transferId,
+        string $token,
+        DateTimeInterface $now,
+        DateTimeInterface $expiresAt,
+    ): bool {
+        if ($token === '' || strlen($token) > 64) {
+            throw new InvalidArgumentException('Resume lease token must contain between 1 and 64 bytes.');
+        }
+
+        if ($expiresAt <= $now) {
+            throw new InvalidArgumentException('Resume lease expiry must be later than its renewal time.');
+        }
+
+        $updated = Transfer::query()
+            ->whereKey($transferId)
+            ->where('resume_lease_token', $token)
+            ->where('resume_lease_expires_at', '>', $now)
+            ->update([
+                'resume_lease_expires_at' => $expiresAt,
+                'updated_at' => $now,
+            ]);
+
+        if ($updated === 1) {
+            return true;
+        }
+
+        // MySQL reports changed rows, not matched rows. A same-second renewal can
+        // round to the existing TIMESTAMP value; confirm the lease is still owned
+        // and unexpired instead of treating that no-op update as a lost lease.
+        return Transfer::query()
+            ->whereKey($transferId)
+            ->where('resume_lease_token', $token)
+            ->where('resume_lease_expires_at', '>', $now)
+            ->exists();
+    }
+
+    public function releaseResumeLease(string $transferId, string $token): bool
+    {
+        if ($token === '' || strlen($token) > 64) {
+            throw new InvalidArgumentException('Resume lease token must contain between 1 and 64 bytes.');
+        }
+
+        return Transfer::query()
+            ->whereKey($transferId)
+            ->where('resume_lease_token', $token)
+            ->update([
+                'resume_lease_token' => null,
+                'resume_lease_expires_at' => null,
+            ]) === 1;
+    }
+
     public function expiredBefore(DateTimeInterface $cutoff, int $limit = 100): Collection
     {
         return Transfer::query()
