@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
+use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
 use ShamimStack\Storix\Enums\ObjectVisibility;
 use ShamimStack\Storix\Enums\TransferDirection;
@@ -157,6 +158,46 @@ final class TransferRecoveryTest extends TestCase
         self::assertNotNull($transfer->next_retry_at);
         self::assertTrue($transfer->next_retry_at->isFuture());
         self::assertNull($transfer->resume_lease_token);
+    }
+
+
+    public function test_it_cleans_a_terminal_multipart_session_without_deleting_an_available_file(): void
+    {
+        $file = $this->makeFile('already-published', 'available');
+        $driver = $this->app->make(DriverManager::class)->driver('local');
+        $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest(
+            key: $file->storage_key,
+        ));
+
+        $transfer = $this->makeTransfer(
+            $file,
+            TransferState::FAILED,
+            attempts: 1,
+            lastErrorCode: 'STORAGE_OPERATION_FAILED',
+        );
+        $transfer->multipart_upload_id = $uploadId;
+        $transfer->save();
+
+        DB::table('storix_transfers')->where('id', $transfer->id)->update([
+            'updated_at' => now()->subMinutes(10),
+        ]);
+
+        $summary = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 10,
+            staleSeconds: 60,
+        );
+
+        $transfer->refresh();
+        $file->refresh();
+
+        self::assertSame(1, $summary['examined']);
+        self::assertSame(1, $summary['cleaned']);
+        self::assertSame(TransferState::FAILED, $transfer->state);
+        self::assertNull($transfer->multipart_upload_id);
+        self::assertNull($transfer->resume_lease_token);
+        self::assertSame('available', $file->status);
+        self::assertTrue($driver->exists($file->storage_key));
+        self::assertDirectoryDoesNotExist(sys_get_temp_dir().DIRECTORY_SEPARATOR.'storix-multipart-'.$uploadId);
     }
 
     public function test_dry_run_does_not_acquire_a_lease_or_change_transfer_state(): void
