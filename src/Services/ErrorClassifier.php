@@ -133,8 +133,8 @@ final class ErrorClassifier
 
         return match ($errorCode) {
             StorixErrorCode::STORAGE_OPERATION_FAILED->value,
-            StorixErrorCode::UPLOAD_IN_PROGRESS->value,
-            StorixErrorCode::RATE_LIMITED->value => FailureCategory::TRANSIENT,
+            StorixErrorCode::UPLOAD_IN_PROGRESS->value => FailureCategory::TRANSIENT,
+            StorixErrorCode::RATE_LIMITED->value => FailureCategory::RATE_LIMITED,
 
             StorixErrorCode::DRIVER_NOT_FOUND->value,
             StorixErrorCode::INVALID_REQUEST->value,
