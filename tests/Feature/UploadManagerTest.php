@@ -127,7 +127,6 @@ final class UploadManagerTest extends TestCase
         $driver->method('writeStream')->willReturnCallback(function (WriteStreamRequest $request): WriteResult {
             $contents = stream_get_contents($request->stream);
             $transfer = Transfer::query()->where('idempotency_key', 'late-provider-write')->firstOrFail();
-            $repository = $this->app->make(TransferRepository::class);
             $now = now();
 
             DB::table('storix_transfers')->where('id', $transfer->id)->update([
