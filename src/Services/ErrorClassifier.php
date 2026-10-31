@@ -96,6 +96,33 @@ final class ErrorClassifier
     }
 
     /**
+     * Map an exception to a stable code suitable for persistence on a transfer.
+     */
+    public function codeFor(Throwable $exception): string
+    {
+        $category = $this->classify($exception);
+
+        if ($category === FailureCategory::RATE_LIMITED) {
+            return StorixErrorCode::RATE_LIMITED->value;
+        }
+
+        if ($exception instanceof StorixException) {
+            if (
+                $exception instanceof StorageOperationFailedException
+                && $category === FailureCategory::PERMANENT
+            ) {
+                return StorixErrorCode::PERMANENT_FAILURE->value;
+            }
+
+            return $exception->errorCode->value;
+        }
+
+        return $category === FailureCategory::PERMANENT
+            ? StorixErrorCode::PERMANENT_FAILURE->value
+            : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
+    }
+
+    /**
      * Classify the stable error code persisted on a transfer for restart-safe retry decisions.
      */
     public function classifyCode(?string $errorCode): FailureCategory
@@ -106,7 +133,8 @@ final class ErrorClassifier
 
         return match ($errorCode) {
             StorixErrorCode::STORAGE_OPERATION_FAILED->value,
-            StorixErrorCode::UPLOAD_IN_PROGRESS->value => FailureCategory::TRANSIENT,
+            StorixErrorCode::UPLOAD_IN_PROGRESS->value,
+            StorixErrorCode::RATE_LIMITED->value => FailureCategory::TRANSIENT,
 
             StorixErrorCode::DRIVER_NOT_FOUND->value,
             StorixErrorCode::INVALID_REQUEST->value,
