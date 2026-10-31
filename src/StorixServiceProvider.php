@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ShamimStack\Storix;
 
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Support\ServiceProvider;
 use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
 use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
@@ -15,6 +16,10 @@ use ShamimStack\Storix\Repositories\Eloquent\EloquentChunkRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentDirectoryRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentStoredFileRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentTransferRepository;
+use ShamimStack\Storix\Services\ChunkPlanner;
+use ShamimStack\Storix\Services\ChunkReconciler;
+use ShamimStack\Storix\Services\MultipartSessionReconciler;
+use ShamimStack\Storix\Services\TransferStateMachine;
 use ShamimStack\Storix\Uploads\UploadManager;
 
 final class StorixServiceProvider extends ServiceProvider
@@ -39,7 +44,19 @@ final class StorixServiceProvider extends ServiceProvider
             return $manager;
         });
 
-        $this->app->singleton(UploadManager::class);
+        $this->app->singleton(UploadManager::class, function ($app): UploadManager {
+            return new UploadManager(
+                $app->make(DriverManager::class),
+                $app->make(StoredFileRepository::class),
+                $app->make(TransferRepository::class),
+                $app->make(DirectoryRepository::class),
+                $app->make(ChunkRepository::class),
+                $app->make(ChunkPlanner::class),
+                $app->make(MultipartSessionReconciler::class),
+                $app->make(TransferStateMachine::class),
+                $app->make(ConfigRepository::class),
+            );
+        });
 
         $this->app->bind(DirectoryRepository::class, EloquentDirectoryRepository::class);
         $this->app->bind(StoredFileRepository::class, EloquentStoredFileRepository::class);
