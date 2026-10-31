@@ -223,11 +223,14 @@ final class TransferRecoveryTest extends TestCase
             TransferState::VERIFYING,
             attempts: 1,
             lastErrorCode: null,
+            driver: 'test',
         );
         $driver = $this->createMock(StorageDriver::class);
         $driver->method('name')->willReturn('test');
         $driver->method('capabilities')->willReturn(new DriverCapabilities);
-        $driver->method('stat')->willThrowException(new StorageOperationFailedException('stat'));
+        $driver->expects(self::once())
+            ->method('stat')
+            ->willThrowException(new StorageOperationFailedException('stat'));
         $this->app->make(DriverManager::class)->register('test', $driver);
 
         $summary = $this->app->make(TransferRecoveryService::class)->recover(
