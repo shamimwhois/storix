@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://storix.dev/schemas/autonomous-task-event.v1.json",
+  "title": "Storix Autonomous Pipeline Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "event_type", "delivery_id", "repository", "source"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "task_id": { "type": "string", "minLength": 3, "maxLength": 128, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]+$" },
+    "event_type": {
+      "type": "string",
+      "enum": ["storix.task.scheduled", "storix.task.ready", "storix.agent.stage.completed", "storix.review.requested"]
+    },
+    "schedule_id": { "type": ["string", "null"], "maxLength": 128 },
+    "delivery_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+    "commit_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "source": { "const": "github-actions" }
+  }
+}
