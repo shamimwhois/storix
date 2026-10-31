@@ -39,7 +39,8 @@ final class RetryPolicyTest extends TestCase
 
     public function test_it_preserves_provider_rate_limit_classification_through_wrapped_exceptions(): void
     {
-        $rateLimited = new class('provider rate limit') extends RuntimeException {
+        $rateLimited = new class('provider rate limit') extends RuntimeException
+        {
             public function getStatusCode(): int
             {
                 return 429;
