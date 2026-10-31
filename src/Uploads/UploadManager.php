@@ -403,9 +403,7 @@ final class UploadManager
                     )) {
                         try {
                             $transfer = $this->states->transition($transfer->id, TransferState::RETRY_WAIT);
-                            $transfer->last_error_code = $exception instanceof StorixException
-                                ? $exception->errorCode->value
-                                : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
+                            $transfer->last_error_code = $this->retryPolicy->errorCode($exception);
                             $transfer->last_error_message = 'Multipart upload paused after an interrupted resume attempt.';
                             $transfer->next_retry_at = now()->addMilliseconds(
                                 $this->retryPolicy->delayMilliseconds(
@@ -702,9 +700,7 @@ final class UploadManager
             return $result;
         } catch (Throwable $exception) {
             try {
-                $errorCode = $exception instanceof StorixException
-                    ? $exception->errorCode->value
-                    : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
+                $errorCode = $this->retryPolicy->errorCode($exception);
 
                 try {
                     if ($resume === false) {
@@ -1048,9 +1044,7 @@ final class UploadManager
                 }
 
                 $current = $this->states->transition($current->id, TransferState::FAILED);
-                $current->last_error_code = $exception instanceof StorixException
-                    ? $exception->errorCode->value
-                    : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
+                $current->last_error_code = $this->retryPolicy->errorCode($exception);
                 $current->next_retry_at = null;
                 $current->last_error_message = $cleanupFailed
                     ? 'Upload failed and storage cleanup also failed.'
