@@ -189,6 +189,49 @@ final class TransferRecoveryTest extends TestCase
         self::assertNull($transfer->resume_lease_token);
     }
 
+    public function test_recovery_never_reads_or_deletes_a_file_outside_the_transfer_scope(): void
+    {
+        $contents = 'another-owners-object';
+        $file = $this->makeFile($contents, 'processing');
+        $driver = $this->app->make(DriverManager::class)->driver('local');
+        $stream = $this->stream($contents);
+
+        try {
+            $driver->writeStream(new WriteStreamRequest(
+                key: $file->storage_key,
+                stream: $stream,
+            ));
+        } finally {
+            fclose($stream);
+        }
+
+        $transfer = $this->makeTransfer(
+            $file,
+            TransferState::TRANSFERRING,
+            attempts: 1,
+            lastErrorCode: 'STORAGE_OPERATION_FAILED',
+            expiresAt: now()->subMinute(),
+        );
+
+        DB::table('storix_transfers')->where('id', $transfer->id)->update([
+            'tenant_id' => 'another-tenant',
+            'updated_at' => now()->subMinutes(10),
+        ]);
+
+        $summary = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 10,
+            staleSeconds: 60,
+        );
+
+        $transfer->refresh();
+        $file->refresh();
+
+        self::assertSame(1, $summary['expired']);
+        self::assertSame(TransferState::EXPIRED, $transfer->state);
+        self::assertSame('processing', $file->status);
+        self::assertTrue($driver->exists($file->storage_key));
+    }
+
     public function test_it_does_not_retry_a_persisted_permanent_failure(): void
     {
         $file = $this->makeFile('permanent-failure', 'processing');
