@@ -12,12 +12,11 @@ use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
 use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
 use ShamimStack\Storix\DTOs\DriverCapabilities;
-use ShamimStack\Storix\DTOs\StatObjectRequest;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
 use ShamimStack\Storix\Enums\ObjectVisibility;
-use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Enums\TransferDirection;
 use ShamimStack\Storix\Enums\TransferState;
+use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Models\StoredFile;
 use ShamimStack\Storix\Models\Transfer;
 use ShamimStack\Storix\Services\TransferRecoveryService;
@@ -279,7 +278,6 @@ final class TransferRecoveryTest extends TestCase
         self::assertTrue($transfer->next_retry_at->isFuture());
         self::assertNull($transfer->resume_lease_token);
     }
-
 
     public function test_it_cleans_a_terminal_multipart_session_without_deleting_an_available_file(): void
     {
