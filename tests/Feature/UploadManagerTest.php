@@ -616,7 +616,7 @@ final class UploadManagerTest extends TestCase
     public function test_resume_metadata_migration_rolls_back_and_reapplies_without_losing_transfer_rows(): void
     {
         $seed = $this->seedInterruptedMultipartTransfer(idempotencyKey: 'migration-rollback-check');
-        $migration = require database_path('migrations/2026_10_31_000005_add_resume_metadata_to_storix_transfers_and_chunks.php');
+        $migration = require dirname(__DIR__, 2).'/database/migrations/2026_10_31_000005_add_resume_metadata_to_storix_transfers_and_chunks.php';
 
         $migration->down();
 
