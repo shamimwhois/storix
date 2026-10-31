@@ -44,6 +44,14 @@ final class RetryPolicy
     }
 
     /**
+     * Determine whether the failure is permanent, independently of the attempt limit.
+     */
+    public function isPermanent(Throwable $exception): bool
+    {
+        return $this->classifier->classify($exception) === FailureCategory::PERMANENT;
+    }
+
+    /**
      * Calculate capped exponential backoff with bounded full-width jitter.
      */
     public function delayMilliseconds(
