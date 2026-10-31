@@ -45,6 +45,7 @@ use ShamimStack\Storix\Models\Directory;
 use ShamimStack\Storix\Models\StoredFile;
 use ShamimStack\Storix\Models\Transfer;
 use ShamimStack\Storix\Services\ChunkPlanner;
+use ShamimStack\Storix\Services\ChunkReconciler;
 use ShamimStack\Storix\Services\MultipartSessionReconciler;
 use ShamimStack\Storix\Services\TransferStateMachine;
 use Throwable;
@@ -53,6 +54,8 @@ final class UploadManager
 {
     private const int STAGING_CHUNK_BYTES = 1_048_576;
 
+    private readonly MultipartSessionReconciler $multipartSessions;
+
     public function __construct(
         private readonly DriverManager $drivers,
         private readonly StoredFileRepository $files,
@@ -60,10 +63,11 @@ final class UploadManager
         private readonly DirectoryRepository $directories,
         private readonly ChunkRepository $chunks,
         private readonly ChunkPlanner $chunkPlanner,
-        private readonly MultipartSessionReconciler $multipartSessions,
         private readonly TransferStateMachine $states,
         private readonly ConfigRepository $config,
-    ) {}
+    ) {
+        $this->multipartSessions = new MultipartSessionReconciler(new ChunkReconciler());
+    }
 
     public function upload(UploadRequest $request): UploadResult
     {
