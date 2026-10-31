@@ -7,11 +7,16 @@ namespace ShamimStack\Storix\Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use ShamimStack\Storix\Contracts\StorageDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
 use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
+use ShamimStack\Storix\DTOs\DriverCapabilities;
+use ShamimStack\Storix\DTOs\StatObjectRequest;
+use ShamimStack\Storix\DTOs\StorageObjectMetadata;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
 use ShamimStack\Storix\Enums\ObjectVisibility;
+use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Enums\TransferDirection;
 use ShamimStack\Storix\Enums\TransferState;
 use ShamimStack\Storix\Models\StoredFile;
@@ -211,6 +216,38 @@ final class TransferRecoveryTest extends TestCase
         self::assertDirectoryDoesNotExist(sys_get_temp_dir().DIRECTORY_SEPARATOR.'storix-multipart-'.$uploadId);
     }
 
+    public function test_it_schedules_a_bounded_retry_when_provider_metadata_lookup_fails(): void
+    {
+        $file = $this->makeFile('provider-read-failure', 'processing', 'test');
+        $transfer = $this->makeTransfer(
+            $file,
+            TransferState::VERIFYING,
+            attempts: 1,
+            lastErrorCode: null,
+        );
+        $driver = $this->createMock(StorageDriver::class);
+        $driver->method('name')->willReturn('test');
+        $driver->method('capabilities')->willReturn(new DriverCapabilities);
+        $driver->method('stat')->willThrowException(new StorageOperationFailedException('stat'));
+        $this->app->make(DriverManager::class)->register('test', $driver);
+
+        $summary = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 10,
+            staleSeconds: 60,
+        );
+
+        $transfer->refresh();
+
+        self::assertSame(1, $summary['examined']);
+        self::assertSame(1, $summary['waiting']);
+        self::assertSame(0, $summary['failed']);
+        self::assertSame(TransferState::RETRY_WAIT, $transfer->state);
+        self::assertSame('STORAGE_OPERATION_FAILED', $transfer->last_error_code);
+        self::assertNotNull($transfer->next_retry_at);
+        self::assertTrue($transfer->next_retry_at->isFuture());
+        self::assertNull($transfer->resume_lease_token);
+    }
+
     public function test_dry_run_does_not_acquire_a_lease_or_change_transfer_state(): void
     {
         $transfer = $this->makeTransfer(
@@ -235,13 +272,13 @@ final class TransferRecoveryTest extends TestCase
         self::assertNull($transfer->next_retry_at);
     }
 
-    private function makeFile(string $contents, string $status): StoredFile
+    private function makeFile(string $contents, string $status, string $driver = 'local'): StoredFile
     {
         return StoredFile::query()->create([
             'tenant_id' => 'tenant-e08',
             'owner_id' => 'owner-e08',
             'directory_id' => null,
-            'driver' => 'local',
+            'driver' => $driver,
             'name' => 'recovery.txt',
             'original_name' => 'recovery.txt',
             'extension' => 'txt',
@@ -261,13 +298,14 @@ final class TransferRecoveryTest extends TestCase
         int $attempts,
         ?string $lastErrorCode = null,
         mixed $expiresAt = null,
+        string $driver = 'local',
     ): Transfer {
         $transfer = Transfer::query()->create([
             'file_id' => $file?->id,
             'tenant_id' => 'tenant-e08',
             'owner_id' => 'owner-e08',
             'direction' => TransferDirection::UPLOAD,
-            'driver' => 'local',
+            'driver' => $driver,
             'state' => $state,
             'source_name' => 'recovery.txt',
             'total_bytes' => $file?->size_bytes ?? 16,
