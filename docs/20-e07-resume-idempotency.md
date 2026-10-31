@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress. This specification is implemented incrementally on `feature/e07-resume-idempotency`, stacked on E06 because E06 PR #6 is still open. Do not merge this branch into `main` until E06 is merged and the stacked base is updated.
+Implementation and verification complete on `feature/e07-resume-idempotency`: 102 tests and 424 assertions pass on SQLite, MySQL 8.4 and PostgreSQL 17, including active-lease concurrency, changed-payload conflict, file-backed application-container restart, provider-part tamper recovery and migration rollback/reapply. PR #7 remains a draft stacked on E06 because PR #6 is still open; integration into `main` requires E06 to merge, PR #7 to be retargeted and CI to be rerun.
 
 ## Goals
 
