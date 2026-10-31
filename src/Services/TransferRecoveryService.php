@@ -17,6 +17,7 @@ use ShamimStack\Storix\DTOs\ReadStreamRequest;
 use ShamimStack\Storix\DTOs\StatObjectRequest;
 use ShamimStack\Storix\Enums\StorixErrorCode;
 use ShamimStack\Storix\Enums\TransferState;
+use ShamimStack\Storix\Exceptions\UnsupportedCapabilityException;
 use ShamimStack\Storix\Models\StoredFile;
 use ShamimStack\Storix\Models\Transfer;
 use Throwable;
