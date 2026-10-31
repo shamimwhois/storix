@@ -152,6 +152,10 @@ final class UploadManager
                     throw new IdempotencyConflictException;
                 }
 
+                if ($transfer->cleanup_pending || $this->isExpiredTransfer($transfer)) {
+                    throw new UploadInProgressException;
+                }
+
                 $isFreshRetry = $transfer->state === TransferState::RETRY_WAIT
                     && $transfer->multipart_upload_id === null;
 
@@ -609,6 +613,18 @@ final class UploadManager
         }
 
         return $plan;
+    }
+
+    private function isExpiredTransfer(Transfer $transfer): bool
+    {
+        if ($transfer->expires_at !== null && $transfer->expires_at->isPast()) {
+            return true;
+        }
+
+        $startedAt = $transfer->multipart_started_at ?? $transfer->started_at ?? $transfer->created_at;
+        $ttlHours = max(1, (int) $this->config->get('storix.transfers.session_ttl_hours', 24));
+
+        return $startedAt !== null && $startedAt->lte(now()->subHours($ttlHours));
     }
 
     private function renewResumeLease(Transfer $transfer, string $token, int $leaseSeconds): void
@@ -1121,7 +1137,7 @@ final class UploadManager
 
                 $current = $this->states->transition($current->id, TransferState::FAILED);
                 $current->last_error_code = $this->retryPolicy->errorCode($exception);
-                $current->cleanup_pending = $cleanupFailed;
+                $current->cleanup_pending = $current->cleanup_pending || $cleanupFailed;
                 $current->next_retry_at = null;
                 $current->last_error_message = $cleanupFailed
                     ? 'Upload failed and storage cleanup also failed.'
