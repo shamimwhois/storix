@@ -33,6 +33,7 @@ interface TransferRepository
         DateTimeInterface $now,
         DateTimeInterface $expiresAt,
         ?DateTimeInterface $claimExpiredBefore = null,
+        bool $allowTerminalCleanup = false,
     ): bool;
 
     /**
