@@ -44,6 +44,8 @@ final class TransferRecoveryService
     {
         $now = now();
         $cutoff = $now->copy()->subSeconds(max(30, $staleSeconds));
+        $leaseGraceSeconds = max(30, (int) config('storix.transfers.resume_lease_grace_seconds', 60));
+        $claimExpiredBefore = $now->copy()->subSeconds($leaseGraceSeconds);
         $limit = max(1, min(1000, $limit));
 
         $candidates = Transfer::query()
@@ -68,9 +70,9 @@ final class TransferRecoveryService
                 });
             })
             ->where('updated_at', '<=', $cutoff)
-            ->where(function (Builder $query) use ($now): void {
+            ->where(function (Builder $query) use ($claimExpiredBefore): void {
                 $query->whereNull('resume_lease_expires_at')
-                    ->orWhere('resume_lease_expires_at', '<=', $now);
+                    ->orWhere('resume_lease_expires_at', '<=', $claimExpiredBefore);
             })
             ->where(function (Builder $query) use ($now): void {
                 $query->whereNull('next_retry_at')
@@ -104,6 +106,7 @@ final class TransferRecoveryService
                 $token,
                 $leaseNow,
                 $leaseNow->copy()->addSeconds($leaseSeconds),
+                $leaseNow->copy()->subSeconds($leaseGraceSeconds),
             ) === false) {
                 $summary['skipped']++;
 
