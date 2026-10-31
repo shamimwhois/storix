@@ -124,6 +124,21 @@ final class TransferRecoveryService
                     continue;
                 }
 
+                if ($this->retryPolicy->shouldRetryCode(
+                    $transfer->last_error_code,
+                    max(1, (int) $transfer->attempts),
+                    max(1, (int) $transfer->max_attempts),
+                ) === false) {
+                    $this->failExhaustedTransfer(
+                        $transfer,
+                        $token,
+                        $transfer->last_error_code ?? StorixErrorCode::PERMANENT_FAILURE->value,
+                    );
+                    $summary['failed']++;
+
+                    continue;
+                }
+
                 $this->deferForSourceRetry($transfer, $token);
                 $summary['waiting']++;
             } catch (Throwable $exception) {
@@ -158,7 +173,7 @@ final class TransferRecoveryService
         if (
             $file === null
             || $file->driver !== $transfer->driver
-            || in_array($file->status, ['pending', 'processing'], true) === false
+            || in_array($file->status, ['pending', 'processing', 'failed'], true) === false
             || is_string($file->storage_key) === false
             || $file->storage_key === ''
             || is_string($file->sha256) === false
@@ -168,24 +183,36 @@ final class TransferRecoveryService
         }
 
         $driver = $this->drivers->driver($transfer->driver);
+        $this->renewRecoveryLease((string) $transfer->id, $token);
         $metadata = $driver->stat(new StatObjectRequest($file->storage_key));
+        $this->renewRecoveryLease((string) $transfer->id, $token);
 
-        if (
-            $metadata === null
-            || $metadata->sizeBytes !== (int) $transfer->total_bytes
-            || $metadata->sizeBytes !== (int) $file->size_bytes
-        ) {
+        if ($metadata === null) {
             return false;
         }
 
+        if (
+            $metadata->sizeBytes !== (int) $transfer->total_bytes
+            || $metadata->sizeBytes !== (int) $file->size_bytes
+        ) {
+            $driver->delete(new DeleteObjectRequest($file->storage_key));
+
+            return false;
+        }
+
+        $this->renewRecoveryLease((string) $transfer->id, $token);
         $stream = $driver->readStream(new ReadStreamRequest($file->storage_key));
+        $this->renewRecoveryLease((string) $transfer->id, $token);
 
         if (is_resource($stream) === false || get_resource_type($stream) !== 'stream') {
             return false;
         }
 
         try {
-            $verified = $this->hashStream($stream);
+            $verified = $this->hashStream(
+                $stream,
+                fn () => $this->renewRecoveryLease((string) $transfer->id, $token),
+            );
         } finally {
             if (is_resource($stream)) {
                 fclose($stream);
@@ -196,6 +223,9 @@ final class TransferRecoveryService
             $verified['size'] !== (int) $transfer->total_bytes
             || hash_equals(strtolower($file->sha256), $verified['sha256']) === false
         ) {
+            $this->renewRecoveryLease((string) $transfer->id, $token);
+            $driver->delete(new DeleteObjectRequest($file->storage_key));
+
             return false;
         }
 
@@ -205,7 +235,9 @@ final class TransferRecoveryService
             && $driver instanceof MultipartStorageDriver
         ) {
             try {
+                $this->renewRecoveryLease((string) $transfer->id, $token);
                 $driver->abortMultipartWrite($transfer->multipart_upload_id);
+                $this->renewRecoveryLease((string) $transfer->id, $token);
             } catch (Throwable $exception) {
                 // The provider may already have consumed the multipart session during completion.
                 Log::warning('Storix verified object but could not confirm multipart workspace cleanup.', [
@@ -257,7 +289,7 @@ final class TransferRecoveryService
 
     private function expireTransfer(Transfer $transfer, string $token): void
     {
-        $this->cleanupUnpublishedTransfer($transfer);
+        $this->cleanupUnpublishedTransfer($transfer, $token);
 
         DB::transaction(function () use ($transfer, $token): void {
             $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
@@ -283,11 +315,14 @@ final class TransferRecoveryService
         });
     }
 
-    private function failExhaustedTransfer(Transfer $transfer, string $token): void
-    {
-        $this->cleanupUnpublishedTransfer($transfer);
+    private function failExhaustedTransfer(
+        Transfer $transfer,
+        string $token,
+        string $failureCode = 'MAX_RETRIES_EXCEEDED',
+    ): void {
+        $this->cleanupUnpublishedTransfer($transfer, $token);
 
-        DB::transaction(function () use ($transfer, $token): void {
+        DB::transaction(function () use ($transfer, $token, $failureCode): void {
             $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
 
             if ($current->state->isTerminal() || $current->resume_lease_token !== $token) {
@@ -304,8 +339,10 @@ final class TransferRecoveryService
             $current = $this->states->transition($current->id, TransferState::FAILED);
             $current->multipart_upload_id = null;
             $current->next_retry_at = null;
-            $current->last_error_code = 'MAX_RETRIES_EXCEEDED';
-            $current->last_error_message = 'The configured transfer attempt limit was reached.';
+            $current->last_error_code = $failureCode;
+            $current->last_error_message = $failureCode === 'MAX_RETRIES_EXCEEDED'
+                ? 'The configured transfer attempt limit was reached.'
+                : 'A permanent transfer failure prevented automatic recovery.';
             $current->last_heartbeat_at = now();
             $this->transfers->save($current);
         });
@@ -346,7 +383,7 @@ final class TransferRecoveryService
         });
     }
 
-    private function cleanupUnpublishedTransfer(Transfer $transfer): void
+    private function cleanupUnpublishedTransfer(Transfer $transfer, string $token): void
     {
         $driver = $this->drivers->driver($transfer->driver);
 
@@ -355,14 +392,21 @@ final class TransferRecoveryService
             && $transfer->multipart_upload_id !== ''
             && $driver instanceof MultipartStorageDriver
         ) {
+            $this->renewRecoveryLease((string) $transfer->id, $token);
             $driver->abortMultipartWrite($transfer->multipart_upload_id);
+            $this->renewRecoveryLease((string) $transfer->id, $token);
         }
 
         $file = $transfer->file;
 
         if ($file !== null && $file->storage_key !== '' && $file->status !== 'available') {
-            if ($driver->stat(new StatObjectRequest($file->storage_key)) !== null) {
+            $this->renewRecoveryLease((string) $transfer->id, $token);
+            $exists = $driver->stat(new StatObjectRequest($file->storage_key)) !== null;
+            $this->renewRecoveryLease((string) $transfer->id, $token);
+
+            if ($exists) {
                 $driver->delete(new DeleteObjectRequest($file->storage_key));
+                $this->renewRecoveryLease((string) $transfer->id, $token);
             }
         }
     }
@@ -411,11 +455,26 @@ final class TransferRecoveryService
         return $query->lockForUpdate()->first();
     }
 
+    private function renewRecoveryLease(string $transferId, string $token): void
+    {
+        $now = now();
+        $leaseSeconds = max(30, (int) config('storix.transfers.recovery_lease_seconds', 300));
+
+        if ($this->transfers->renewResumeLease(
+            $transferId,
+            $token,
+            $now,
+            $now->copy()->addSeconds($leaseSeconds),
+        ) === false) {
+            throw new RuntimeException('Transfer recovery lease was lost.');
+        }
+    }
+
     /**
      * @param  resource  $stream
      * @return array{size:int,sha256:string}
      */
-    private function hashStream(mixed $stream): array
+    private function hashStream(mixed $stream, ?callable $heartbeat = null): array
     {
         $hash = hash_init('sha256');
         $size = 0;
@@ -437,6 +496,10 @@ final class TransferRecoveryService
 
             hash_update($hash, $buffer);
             $size += strlen($buffer);
+
+            if ($heartbeat !== null) {
+                $heartbeat();
+            }
         }
 
         return ['size' => $size, 'sha256' => hash_final($hash)];
