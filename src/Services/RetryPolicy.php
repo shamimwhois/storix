@@ -20,11 +20,19 @@ final class RetryPolicy
             return false;
         }
 
-        return in_array($this->classifier->classify($exception), [
-            FailureCategory::TRANSIENT,
-            FailureCategory::RATE_LIMITED,
-            FailureCategory::UNKNOWN,
-        ], true);
+        return $this->isRetryableCategory($this->classifier->classify($exception));
+    }
+
+    /**
+     * Apply the same bounded retry rule to an error code restored from persistent storage.
+     */
+    public function shouldRetryCode(?string $errorCode, int $attempt, int $maxAttempts): bool
+    {
+        if ($attempt < 1 || $maxAttempts < 1 || $attempt >= $maxAttempts) {
+            return false;
+        }
+
+        return $this->isRetryableCategory($this->classifier->classifyCode($errorCode));
     }
 
     /**
@@ -45,5 +53,14 @@ final class RetryPolicy
         $maximum = min($maximumMilliseconds, (int) $baseDelay + $spread);
 
         return random_int($minimum, max($minimum, $maximum));
+    }
+
+    private function isRetryableCategory(FailureCategory $category): bool
+    {
+        return in_array($category, [
+            FailureCategory::TRANSIENT,
+            FailureCategory::RATE_LIMITED,
+            FailureCategory::UNKNOWN,
+        ], true);
     }
 }
