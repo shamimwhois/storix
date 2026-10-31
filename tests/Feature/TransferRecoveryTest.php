@@ -134,6 +134,87 @@ final class TransferRecoveryTest extends TestCase
         self::assertNull($transfer->resume_lease_token);
     }
 
+    public function test_recovery_never_promotes_a_same_size_corrupt_final_object(): void
+    {
+        $expected = 'expected-final-payload';
+        $corrupt = 'corrupted-final-payload';
+        self::assertSame(strlen($expected), strlen($corrupt));
+
+        $file = $this->makeFile($expected, 'processing');
+        $driver = $this->app->make(DriverManager::class)->driver('local');
+        $stream = $this->stream($corrupt);
+
+        try {
+            $driver->writeStream(new WriteStreamRequest(
+                key: $file->storage_key,
+                stream: $stream,
+            ));
+        } finally {
+            fclose($stream);
+        }
+
+        $transfer = $this->makeTransfer(
+            $file,
+            TransferState::VERIFYING,
+            attempts: 1,
+            lastErrorCode: 'STORAGE_OPERATION_FAILED',
+        );
+
+        $summary = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 10,
+            staleSeconds: 60,
+        );
+
+        $transfer->refresh();
+        $file->refresh();
+
+        self::assertSame(1, $summary['waiting']);
+        self::assertSame(TransferState::RETRY_WAIT, $transfer->state);
+        self::assertSame('processing', $file->status);
+        self::assertFalse($driver->exists($file->storage_key));
+        self::assertNotNull($transfer->next_retry_at);
+    }
+
+    public function test_recovery_never_promotes_an_incomplete_final_object(): void
+    {
+        $expected = 'complete-final-payload';
+        $incomplete = 'short-payload';
+
+        $file = $this->makeFile($expected, 'processing');
+        $driver = $this->app->make(DriverManager::class)->driver('local');
+        $stream = $this->stream($incomplete);
+
+        try {
+            $driver->writeStream(new WriteStreamRequest(
+                key: $file->storage_key,
+                stream: $stream,
+            ));
+        } finally {
+            fclose($stream);
+        }
+
+        $transfer = $this->makeTransfer(
+            $file,
+            TransferState::VERIFYING,
+            attempts: 1,
+            lastErrorCode: 'STORAGE_OPERATION_FAILED',
+        );
+
+        $summary = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 10,
+            staleSeconds: 60,
+        );
+
+        $transfer->refresh();
+        $file->refresh();
+
+        self::assertSame(1, $summary['waiting']);
+        self::assertSame(TransferState::RETRY_WAIT, $transfer->state);
+        self::assertSame('processing', $file->status);
+        self::assertFalse($driver->exists($file->storage_key));
+        self::assertNotNull($transfer->next_retry_at);
+    }
+
     public function test_it_retains_a_session_identifier_until_failed_abort_cleanup_succeeds(): void
     {
         $contents = 'verified-final-object';
