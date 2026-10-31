@@ -68,6 +68,7 @@ final class EloquentTransferRepository implements TransferRepository
         string $token,
         DateTimeInterface $now,
         DateTimeInterface $expiresAt,
+        ?DateTimeInterface $claimExpiredBefore = null,
     ): bool {
         if ($token === '' || strlen($token) > 64) {
             throw new InvalidArgumentException('Resume lease token must contain between 1 and 64 bytes.');
@@ -76,6 +77,8 @@ final class EloquentTransferRepository implements TransferRepository
         if ($expiresAt <= $now) {
             throw new InvalidArgumentException('Resume lease expiry must be later than its acquisition time.');
         }
+
+        $claimExpiredBefore ??= $now;
 
         return Transfer::query()
             ->whereKey($transferId)
@@ -99,14 +102,37 @@ final class EloquentTransferRepository implements TransferRepository
                     });
                 });
             })
-            ->where(function (Builder $query) use ($now): void {
+            ->where(function (Builder $query) use ($claimExpiredBefore): void {
                 $query->whereNull('resume_lease_expires_at')
-                    ->orWhere('resume_lease_expires_at', '<=', $now);
+                    ->orWhere('resume_lease_expires_at', '<=', $claimExpiredBefore);
             })
             ->update([
                 'resume_lease_token' => $token,
                 'resume_lease_expires_at' => $expiresAt,
                 'last_heartbeat_at' => $now,
+                'updated_at' => $now,
+            ]) === 1;
+    }
+
+    public function ownsResumeLease(
+        string $transferId,
+        string $token,
+        DateTimeInterface $now,
+    ): bool {
+        return Transfer::query()
+            ->whereKey($transferId)
+            ->where('resume_lease_token', $token)
+            ->where('resume_lease_expires_at', '>', $now)
+            ->lockForUpdate()
+            ->first() !== null;
+    }
+
+    public function markCleanupPending(string $transferId, DateTimeInterface $now): bool
+    {
+        return Transfer::query()
+            ->whereKey($transferId)
+            ->update([
+                'cleanup_pending' => true,
                 'updated_at' => $now,
             ]) === 1;
     }
