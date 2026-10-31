@@ -53,6 +53,7 @@ The implemented recovery settings live under `storix.transfers`:
 'transfers' => [
     'max_attempts' => 5,
     'resume_lease_seconds' => 300,
+    'resume_lease_grace_seconds' => 60,
     'recovery_lease_seconds' => 300,
     'recovery_stale_seconds' => 300,
     'heartbeat_interval_seconds' => 15,
@@ -77,7 +78,7 @@ php artisan storix:transfers:recover --limit=100 --stale-seconds=300
 
 The command reports examined, recovered, cleaned, expired, waiting, skipped, and failed counts. It verifies already-published objects before promoting them, and cleans terminal multipart sessions without deleting files already marked available. Retry deadlines are persisted; an early idempotent resume is rejected until the deadline passes.
 
-A recovery command cannot recreate source bytes that the application did not persist. A retry-ready upload requires the caller to submit the original source stream again. A long synchronous provider call cannot be heartbeated while PHP is blocked inside that call; configure driver-level network timeouts shorter than the lease lifetime.
+A recovery command cannot recreate source bytes that the application did not persist. A retry-ready upload requires the caller to submit the original source stream again. A long synchronous provider call cannot be heartbeated while PHP is blocked inside that call; configure driver-level network timeouts shorter than the lease lifetime. The shared `resume_lease_grace_seconds` setting delays takeover after expiry and gives a returning stale worker time to mark any late provider publication for cleanup.
 
 For periodic cleanup, use Laravel's scheduler with overlap prevention after validating dry-run output:
 
