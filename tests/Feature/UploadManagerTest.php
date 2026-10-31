@@ -689,6 +689,7 @@ final class UploadManagerTest extends TestCase
             fclose($stream);
         }
 
+        $expectedChunks = (int) ceil(strlen($payload) / 4);
         $freshChunks = Chunk::query()
             ->where('transfer_id', $transfer->id)
             ->orderBy('chunk_index')
@@ -702,9 +703,9 @@ final class UploadManagerTest extends TestCase
         self::assertNull($result->transfer->next_retry_at);
         self::assertNull($result->transfer->last_error_code);
         self::assertSame(strlen($payload), $result->transfer->transferred_bytes);
-        self::assertSame(3, $freshChunks->count());
+        self::assertSame($expectedChunks, $freshChunks->count());
         self::assertSame(
-            [ChunkState::VERIFIED, ChunkState::VERIFIED, ChunkState::VERIFIED],
+            array_fill(0, $expectedChunks, ChunkState::VERIFIED),
             $freshChunks->pluck('state')->all(),
         );
         self::assertSame($payload, file_get_contents($this->root.'/'.$storageKey));
