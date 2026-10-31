@@ -79,14 +79,23 @@ final class EloquentTransferRepository implements TransferRepository
 
         return Transfer::query()
             ->whereKey($transferId)
-            ->whereIn('state', [
-                TransferState::PENDING->value,
-                TransferState::PREPARING->value,
-                TransferState::TRANSFERRING->value,
-                TransferState::PAUSED->value,
-                TransferState::RETRY_WAIT->value,
-                TransferState::VERIFYING->value,
-            ])
+            ->where(function (Builder $query): void {
+                $query->whereIn('state', [
+                    TransferState::PENDING->value,
+                    TransferState::PREPARING->value,
+                    TransferState::TRANSFERRING->value,
+                    TransferState::PAUSED->value,
+                    TransferState::RETRY_WAIT->value,
+                    TransferState::VERIFYING->value,
+                ])->orWhere(function (Builder $terminal): void {
+                    $terminal->whereIn('state', [
+                        TransferState::COMPLETED->value,
+                        TransferState::FAILED->value,
+                        TransferState::CANCELLED->value,
+                        TransferState::EXPIRED->value,
+                    ])->whereNotNull('multipart_upload_id');
+                });
+            })
             ->where(function (Builder $query) use ($now): void {
                 $query->whereNull('resume_lease_expires_at')
                     ->orWhere('resume_lease_expires_at', '<=', $now);
