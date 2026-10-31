@@ -90,6 +90,7 @@ final class TransferRecoveryService
             'expired' => 0,
             'waiting' => 0,
             'skipped' => 0,
+            'terminated' => 0,
             'failed' => 0,
         ];
 
@@ -108,11 +109,14 @@ final class TransferRecoveryService
                 $leaseNow,
                 $leaseNow->copy()->addSeconds($leaseSeconds),
                 $leaseNow->copy()->subSeconds($leaseGraceSeconds),
+                allowTerminalCleanup: true,
             ) === false) {
                 $summary['skipped']++;
 
                 continue;
             }
+
+            $cleanupOnly = false;
 
             try {
                 $transfer = Transfer::query()->findOrFail($candidate->id);
@@ -131,6 +135,7 @@ final class TransferRecoveryService
                 }
 
                 if ($this->isExpired($transfer)) {
+                    $cleanupOnly = true;
                     $this->expireTransfer($transfer, $token);
                     $summary['expired']++;
 
@@ -141,8 +146,9 @@ final class TransferRecoveryService
                     $transfer->max_attempts > 0
                     && $transfer->attempts >= $transfer->max_attempts
                 ) {
+                    $cleanupOnly = true;
                     $this->failExhaustedTransfer($transfer, $token);
-                    $summary['failed']++;
+                    $summary['terminated']++;
 
                     continue;
                 }
@@ -152,12 +158,13 @@ final class TransferRecoveryService
                     max(1, (int) $transfer->attempts),
                     max(1, (int) $transfer->max_attempts),
                 ) === false) {
+                    $cleanupOnly = true;
                     $this->failExhaustedTransfer(
                         $transfer,
                         $token,
                         $transfer->last_error_code ?? StorixErrorCode::PERMANENT_FAILURE->value,
                     );
-                    $summary['failed']++;
+                    $summary['terminated']++;
 
                     continue;
                 }
@@ -182,7 +189,7 @@ final class TransferRecoveryService
                             // Preserve cleanup work even if the provider call outlived our lease.
                             $this->transfers->markCleanupPending((string) $current->id, now());
                         } else {
-                            $retryScheduled = $this->recordRecoveryFailure($current, $token, $exception);
+                            $retryScheduled = $this->recordRecoveryFailure($current, $token, $exception, $cleanupOnly);
                         }
                     }
                 } catch (Throwable) {
@@ -452,8 +459,38 @@ final class TransferRecoveryService
         });
     }
 
-    private function recordRecoveryFailure(Transfer $transfer, string $token, Throwable $exception): bool
-    {
+    private function recordRecoveryFailure(
+        Transfer $transfer,
+        string $token,
+        Throwable $exception,
+        bool $cleanupOnly = false,
+    ): bool {
+        if ($cleanupOnly) {
+            return DB::transaction(function () use ($transfer, $token, $exception): bool {
+                $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
+
+                if ($current->state->isTerminal() || $this->ownsRecoveryLease($current, $token) === false) {
+                    return false;
+                }
+
+                $delay = $this->retryPolicy->delayMilliseconds(
+                    max(1, (int) $current->attempts),
+                    (int) config('storix.transfers.retry_base_seconds', 2),
+                    (int) config('storix.transfers.retry_max_seconds', 300),
+                    (int) config('storix.transfers.retry_jitter_percent', 20),
+                );
+
+                $current->cleanup_pending = true;
+                $current->next_retry_at = now()->addMilliseconds($delay);
+                $current->last_error_code = $this->retryPolicy->errorCode($exception);
+                $current->last_error_message = 'Storage cleanup failed; recovery will retry cleanup before upload can resume.';
+                $current->last_heartbeat_at = now();
+                $this->transfers->save($current);
+
+                return true;
+            });
+        }
+
         $attempt = max(1, (int) $transfer->attempts);
         $maxAttempts = max(1, (int) $transfer->max_attempts);
 
