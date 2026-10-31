@@ -24,6 +24,14 @@ final class RetryPolicy
     }
 
     /**
+     * Convert an exception into a stable transfer error code.
+     */
+    public function errorCode(Throwable $exception): string
+    {
+        return $this->classifier->codeFor($exception);
+    }
+
+    /**
      * Apply the same bounded retry rule to an error code restored from persistent storage.
      */
     public function shouldRetryCode(?string $errorCode, int $attempt, int $maxAttempts): bool
@@ -44,8 +52,10 @@ final class RetryPolicy
         int $maximumSeconds,
         int $jitterPercent = 20,
     ): int {
-        $baseMilliseconds = max(1, $baseSeconds) * 1000;
-        $maximumMilliseconds = max(max(1, $baseSeconds), $maximumSeconds) * 1000;
+        $safeBaseSeconds = min(86_400, max(1, $baseSeconds));
+        $safeMaximumSeconds = min(86_400, max($safeBaseSeconds, $maximumSeconds));
+        $baseMilliseconds = $safeBaseSeconds * 1000;
+        $maximumMilliseconds = $safeMaximumSeconds * 1000;
         $exponent = min(20, max(0, $attempt - 1));
         $baseDelay = min($maximumMilliseconds, $baseMilliseconds * (2 ** $exponent));
         $spread = (int) floor($baseDelay * min(100, max(0, $jitterPercent)) / 100);
