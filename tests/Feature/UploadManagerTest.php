@@ -167,6 +167,44 @@ final class UploadManagerTest extends TestCase
         self::assertNotSame(TransferState::COMPLETED, $transfer->state);
     }
 
+    public function test_failure_finalization_preserves_a_cleanup_marker_set_by_a_late_worker(): void
+    {
+        $driver = $this->createMock(StorageDriver::class);
+        $driver->method('name')->willReturn('marker-race');
+        $driver->method('capabilities')->willReturn(new DriverCapabilities);
+        $driver->method('writeStream')->willReturnCallback(function (WriteStreamRequest $request): WriteResult {
+            $transfer = Transfer::query()->where('idempotency_key', 'cleanup-marker-race')->firstOrFail();
+            DB::table('storix_transfers')->where('id', $transfer->id)->update([
+                'cleanup_pending' => true,
+            ]);
+
+            throw new StorageOperationFailedException('simulated provider failure after late publication');
+        });
+        $driver->expects(self::once())->method('delete');
+
+        $this->app->make(DriverManager::class)->register('marker-race', $driver);
+        $stream = $this->stream('marker-race-payload');
+
+        try {
+            $this->assertUploadException(
+                StorageOperationFailedException::class,
+                fn () => Storix::uploads()->upload(new UploadRequest(
+                    stream: $stream,
+                    originalName: 'marker-race.txt',
+                    idempotencyKey: 'cleanup-marker-race',
+                    driver: 'marker-race',
+                )),
+            );
+        } finally {
+            fclose($stream);
+        }
+
+        $transfer = Transfer::query()->where('idempotency_key', 'cleanup-marker-race')->firstOrFail();
+
+        self::assertSame(TransferState::FAILED, $transfer->state);
+        self::assertTrue($transfer->cleanup_pending);
+    }
+
     public function test_it_uploads_a_binary_stream_and_verifies_the_persisted_object(): void
     {
         $contents = "\0Storix\x01\x02binary\ncontent";
