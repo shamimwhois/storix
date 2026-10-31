@@ -134,13 +134,7 @@ final class UploadManagerTest extends TestCase
                 'resume_lease_expires_at' => $now->copy()->subSeconds(61),
             ]);
 
-            self::assertTrue($repository->claimResumeLease(
-                (string) $transfer->id,
-                'replacement-worker-token',
-                $now,
-                $now->copy()->addMinutes(5),
-                $now->copy()->subSeconds(60),
-            ));
+            // No replacement worker claims the lease; expiry alone must fence this worker.
 
             return new WriteResult(new StorageObjectMetadata(
                 key: $request->key,
@@ -167,7 +161,7 @@ final class UploadManagerTest extends TestCase
         $transfer = Transfer::query()->where('idempotency_key', 'late-provider-write')->firstOrFail();
         $file = StoredFile::query()->findOrFail($transfer->file_id);
 
-        self::assertSame('replacement-worker-token', $transfer->resume_lease_token);
+        self::assertTrue($transfer->resume_lease_expires_at->isPast());
         self::assertTrue($transfer->cleanup_pending);
         self::assertSame('processing', $file->status);
         self::assertNotSame(TransferState::COMPLETED, $transfer->state);
