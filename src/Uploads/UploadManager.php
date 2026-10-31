@@ -46,13 +46,17 @@ use ShamimStack\Storix\Models\StoredFile;
 use ShamimStack\Storix\Models\Transfer;
 use ShamimStack\Storix\Services\ChunkPlanner;
 use ShamimStack\Storix\Services\ChunkReconciler;
+use ShamimStack\Storix\Services\ErrorClassifier;
 use ShamimStack\Storix\Services\MultipartSessionReconciler;
+use ShamimStack\Storix\Services\RetryPolicy;
 use ShamimStack\Storix\Services\TransferStateMachine;
 use Throwable;
 
 final class UploadManager
 {
     private const int STAGING_CHUNK_BYTES = 1_048_576;
+
+    private readonly RetryPolicy $retryPolicy;
 
     public function __construct(
         private readonly DriverManager $drivers,
@@ -63,7 +67,10 @@ final class UploadManager
         private readonly ChunkPlanner $chunkPlanner,
         private readonly TransferStateMachine $states,
         private readonly ConfigRepository $config,
-    ) {}
+        ?RetryPolicy $retryPolicy = null,
+    ) {
+        $this->retryPolicy = $retryPolicy ?? new RetryPolicy(new ErrorClassifier);
+    }
 
     public function upload(UploadRequest $request): UploadResult
     {
@@ -185,6 +192,12 @@ final class UploadManager
             }
 
             $ownsTransfer = true;
+
+            if ($transfer->next_retry_at !== null) {
+                $transfer->next_retry_at = null;
+                $transfer = $this->transfers->save($transfer);
+            }
+
             $renewLease = function () use ($transfer, $resumeLeaseToken, $leaseSeconds): void {
                 $this->renewResumeLease($transfer, $resumeLeaseToken, $leaseSeconds);
             };
@@ -375,20 +388,72 @@ final class UploadManager
                 }
 
                 if ($isResume && $transfer->multipart_upload_id !== null) {
-                    try {
-                        $transfer = $this->states->transition($transfer->id, TransferState::RETRY_WAIT);
-                        $transfer->last_error_code = $exception instanceof StorixException
-                            ? $exception->errorCode->value
-                            : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
-                        $transfer->last_error_message = 'Multipart upload paused after an interrupted resume attempt.';
-                        $this->transfers->save($transfer);
-                    } catch (Throwable $persistenceException) {
-                        Log::error('Storix could not persist resumable upload state.', [
-                            'transfer_id' => $transfer?->id,
-                            'error_code' => $persistenceException instanceof StorixException
-                                ? $persistenceException->errorCode->value
-                                : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
-                        ]);
+                    if ($this->retryPolicy->shouldRetry(
+                        $exception,
+                        max(1, (int) $transfer->attempts),
+                        max(1, (int) $transfer->max_attempts),
+                    )) {
+                        try {
+                            $transfer = $this->states->transition($transfer->id, TransferState::RETRY_WAIT);
+                            $transfer->last_error_code = $exception instanceof StorixException
+                                ? $exception->errorCode->value
+                                : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
+                            $transfer->last_error_message = 'Multipart upload paused after an interrupted resume attempt.';
+                            $transfer->next_retry_at = now()->addMilliseconds(
+                                $this->retryPolicy->delayMilliseconds(
+                                    max(1, (int) $transfer->attempts),
+                                    (int) $this->config->get('storix.transfers.retry_base_seconds', 2),
+                                    (int) $this->config->get('storix.transfers.retry_max_seconds', 300),
+                                    (int) $this->config->get('storix.transfers.retry_jitter_percent', 20),
+                                ),
+                            );
+                            $transfer->last_heartbeat_at = now();
+                            $this->transfers->save($transfer);
+                        } catch (Throwable $persistenceException) {
+                            Log::error('Storix could not persist resumable upload state.', [
+                                'transfer_id' => $transfer?->id,
+                                'error_code' => $persistenceException instanceof StorixException
+                                    ? $persistenceException->errorCode->value
+                                    : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                            ]);
+                        }
+                    } else {
+                        $cleanupFailed = false;
+                        $uploadId = (string) $transfer->multipart_upload_id;
+
+                        try {
+                            if ($multipartDriver !== null) {
+                                $multipartDriver->abortMultipartWrite($uploadId);
+                                $transfer->multipart_upload_id = null;
+                                $transfer = $this->transfers->save($transfer);
+                            }
+                        } catch (Throwable $abortException) {
+                            $cleanupFailed = true;
+                            Log::warning('Storix permanent resume failure left a multipart session for recovery.', [
+                                'transfer_id' => $transfer->id,
+                                'driver' => $driverName,
+                                'error_code' => $abortException instanceof StorixException
+                                    ? $abortException->errorCode->value
+                                    : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                            ]);
+                        }
+
+                        if ($objectMayExist && $storageKey !== null) {
+                            try {
+                                $driver->delete(new DeleteObjectRequest($storageKey));
+                            } catch (Throwable $cleanupException) {
+                                $cleanupFailed = true;
+                                Log::warning('Storix permanent resume failure object cleanup failed.', [
+                                    'transfer_id' => $transfer->id,
+                                    'driver' => $driverName,
+                                    'error_code' => $cleanupException instanceof StorixException
+                                        ? $cleanupException->errorCode->value
+                                        : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                                ]);
+                            }
+                        }
+
+                        $this->markFailed($transfer, $file, $request, $exception, $cleanupFailed);
                     }
                 } else {
                     $cleanupFailed = false;
@@ -978,6 +1043,7 @@ final class UploadManager
                 $current->last_error_code = $exception instanceof StorixException
                     ? $exception->errorCode->value
                     : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
+                $current->next_retry_at = null;
                 $current->last_error_message = $cleanupFailed
                     ? 'Upload failed and storage cleanup also failed.'
                     : 'Upload failed during storage or integrity verification.';
