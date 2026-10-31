@@ -140,6 +140,14 @@ final class UploadManager
                     return $this->resolveExisting($transfer, $fingerprint);
                 }
 
+                if (
+                    $transfer->state === TransferState::RETRY_WAIT
+                    && $transfer->next_retry_at !== null
+                    && $transfer->next_retry_at->isFuture()
+                ) {
+                    throw new UploadInProgressException;
+                }
+
                 if ($transfer->state->isTerminal()) {
                     throw new IdempotencyConflictException;
                 }
