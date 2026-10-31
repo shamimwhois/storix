@@ -2,24 +2,25 @@
 
 declare(strict_types=1);
 
-namespace ShamimStack\Storix;
+namespace ShamimStack\\Storix;
 
-use Illuminate\Contracts\Config\Repository as ConfigRepository;
-use Illuminate\Support\ServiceProvider;
-use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
-use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
-use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
-use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
-use ShamimStack\Storix\Drivers\DriverManager;
-use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
-use ShamimStack\Storix\Repositories\Eloquent\EloquentChunkRepository;
-use ShamimStack\Storix\Repositories\Eloquent\EloquentDirectoryRepository;
-use ShamimStack\Storix\Repositories\Eloquent\EloquentStoredFileRepository;
-use ShamimStack\Storix\Repositories\Eloquent\EloquentTransferRepository;
-use ShamimStack\Storix\Services\ChunkPlanner;
-use ShamimStack\Storix\Services\MultipartSessionReconciler;
-use ShamimStack\Storix\Services\TransferStateMachine;
-use ShamimStack\Storix\Uploads\UploadManager;
+use Illuminate\\Contracts\\Config\\Repository as ConfigRepository;
+use Illuminate\\Support\\ServiceProvider;
+use ShamimStack\\Storix\\Contracts\\Repositories\\ChunkRepository;
+use ShamimStack\\Storix\\Contracts\\Repositories\\DirectoryRepository;
+use ShamimStack\\Storix\\Contracts\\Repositories\\StoredFileRepository;
+use ShamimStack\\Storix\\Contracts\\Repositories\\TransferRepository;
+use ShamimStack\\Storix\\Drivers\\DriverManager;
+use ShamimStack\\Storix\\Drivers\\Local\\LocalStorageDriver;
+use ShamimStack\\Storix\\Repositories\\Eloquent\\EloquentChunkRepository;
+use ShamimStack\\Storix\\Repositories\\Eloquent\\EloquentDirectoryRepository;
+use ShamimStack\\Storix\\Repositories\\Eloquent\\EloquentStoredFileRepository;
+use ShamimStack\\Storix\\Repositories\\Eloquent\\EloquentTransferRepository;
+use ShamimStack\\Storix\\Services\\ChunkPlanner;
+use ShamimStack\\Storix\\Services\\ChunkReconciler;
+use ShamimStack\\Storix\\Services\\MultipartSessionReconciler;
+use ShamimStack\\Storix\\Services\\TransferStateMachine;
+use ShamimStack\\Storix\\Uploads\\UploadManager;
 
 final class StorixServiceProvider extends ServiceProvider
 {
@@ -41,6 +42,11 @@ final class StorixServiceProvider extends ServiceProvider
             $manager->register('local', $app->make(LocalStorageDriver::class));
 
             return $manager;
+        });
+
+        $this->app->singleton(ChunkReconciler::class);
+        $this->app->singleton(MultipartSessionReconciler::class, function ($app): MultipartSessionReconciler {
+            return new MultipartSessionReconciler($app->make(ChunkReconciler::class));
         });
 
         $this->app->singleton(UploadManager::class, function ($app): UploadManager {
