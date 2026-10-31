@@ -436,7 +436,7 @@ final class TransferRecoveryService
         return DB::transaction(function () use ($transfer, $token, $failure): bool {
             $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
 
-            if ($current->state->isTerminal() || $current->resume_lease_token !== $token) {
+            if ($current->state->isTerminal() || $this->ownsRecoveryLease($current, $token) === false) {
                 return false;
             }
 
