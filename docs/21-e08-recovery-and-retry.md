@@ -68,6 +68,7 @@ The recovery command examines stale active transfers and terminal records that c
 - A terminal transfer with a leftover multipart identifier has that session cleaned without deleting a file already marked available.
 - A terminal failed transfer with an object-delete failure retains `cleanup_pending`; later sweeps retry deleting that unpublished object even when no multipart identifier remains.
 - Cleanup failures leave the multipart identifier or cleanup marker intact for a later recovery attempt; a successful cleanup clears the marker so it is not scanned indefinitely.
+- If a terminal cleanup provider call outlives its recovery lease and then fails, the catch path restores `cleanup_pending` without requiring lease ownership; the next sweep still reclaims the transfer through the normal lease/grace checks.
 
 The Local driver treats abort of a missing multipart workspace as idempotent. Remote providers must implement equivalent safe abort semantics before they are considered compatible with this recovery flow.
 
@@ -127,6 +128,7 @@ The effective upload size remains constrained by the configured package limit an
 - A corrupt or incomplete final object is never marked available.
 - Stale session cleanup is safe and idempotent.
 - Terminal multipart cleanup never deletes an already available file.
+- A terminal object-delete failure after recovery lease expiry preserves `cleanup_pending` and succeeds on a later sweep.
 - Dry-run performs no lease acquisition, database updates, or storage cleanup.
 - E08 migration rollback/reapply preserves existing transfer rows.
 - CI passes on SQLite, MySQL 8.4, and PostgreSQL 17.
