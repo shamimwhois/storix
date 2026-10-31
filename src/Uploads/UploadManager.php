@@ -66,7 +66,7 @@ final class UploadManager
         private readonly TransferStateMachine $states,
         private readonly ConfigRepository $config,
     ) {
-        $this->multipartSessions = new MultipartSessionReconciler(new ChunkReconciler());
+        $this->multipartSessions = new MultipartSessionReconciler(new ChunkReconciler);
     }
 
     public function upload(UploadRequest $request): UploadResult
