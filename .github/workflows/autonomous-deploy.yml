@@ -1,0 +1,84 @@
+name: Storix Autonomous Pipeline — Approved Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_id:
+        description: Completed task identifier
+        required: true
+        type: string
+      release_ref:
+        description: Immutable release tag or commit SHA to deploy
+        required: true
+        type: string
+      target:
+        description: Deployment target
+        required: true
+        type: choice
+        options: [staging, production]
+      confirm:
+        description: Confirm deployment request
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: storix-deploy-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: inputs.confirm == true
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target }}
+    steps:
+      - name: Validate immutable release reference
+        env:
+          RELEASE_REF: ${{ inputs.release_ref }}
+          TASK_ID: ${{ inputs.task_id }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$TASK_ID" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$'
+          if ! printf '%s' "$RELEASE_REF" | grep -Eq '^([0-9a-f]{40}|v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?)$'; then
+            echo "::error::release_ref must be a full commit SHA or semantic version tag"
+            exit 1
+          fi
+
+      - name: Require configured deployment controller
+        env:
+          DEPLOY_URL: ${{ vars.STORIX_DEPLOY_RUNNER_URL }}
+          DEPLOY_TOKEN: ${{ secrets.STORIX_DEPLOY_RUNNER_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_URL" || { echo "::error::Missing STORIX_DEPLOY_RUNNER_URL"; exit 1; }
+          test -n "$DEPLOY_TOKEN" || { echo "::error::Missing STORIX_DEPLOY_RUNNER_TOKEN"; exit 1; }
+          case "$DEPLOY_URL" in https://*) ;; *) echo "::error::Deployment URL must use HTTPS"; exit 1 ;; esac
+
+      - name: Request deployment and health verification
+        env:
+          DEPLOY_URL: ${{ vars.STORIX_DEPLOY_RUNNER_URL }}
+          DEPLOY_TOKEN: ${{ secrets.STORIX_DEPLOY_RUNNER_TOKEN }}
+          TASK_ID: ${{ inputs.task_id }}
+          RELEASE_REF: ${{ inputs.release_ref }}
+          TARGET: ${{ inputs.target }}
+          REPOSITORY: ${{ github.repository }}
+          DELIVERY_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          payload="$(jq -n \
+            --arg task_id "$TASK_ID" \
+            --arg release_ref "$RELEASE_REF" \
+            --arg target "$TARGET" \
+            --arg repository "$REPOSITORY" \
+            --arg delivery_id "$DELIVERY_ID" \
+            '{schema_version:1, task_id:$task_id, release_ref:$release_ref, target:$target, repository:$repository, delivery_id:$delivery_id, require_health_check:true, require_rollback_plan:true}')"
+
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $DEPLOY_TOKEN" \
+            --header "Content-Type: application/json" \
+            --header "Idempotency-Key: $DELIVERY_ID" \
+            --data "$payload" \
+            "${DEPLOY_URL%/}/v1/deployments"
