@@ -69,6 +69,7 @@ final class EloquentTransferRepository implements TransferRepository
         DateTimeInterface $now,
         DateTimeInterface $expiresAt,
         ?DateTimeInterface $claimExpiredBefore = null,
+        bool $allowTerminalCleanup = false,
     ): bool {
         if ($token === '' || strlen($token) > 64) {
             throw new InvalidArgumentException('Resume lease token must contain between 1 and 64 bytes.');
@@ -82,7 +83,7 @@ final class EloquentTransferRepository implements TransferRepository
 
         return Transfer::query()
             ->whereKey($transferId)
-            ->where(function (Builder $query): void {
+            ->where(function (Builder $query) use ($allowTerminalCleanup): void {
                 $query->whereIn('state', [
                     TransferState::PENDING->value,
                     TransferState::PREPARING->value,
@@ -90,7 +91,13 @@ final class EloquentTransferRepository implements TransferRepository
                     TransferState::PAUSED->value,
                     TransferState::RETRY_WAIT->value,
                     TransferState::VERIFYING->value,
-                ])->orWhere(function (Builder $terminal): void {
+                ]);
+
+                if ($allowTerminalCleanup === false) {
+                    return;
+                }
+
+                $query->orWhere(function (Builder $terminal): void {
                     $terminal->whereIn('state', [
                         TransferState::COMPLETED->value,
                         TransferState::FAILED->value,
