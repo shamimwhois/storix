@@ -239,6 +239,13 @@ final class PersistenceRepositoryTest extends TestCase
             $renewedAt,
             $newExpiry,
         ));
+
+        self::assertTrue($repository->renewResumeLease(
+            $transfer->id,
+            'worker-token-a',
+            $renewedAt,
+            $newExpiry,
+        ));
         self::assertFalse($repository->renewResumeLease(
             $transfer->id,
             'worker-token-b',
