@@ -17,7 +17,7 @@ final class TransferStateMachine
         'preparing' => [TransferState::TRANSFERRING, TransferState::RETRY_WAIT, TransferState::PAUSED, TransferState::FAILED, TransferState::CANCELLED, TransferState::EXPIRED],
         'transferring' => [TransferState::VERIFYING, TransferState::RETRY_WAIT, TransferState::PAUSED, TransferState::FAILED, TransferState::CANCELLED, TransferState::EXPIRED],
         'retry_wait' => [TransferState::PREPARING, TransferState::TRANSFERRING, TransferState::FAILED, TransferState::CANCELLED, TransferState::EXPIRED],
-        'paused' => [TransferState::PREPARING, TransferState::TRANSFERRING, TransferState::CANCELLED, TransferState::EXPIRED],
+        'paused' => [TransferState::PREPARING, TransferState::TRANSFERRING, TransferState::FAILED, TransferState::CANCELLED, TransferState::EXPIRED],
         'verifying' => [TransferState::COMPLETED, TransferState::RETRY_WAIT, TransferState::FAILED, TransferState::EXPIRED],
         'completed' => [],
         'failed' => [],
