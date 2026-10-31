@@ -45,7 +45,51 @@ return [
 
 These are illustrative defaults, not final values. Validate every setting and align limits with actual driver capability.
 
-## 2. Queue operations
+## 2. E08 recovery and retry
+
+The implemented recovery settings live under `storix.transfers`:
+
+```php
+'transfers' => [
+    'max_attempts' => 5,
+    'resume_lease_seconds' => 300,
+    'recovery_lease_seconds' => 300,
+    'recovery_stale_seconds' => 300,
+    'heartbeat_interval_seconds' => 15,
+    'session_ttl_hours' => 24,
+    'retry_base_seconds' => 2,
+    'retry_max_seconds' => 300,
+    'retry_jitter_percent' => 20,
+],
+```
+
+Inspect eligible records before cleanup:
+
+```bash
+php artisan storix:transfers:recover --dry-run
+```
+
+Run a bounded recovery pass:
+
+```bash
+php artisan storix:transfers:recover --limit=100 --stale-seconds=300
+```
+
+The command reports examined, recovered, cleaned, expired, waiting, skipped, and failed counts. It verifies already-published objects before promoting them, and cleans terminal multipart sessions without deleting files already marked available. Retry deadlines are persisted; an early idempotent resume is rejected until the deadline passes.
+
+A recovery command cannot recreate source bytes that the application did not persist. A retry-ready upload requires the caller to submit the original source stream again. A long synchronous provider call cannot be heartbeated while PHP is blocked inside that call; configure driver-level network timeouts shorter than the lease lifetime.
+
+For periodic cleanup, use Laravel's scheduler with overlap prevention after validating dry-run output:
+
+```php
+use Illuminate\Support\Facades\Schedule;
+
+Schedule::command('storix:transfers:recover --limit=100')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();
+```
+
+## 3. Queue operations
 
 - Use Laravel queues for long-running transfers.
 - Configure dedicated queue names for transfers and cleanup.
@@ -54,7 +98,7 @@ These are illustrative defaults, not final values. Validate every setting and al
 - Use unique locks and idempotent jobs.
 - Document Horizon only as an optional operational choice.
 
-## 3. Scheduler commands
+## 4. Scheduler commands
 
 Potential commands:
 - `storix:transfers:recover` — reconcile stale sessions.
@@ -64,11 +108,11 @@ Potential commands:
 
 Commands must support dry-run where destructive cleanup is involved.
 
-## 4. Observability
+## 5. Observability
 
 Log structured fields: transfer ID, file ID, driver, direction, state, attempt, chunk index, duration, byte count, error code and request ID. Exclude credentials and raw file contents. Provide hooks for Laravel events and metrics exporters.
 
-## 5. Troubleshooting
+## 6. Troubleshooting
 
 - **Transfer stuck:** inspect queue worker health, lock expiry, last heartbeat and retry state.
 - **Repeated retries:** inspect sanitized error code, provider quota and retry-after metadata.
