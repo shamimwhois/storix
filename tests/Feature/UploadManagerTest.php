@@ -15,6 +15,7 @@ use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
 use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
 use ShamimStack\Storix\Contracts\StorageDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
+use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
 use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
 use ShamimStack\Storix\DTOs\CompleteMultipartWriteRequest;
 use ShamimStack\Storix\DTOs\DriverCapabilities;
@@ -40,6 +41,7 @@ use ShamimStack\Storix\Models\Chunk;
 use ShamimStack\Storix\Models\StoredFile;
 use ShamimStack\Storix\Models\Transfer;
 use ShamimStack\Storix\Tests\TestCase;
+use ShamimStack\Storix\Uploads\UploadManager;
 
 final class UploadManagerTest extends TestCase
 {
@@ -538,7 +540,7 @@ final class UploadManagerTest extends TestCase
 
         // Rebuild the worker services while keeping the database and provider workspace durable.
         $this->app->forgetInstance(DriverManager::class);
-        $this->app->forgetInstance(\\ShamimStack\\Storix\\Drivers\\Local\\LocalStorageDriver::class);
+        $this->app->forgetInstance(LocalStorageDriver::class);
         $this->app->forgetInstance(\ShamimStack\Storix\Uploads\UploadManager::class);
         $this->app->forgetInstance('storix');
 
