@@ -22,9 +22,14 @@ final class ServiceProviderTest extends TestCase
 
     public function test_manager_services_are_registered_as_singletons(): void
     {
+        fwrite(STDERR, 'SP-DIAG-1'.PHP_EOL);
         $this->assertInstanceOf(DriverManager::class, $this->app->make(DriverManager::class));
+        fwrite(STDERR, 'SP-DIAG-2'.PHP_EOL);
         $this->assertInstanceOf(UploadManager::class, $this->app->make(UploadManager::class));
+        fwrite(STDERR, 'SP-DIAG-3'.PHP_EOL);
         $this->assertInstanceOf(StorixManager::class, $this->app->make('storix'));
+        fwrite(STDERR, 'SP-DIAG-4'.PHP_EOL);
         $this->assertSame($this->app->make('storix'), $this->app->make('storix'));
+        fwrite(STDERR, 'SP-DIAG-5'.PHP_EOL);
     }
 }
