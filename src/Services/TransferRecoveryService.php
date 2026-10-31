@@ -47,7 +47,6 @@ final class TransferRecoveryService
         $limit = max(1, min(1000, $limit));
 
         $candidates = Transfer::query()
-            ->with('file')
             ->where(function (Builder $query): void {
                 $query->whereIn('state', [
                     TransferState::PENDING->value,
@@ -109,7 +108,7 @@ final class TransferRecoveryService
             }
 
             try {
-                $transfer = Transfer::query()->with('file')->findOrFail($candidate->id);
+                $transfer = Transfer::query()->findOrFail($candidate->id);
 
                 if ($transfer->state->isTerminal()) {
                     $this->cleanupTerminalSession($transfer, $token);
@@ -210,7 +209,7 @@ final class TransferRecoveryService
 
     private function recoverPublishedObject(Transfer $transfer, string $token): bool
     {
-        $file = $transfer->file;
+        $file = $this->scopedFile($transfer, lock: false);
 
         if (
             $file === null
@@ -503,7 +502,7 @@ final class TransferRecoveryService
             $this->renewRecoveryLease((string) $transfer->id, $token);
         }
 
-        $file = $transfer->file;
+        $file = $this->scopedFile($transfer, lock: false);
 
         if ($file !== null && $file->storage_key !== '' && $file->status !== 'available') {
             $this->renewRecoveryLease((string) $transfer->id, $token);
@@ -546,7 +545,7 @@ final class TransferRecoveryService
         return $this->states->transition($transfer->id, TransferState::VERIFYING);
     }
 
-    private function scopedFile(Transfer $transfer): ?StoredFile
+    private function scopedFile(Transfer $transfer, bool $lock = true): ?StoredFile
     {
         $query = StoredFile::query()->whereKey($transfer->file_id);
 
@@ -558,7 +557,11 @@ final class TransferRecoveryService
             ? $query->whereNull('owner_id')
             : $query->where('owner_id', $transfer->owner_id);
 
-        return $query->lockForUpdate()->first();
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        return $query->first();
     }
 
     private function ownsRecoveryLease(Transfer $transfer, string $token): bool
