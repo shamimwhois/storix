@@ -31,6 +31,7 @@ final class PersistenceSchemaTest extends TestCase
         self::assertTrue(Schema::hasTable('storix_chunks'));
         self::assertTrue(Schema::hasColumn('storix_transfers', 'next_retry_at'));
         self::assertTrue(Schema::hasColumn('storix_transfers', 'last_heartbeat_at'));
+        self::assertTrue(Schema::hasColumn('storix_transfers', 'cleanup_pending'));
     }
 
     public function test_e08_recovery_columns_can_be_rolled_back_and_reapplied_without_losing_transfer_rows(): void
@@ -48,12 +49,14 @@ final class PersistenceSchemaTest extends TestCase
 
         self::assertFalse(Schema::hasColumn('storix_transfers', 'next_retry_at'));
         self::assertFalse(Schema::hasColumn('storix_transfers', 'last_heartbeat_at'));
+        self::assertFalse(Schema::hasColumn('storix_transfers', 'cleanup_pending'));
         self::assertSame(1, Transfer::query()->count());
 
         $migration->up();
 
         self::assertTrue(Schema::hasColumn('storix_transfers', 'next_retry_at'));
         self::assertTrue(Schema::hasColumn('storix_transfers', 'last_heartbeat_at'));
+        self::assertTrue(Schema::hasColumn('storix_transfers', 'cleanup_pending'));
         self::assertTrue(Schema::hasIndex('storix_transfers', ['state', 'next_retry_at']));
         self::assertSame(1, Transfer::query()->count());
     }
