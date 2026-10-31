@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation is complete on `feature/e08-recovery-retry`, stacked on E07. CI run `41248928778` passed Composer validation, Pint, and PHPUnit on SQLite, MySQL 8.4, and PostgreSQL 17 at implementation commit `0ffd521`. Two additional recovery-integrity regression tests and documentation status updates were committed afterward; a new CI run for those follow-up commits is not yet available. The latest full CodeRabbit review is pending; keep the PR draft until review findings are checked and the stacked PR sequence is ready.
+Implementation and review fixes are in progress on `feature/e08-recovery-retry`, stacked on E07. CI run `41249396407` passed the SQLite, MySQL 8.4, and PostgreSQL 17 test jobs at commit `6f8ad1e`. Additional CodeRabbit-driven correctness fixes and regression tests have been committed after that run; fresh CI validation is pending. Keep PR #8 draft until the latest head passes CI and the review findings are resolved.
 
 The E08 migration rollback/reapply and preservation tests are included in the passing CI matrix. E08 is ready for final review, but is not merged or release-complete. Do not merge this branch directly into `main`; E07 remains stacked on E06.
 
@@ -38,10 +38,13 @@ The delay is calculated as capped exponential backoff with bounded jitter:
 
 ```text
 baseDelay = min(maxDelay, baseSeconds * 2^(attempt - 1))
-delay     = random(baseDelay - jitter, baseDelay + jitter)
+spread    = floor(baseDelay * jitterPercent / 100)
+delay     = random(max(0, baseDelay - spread), min(maxDelay, baseDelay + spread))
 ```
 
-Storix persists the resulting deadline in `storix_transfers.next_retry_at`. A retry request with the same idempotency key and fingerprint receives `UPLOAD_IN_PROGRESS` while that deadline is in the future. Once the deadline passes, the caller can submit the original source stream again. Storix retains the existing transfer and idempotency identity, reuses the scoped file row when it still exists (or creates a replacement if it is missing), clears stale chunk state, and starts a fresh multipart attempt.
+Storix persists the resulting deadline in `storix_transfers.next_retry_at`. A retry request with the same idempotency key and fingerprint receives `UPLOAD_IN_PROGRESS` while that deadline is in the future. Once the deadline passes, the caller can submit the original source stream again. A `RETRY_WAIT` transfer with an existing multipart session resumes that session and reconciles persisted chunks, reusing provider-verified parts where possible. Only a sessionless `RETRY_WAIT` transfer starts a fresh multipart attempt: it reuses the scoped file row when available (or recreates it when missing) and clears stale chunk state.
+
+Bounded retries inside `UploadManager::upload()` currently apply to interrupted resumes of an existing multipart session. A transient failure during an initial upload or a sessionless fresh attempt is marked failed rather than scheduled for automatic retry; resubmitting that terminal transfer with the same idempotency key returns an idempotency conflict. Recovery can schedule source retry only for eligible nonterminal transfers, and it never stores or recreates the original source bytes.
 
 The package does not persist the original upload bytes. A scheduled recovery run cannot invent or reconstruct a lost source stream. Automatic queue orchestration for source re-submission remains outside this milestone.
 
@@ -51,7 +54,7 @@ Recovery claims a transfer using the existing token-owned resume lease. The repo
 
 The recovery command is bounded by a maximum candidate count. It does not mutate transfers in dry-run mode. Terminal transfers that still contain a multipart upload identifier can be leased for cleanup without changing their terminal state.
 
-Heartbeat renewal during checksum streaming uses `heartbeat_interval_seconds`. A single synchronous driver call cannot be interrupted by a PHP-level heartbeat; configure driver/network timeouts so one blocking call returns before the lease expires. The grace interval gives a returning stale worker time to observe lease loss and record a late-publication cleanup marker; it is not a substitute for a bounded provider timeout. Provider-specific cancellation and background heartbeat workers are future hardening.
+Heartbeat renewal during recovery checksum streaming uses `heartbeat_interval_seconds`; keep this interval materially shorter than `recovery_lease_seconds`, allowing time for a slow stream read before the first heartbeat. UploadManager does not renew its resume lease while hashing the full provider read-back stream, so `resume_lease_seconds` must cover the complete verification read as well as individual provider calls. A single synchronous driver call cannot be interrupted by a PHP-level heartbeat; configure driver/network timeouts so one blocking call returns before the lease expires. The grace interval gives a returning stale worker time to observe lease loss and record a late-publication cleanup marker; it is not a substitute for a bounded provider timeout. Provider-specific cancellation and background heartbeat workers are future hardening.
 
 ## Post-provider-completion crash recovery
 
@@ -86,7 +89,7 @@ Run a bounded recovery pass:
 php artisan storix:transfers:recover --limit=100 --stale-seconds=300
 ```
 
-The command prints counts for examined, recovered, cleaned, expired, waiting, skipped, and failed transfers. A non-zero command exit indicates at least one transfer could not be reconciled; inspect sanitized application logs before taking manual action.
+The command prints counts for examined, recovered, cleaned, expired, waiting, cleanup-pending, skipped, terminated, and failed transfers. `terminated` counts transfers successfully cleaned and deliberately moved to `FAILED` because retries were exhausted or the error was permanent; this is a handled outcome and does not make the command fail. `failed` is reserved for reconciliation exceptions and causes a non-zero exit. A non-zero exit therefore signals recovery work that could not be reconciled, not merely a transfer that was correctly terminated; inspect sanitized application logs.
 
 A Laravel scheduler may run the command periodically, with overlap prevention:
 
@@ -114,7 +117,7 @@ The package configuration under `storix.transfers` includes:
 | `heartbeat_interval_seconds` | 15 | Minimum interval between streamed recovery heartbeat updates |
 | `session_ttl_hours` | 24 | Default age after which an unfinished transfer expires |
 | `retry_base_seconds` | 2 | First retry delay before jitter |
-| `retry_max_seconds` | 300 | Maximum retry delay before jitter |
+| `retry_max_seconds` | 300 | Hard maximum for the final jittered retry delay |
 | `retry_jitter_percent` | 20 | Jitter percentage, bounded to 0–100 |
 
 The effective upload size remains constrained by the configured package limit and the selected driver's advertised maximum object size.
