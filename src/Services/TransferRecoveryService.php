@@ -174,10 +174,13 @@ final class TransferRecoveryService
 
                     if (
                         $current !== null
-                        && $current->state->isTerminal() === false
                         && $this->ownsRecoveryLease($current, $token)
                     ) {
-                        $retryScheduled = $this->recordRecoveryFailure($current, $token, $exception);
+                        if ($current->state->isTerminal()) {
+                            $this->transfers->markCleanupPending((string) $current->id, now());
+                        } else {
+                            $retryScheduled = $this->recordRecoveryFailure($current, $token, $exception);
+                        }
                     }
                 } catch (Throwable) {
                     Log::error('Storix could not persist the recovery failure state.', [
@@ -334,7 +337,6 @@ final class TransferRecoveryService
             $current->multipart_upload_id = $multipartSessionCleaned
                 ? null
                 : $transfer->multipart_upload_id;
-            $current->cleanup_pending = false;
             $current->next_retry_at = null;
             $current->transferred_bytes = $current->total_bytes;
             $current->completed_chunks = $current->total_chunks;
@@ -349,8 +351,25 @@ final class TransferRecoveryService
         return true;
     }
 
+    private function beginCleanup(Transfer $transfer, string $token): void
+    {
+        DB::transaction(function () use ($transfer, $token): void {
+            $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
+
+            if ($this->ownsRecoveryLease($current, $token) === false) {
+                throw new RuntimeException('Transfer recovery ownership changed before cleanup.');
+            }
+
+            // Clear the previous marker before external cleanup starts. Do not clear it
+            // again after provider calls: a stale worker may mark a late publication.
+            $current->cleanup_pending = false;
+            $current->save();
+        });
+    }
+
     private function cleanupTerminalSession(Transfer $transfer, string $token): void
     {
+        $this->beginCleanup($transfer, $token);
         $this->cleanupUnpublishedTransfer($transfer, $token);
 
         DB::transaction(function () use ($transfer, $token): void {
@@ -361,7 +380,6 @@ final class TransferRecoveryService
             }
 
             $current->multipart_upload_id = null;
-            $current->cleanup_pending = false;
             $current->next_retry_at = null;
             $current->last_heartbeat_at = now();
             $this->transfers->save($current);
@@ -370,6 +388,7 @@ final class TransferRecoveryService
 
     private function expireTransfer(Transfer $transfer, string $token): void
     {
+        $this->beginCleanup($transfer, $token);
         $this->cleanupUnpublishedTransfer($transfer, $token);
 
         DB::transaction(function () use ($transfer, $token): void {
@@ -388,7 +407,6 @@ final class TransferRecoveryService
 
             $current = $this->states->transition($current->id, TransferState::EXPIRED);
             $current->multipart_upload_id = null;
-            $current->cleanup_pending = false;
             $current->next_retry_at = null;
             $current->last_error_code = 'TRANSFER_EXPIRED';
             $current->last_error_message = 'Transfer expired before a verified object could be recovered.';
@@ -402,6 +420,7 @@ final class TransferRecoveryService
         string $token,
         string $failureCode = 'MAX_RETRIES_EXCEEDED',
     ): void {
+        $this->beginCleanup($transfer, $token);
         $this->cleanupUnpublishedTransfer($transfer, $token);
 
         DB::transaction(function () use ($transfer, $token, $failureCode): void {
@@ -420,7 +439,6 @@ final class TransferRecoveryService
 
             $current = $this->states->transition($current->id, TransferState::FAILED);
             $current->multipart_upload_id = null;
-            $current->cleanup_pending = false;
             $current->next_retry_at = null;
             $current->last_error_code = $failureCode;
             $current->last_error_message = $failureCode === 'MAX_RETRIES_EXCEEDED'
