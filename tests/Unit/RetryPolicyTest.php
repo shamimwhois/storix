@@ -44,6 +44,14 @@ final class RetryPolicyTest extends TestCase
             FailureCategory::RATE_LIMITED,
             $classifier->classify(new StorageOperationFailedException('multipart_write', $rateLimited)),
         );
+        self::assertSame(
+            'RATE_LIMITED',
+            $classifier->codeFor(new StorageOperationFailedException('multipart_write', $rateLimited)),
+        );
+        self::assertSame(
+            'PERMANENT_FAILURE',
+            $classifier->codeFor(new StorageOperationFailedException('resolve_path')),
+        );
     }
 
     public function test_it_classifies_persisted_error_codes_for_restart_safe_retries(): void
@@ -51,6 +59,8 @@ final class RetryPolicyTest extends TestCase
         $policy = new RetryPolicy(new ErrorClassifier);
 
         self::assertTrue($policy->shouldRetryCode('STORAGE_OPERATION_FAILED', 1, 5));
+        self::assertTrue($policy->shouldRetryCode('RATE_LIMITED', 1, 5));
+        self::assertFalse($policy->shouldRetryCode('PERMANENT_FAILURE', 1, 5));
         self::assertFalse($policy->shouldRetryCode('UPLOAD_INTEGRITY_FAILED', 1, 5));
         self::assertFalse($policy->shouldRetryCode('STORAGE_OPERATION_FAILED', 5, 5));
     }
