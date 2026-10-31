@@ -81,10 +81,13 @@ Implement sequentially; do not start provider-specific work before core contract
 - Follow [E07 Resume & Idempotency specification](20-e07-resume-idempotency.md).
 
 ### E08 Recovery & Retry
-- Classify transient/permanent errors.
-- Add exponential backoff with jitter.
-- Add transfer/chunk locks.
-- Add stale session reconciliation and cleanup commands.
+- Classify transient, rate-limited, permanent, and unknown failures without exposing provider details.
+- Persist bounded exponential backoff deadlines with jitter and enforce them before an idempotent resume.
+- Reuse token-owned transfer leases and periodic heartbeats during recovery.
+- Recover a provider-published final object only after independent size and SHA-256 verification.
+- Reconcile stale transfers and clean abandoned or terminal multipart workspaces through a bounded, dry-run-capable Artisan command.
+- Preserve available file objects when cleaning terminal transfer sessions.
+- Follow [E08 Recovery & Retry specification](21-e08-recovery-and-retry.md).
 
 ### E09 Download Engine
 - Stream content.
@@ -125,7 +128,11 @@ Implement sequentially; do not start provider-specific work before core contract
 
 ## Milestone policy
 
-E05 Basic Upload is merged into main. E06 is implemented on feature/e06-chunk-engine as a synchronous sequential multipart workflow; PR #6 remains open and unmerged. E07 implementation and verification are complete on feature/e07-resume-idempotency, stacked on E06 until PR #6 merges. ChunkReconciler validates persisted layout, verification timestamps and freshly staged-byte digests; MultipartSessionReconciler inspects provider parts and discards stale/mismatched parts. TransferRepository supports atomic lease claim, token-owned renewal/release and safe same-second renewal semantics across database engines. UploadManager resumes existing multipart transfers without duplicate files/sessions, retains the persisted chunk layout, reconciles provider parts, reuses verified parts, rewrites missing/tampered parts and preserves open sessions on resumable failure. Verification passes 102 tests / 424 assertions on SQLite, MySQL 8.4 and PostgreSQL 17, including file-backed application-container restart, provider tamper recovery, active-lease concurrency, changed-payload conflict and migration rollback/reapply. PR #7 remains draft until E06 merges; then retarget to main and rerun CI before integration. Driver-call heartbeat and post-provider-completion crash recovery remain E08 operational follow-up.
+E05 Basic Upload is merged into `main`. E06 is implemented on `feature/e06-chunk-engine` as a synchronous sequential multipart workflow; PR #6 remains open and unmerged. E07 implementation and verification are recorded on `feature/e07-resume-idempotency`, stacked on E06; PR #7 remains a draft until E06 merges and its CI is rerun against `main`.
+
+E08 implementation is in progress on `feature/e08-recovery-retry`, stacked on E07. The branch adds failure classification, persisted backoff deadlines, retry-deadline enforcement, token-owned recovery leases and heartbeats, recovery of a provider-published final object after independent size/SHA-256 verification, stale-session expiry, and cleanup of terminal multipart sessions. The Artisan command supports bounded candidate counts and a dry-run mode. A recovery pass cannot recreate missing source bytes; callers must resubmit the original source stream after the persisted retry deadline. E08 is not complete until the full database CI matrix, code review, security review, and migration rollback/reapply checks pass on the final PR head.
+
+The E07 CI run recorded 102 tests / 424 assertions on SQLite, MySQL 8.4, and PostgreSQL 17. E08 verification results must be recorded separately; E07's green run is not evidence that E08 is green. Driver-call heartbeat during a single blocking provider operation, queue-based source re-submission, and remote-provider recovery semantics remain follow-up work.
 
 
 Do not call E01/E02 a production engine. A first usable local-storage release requires at least E01–E05. A resumable/recoverable release requires E01–E10. Production readiness requires all applicable release gates and real deployment validation. E04 is complete only after the current CI workflow passes, all required code and security review findings are addressed, all review threads are resolved, and the work is merged into `main`.
