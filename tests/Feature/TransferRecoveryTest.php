@@ -288,6 +288,48 @@ final class TransferRecoveryTest extends TestCase
         self::assertDirectoryDoesNotExist($workspace);
     }
 
+    public function test_expired_transfer_cleanup_failure_is_retried_as_cleanup_not_source_upload(): void
+    {
+        $contents = 'expired-cleanup-payload';
+        $file = $this->makeFile($contents, 'failed', 'cleanup-fail');
+        $driver = $this->createMock(StorageDriver::class);
+        $driver->method('name')->willReturn('cleanup-fail');
+        $driver->method('capabilities')->willReturn(new DriverCapabilities);
+        $driver->method('stat')->willReturn(new StorageObjectMetadata(
+            key: $file->storage_key,
+            sizeBytes: strlen($contents),
+        ));
+        $driver->method('readStream')->willReturn(null);
+        $driver->expects(self::once())
+            ->method('delete')
+            ->willThrowException(new StorageOperationFailedException('delete failed'));
+
+        $this->app->make(DriverManager::class)->register('cleanup-fail', $driver);
+        $transfer = $this->makeTransfer(
+            $file,
+            TransferState::TRANSFERRING,
+            attempts: 1,
+            expiresAt: now()->subMinute(),
+            driver: 'cleanup-fail',
+        );
+
+        $summary = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 10,
+            staleSeconds: 60,
+        );
+
+        $transfer->refresh();
+
+        self::assertSame(1, $summary['examined']);
+        self::assertSame(1, $summary['cleanup_pending']);
+        self::assertSame(0, $summary['waiting']);
+        self::assertSame(0, $summary['failed']);
+        self::assertSame(TransferState::TRANSFERRING, $transfer->state);
+        self::assertTrue($transfer->cleanup_pending);
+        self::assertNotNull($transfer->next_retry_at);
+        self::assertTrue($transfer->next_retry_at->isFuture());
+    }
+
     public function test_it_expires_a_stale_session_only_after_storage_cleanup(): void
     {
         $file = $this->makeFile('not-yet-published', 'processing');
