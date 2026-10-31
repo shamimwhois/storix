@@ -541,10 +541,10 @@ final class UploadManagerTest extends TestCase
         // Rebuild the worker services while keeping the database and provider workspace durable.
         $this->app->forgetInstance(DriverManager::class);
         $this->app->forgetInstance(LocalStorageDriver::class);
-        $this->app->forgetInstance(\ShamimStack\Storix\Uploads\UploadManager::class);
+        $this->app->forgetInstance(UploadManager::class);
         $this->app->forgetInstance('storix');
 
-        $manager = $this->app->make(\ShamimStack\Storix\Uploads\UploadManager::class);
+        $manager = $this->app->make(UploadManager::class);
         $stream = $this->stream($seed['payload']);
 
         try {
