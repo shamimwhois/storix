@@ -185,7 +185,9 @@ final class UploadManager
             }
 
             $ownsTransfer = true;
-            $renewLease = fn (): void => $this->renewResumeLease($transfer, $resumeLeaseToken, $leaseSeconds);
+            $renewLease = function () use ($transfer, $resumeLeaseToken, $leaseSeconds): void {
+                $this->renewResumeLease($transfer, $resumeLeaseToken, $leaseSeconds);
+            };
 
             if ($isResume) {
                 $persistedChunks = $this->chunks->forTransfer((string) $transfer->id);
