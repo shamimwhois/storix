@@ -57,7 +57,6 @@ final class StorixServiceProvider extends ServiceProvider
                 $app->make(DirectoryRepository::class),
                 $app->make(ChunkRepository::class),
                 $app->make(ChunkPlanner::class),
-                $app->make(MultipartSessionReconciler::class),
                 $app->make(TransferStateMachine::class),
                 $app->make(ConfigRepository::class),
             );
