@@ -11,7 +11,10 @@ use ShamimStack\Storix\Contracts\StorageDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
 use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
+use ShamimStack\Storix\DTOs\DeleteObjectRequest;
 use ShamimStack\Storix\DTOs\DriverCapabilities;
+use ShamimStack\Storix\DTOs\StatObjectRequest;
+use ShamimStack\Storix\DTOs\StorageObjectMetadata;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
 use ShamimStack\Storix\Enums\ObjectVisibility;
 use ShamimStack\Storix\Enums\TransferDirection;
@@ -415,6 +418,68 @@ final class TransferRecoveryTest extends TestCase
         );
 
         self::assertSame(0, $secondPass['examined']);
+    }
+
+    public function test_terminal_cleanup_failure_keeps_marker_when_provider_call_outlives_recovery_lease(): void
+    {
+        $file = $this->makeFile('orphan-after-lease-expiry', 'failed', 'test');
+        $transfer = $this->makeTransfer(
+            $file,
+            TransferState::FAILED,
+            attempts: 1,
+            lastErrorCode: 'STORAGE_OPERATION_FAILED',
+            driver: 'test',
+            cleanupPending: true,
+        );
+        $driver = $this->createMock(StorageDriver::class);
+        $driver->method('name')->willReturn('test');
+        $driver->method('capabilities')->willReturn(new DriverCapabilities);
+        $driver->method('stat')->willReturn(new StorageObjectMetadata(
+            key: $file->storage_key,
+            sizeBytes: $file->size_bytes,
+        ));
+        $deleteCalls = 0;
+        $driver->method('delete')->willReturnCallback(function (DeleteObjectRequest $request) use ($transfer, &$deleteCalls): void {
+            $deleteCalls++;
+
+            if ($deleteCalls === 1) {
+                DB::table('storix_transfers')->where('id', $transfer->id)->update([
+                    'resume_lease_expires_at' => now()->subSeconds(61),
+                ]);
+
+                throw new StorageOperationFailedException('provider delete failed after lease expiry');
+            }
+        });
+        $this->app->make(DriverManager::class)->register('test', $driver);
+
+        $firstPass = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 10,
+            staleSeconds: 60,
+        );
+
+        $transfer->refresh();
+
+        self::assertSame(1, $firstPass['examined']);
+        self::assertSame(1, $firstPass['failed']);
+        self::assertTrue($transfer->cleanup_pending);
+        self::assertSame(TransferState::FAILED, $transfer->state);
+
+        DB::table('storix_transfers')->where('id', $transfer->id)->update([
+            'updated_at' => now()->subMinutes(10),
+            'resume_lease_expires_at' => now()->subSeconds(61),
+        ]);
+
+        $secondPass = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 10,
+            staleSeconds: 60,
+        );
+
+        $transfer->refresh();
+
+        self::assertSame(1, $secondPass['examined']);
+        self::assertSame(1, $secondPass['cleaned']);
+        self::assertFalse($transfer->cleanup_pending);
+        self::assertSame(2, $deleteCalls);
     }
 
     public function test_it_schedules_a_bounded_retry_when_provider_metadata_lookup_fails(): void
