@@ -18,6 +18,7 @@ use ShamimStack\Storix\Repositories\Eloquent\EloquentDirectoryRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentStoredFileRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentTransferRepository;
 use ShamimStack\Storix\Services\ChunkPlanner;
+use ShamimStack\Storix\Services\RetryPolicy;
 use ShamimStack\Storix\Services\TransferStateMachine;
 use ShamimStack\Storix\Uploads\UploadManager;
 
@@ -53,6 +54,7 @@ final class StorixServiceProvider extends ServiceProvider
                 $app->make(ChunkPlanner::class),
                 $app->make(TransferStateMachine::class),
                 $app->make(ConfigRepository::class),
+                $app->make(RetryPolicy::class),
             );
 
             return $manager;
