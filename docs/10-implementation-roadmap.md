@@ -9,7 +9,7 @@ Implement sequentially; do not start provider-specific work before core contract
 | E03 Persistence | migrations, models, repositories, state machine | Durable metadata | E01–02 |
 | E04 Local Driver | streaming local storage, directories, stat/delete | First usable driver | E02 |
 | E05 Basic Upload | upload sessions, validation, finalize | Basic upload flow | E03–04 |
-| E06 Chunk Engine | chunk planner, bounded concurrency, chunk records | Chunked transfer | E05 |
+| E06 Chunk Engine | deterministic planner, multipart driver contract, verified chunk records and bounded execution | Chunked transfer | E05 |
 | E07 Resume & Idempotency | fingerprints, idempotency, session reconciliation | Resume without duplicate work | E06 |
 | E08 Recovery & Retry | error classification, backoff, locks, cleanup | Fault recovery | E06–07 |
 | E09 Download Engine | stream, range/chunk retrieval, integrity | Reliable downloads | E04, E03 |
@@ -63,10 +63,12 @@ Implement sequentially; do not start provider-specific work before core contract
 - Follow [E05 Basic Upload specification](18-e05-basic-upload.md).
 
 ### E06 Chunk Engine
-- Plan deterministic offsets.
-- Persist per-chunk states.
-- Add bounded worker concurrency.
-- Verify chunks before marking complete.
+- Add deterministic chunk planning with driver min/max size limits and a 10000-part ceiling.
+- Add an optional multipart driver contract with begin, write-part, complete and abort operations.
+- Persist chunk offsets, sizes, attempts, checksums, provider references and lifecycle states.
+- Stage each part with bounded memory, verify part number/size/SHA-256, and only finalize after all parts pass.
+- Compensate failures by aborting the multipart workspace, deleting any possibly published object, and marking unfinished chunks/file/transfer failed.
+- Keep the Local adapter sequential with maxConcurrency = 1. Queued parallel workers, resume and retry remain E07–E08 work.
 
 ### E07 Resume & Idempotency
 - Implement idempotency key uniqueness.
@@ -118,6 +120,9 @@ Implement sequentially; do not start provider-specific work before core contract
 - Tag version only after all release gates pass.
 
 ## Milestone policy
+
+E05 Basic Upload is merged into main. E06 is implemented on feature/e06-chunk-engine as a synchronous sequential multipart workflow. Do not describe the current Local path as resumable or parallel until E07/E08 deliver and test those guarantees.
+
 
 Do not call E01/E02 a production engine. A first usable local-storage release requires at least E01–E05. A resumable/recoverable release requires E01–E10. Production readiness requires all applicable release gates and real deployment validation. E04 is complete only after the current CI workflow passes, all required code and security review findings are addressed, all review threads are resolved, and the work is merged into `main`.
 

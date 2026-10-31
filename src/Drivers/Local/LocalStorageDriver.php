@@ -11,19 +11,23 @@ use finfo;
 use InvalidArgumentException;
 use Normalizer;
 use ShamimStack\Storix\Contracts\DirectoryDriver;
-use ShamimStack\Storix\Contracts\StorageDriver;
+use ShamimStack\Storix\Contracts\MultipartStorageDriver;
+use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
+use ShamimStack\Storix\DTOs\CompleteMultipartWriteRequest;
 use ShamimStack\Storix\DTOs\DeleteObjectRequest;
 use ShamimStack\Storix\DTOs\DriverCapabilities;
+use ShamimStack\Storix\DTOs\MultipartPartResult;
 use ShamimStack\Storix\DTOs\ReadStreamRequest;
 use ShamimStack\Storix\DTOs\StatObjectRequest;
 use ShamimStack\Storix\DTOs\StorageDirectoryEntry;
 use ShamimStack\Storix\DTOs\StorageObjectMetadata;
+use ShamimStack\Storix\DTOs\WriteMultipartPartRequest;
 use ShamimStack\Storix\DTOs\WriteResult;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use Throwable;
 
-final class LocalStorageDriver implements DirectoryDriver, StorageDriver
+final class LocalStorageDriver implements DirectoryDriver, MultipartStorageDriver
 {
     private const int IO_CHUNK_BYTES = 1_048_576;
 
@@ -62,11 +66,254 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
             maxConcurrency: 1,
             supportsStreaming: true,
             supportsRangeReads: true,
-            supportsMultipartWrites: false,
+            supportsMultipartWrites: true,
             supportsServerSideCopy: false,
             supportsAtomicFinalize: true,
             supportsPauseResume: false,
         );
+    }
+
+    /**
+     * Create a private multipart workspace and bind it to the requested object key.
+     */
+    public function beginMultipartWrite(BeginMultipartWriteRequest $request): string
+    {
+        try {
+            $uploadId = bin2hex(random_bytes(32));
+        } catch (Throwable $exception) {
+            throw new StorageOperationFailedException('multipart_begin', $exception);
+        }
+
+        $directory = $this->multipartDirectory($uploadId);
+
+        if (@mkdir($directory, 0700) === false || is_link($directory) || is_dir($directory) === false) {
+            throw new StorageOperationFailedException('multipart_begin');
+        }
+
+        $manifestPath = $directory.DIRECTORY_SEPARATOR.'object-key';
+        $manifest = @fopen($manifestPath, 'x+b');
+
+        if ($manifest === false) {
+            @rmdir($directory);
+
+            throw new StorageOperationFailedException('multipart_begin');
+        }
+
+        try {
+            $this->writeAll($manifest, $request->key);
+
+            $flushed = @fflush($manifest);
+            $closed = @fclose($manifest);
+            $manifest = null;
+
+            if ($flushed === false || $closed === false) {
+                throw new StorageOperationFailedException('multipart_begin');
+            }
+
+            if (DIRECTORY_SEPARATOR !== '\\') {
+                @chmod($manifestPath, 0600);
+            }
+
+            return $uploadId;
+        } catch (Throwable $exception) {
+            if (is_resource($manifest)) {
+                @fclose($manifest);
+            }
+
+            $this->removeMultipartWorkspace($uploadId);
+
+            if ($exception instanceof StorageOperationFailedException) {
+                throw $exception;
+            }
+
+            throw new StorageOperationFailedException('multipart_begin', $exception);
+        }
+    }
+
+    /**
+     * Stream one part to an exclusive private file while calculating its SHA-256 digest.
+     */
+    public function writeMultipartPart(WriteMultipartPartRequest $request): MultipartPartResult
+    {
+        $directory = $this->existingMultipartDirectory($request->uploadId);
+        $path = $directory.DIRECTORY_SEPARATOR.'part-'.$request->partNumber.'.bin';
+
+        if (file_exists($path) || is_link($path)) {
+            throw new StorageOperationFailedException('multipart_write');
+        }
+
+        $destination = @fopen($path, 'x+b');
+
+        if ($destination === false) {
+            throw new StorageOperationFailedException('multipart_write');
+        }
+
+        $hash = hash_init('sha256');
+        $size = 0;
+
+        try {
+            while (feof($request->stream) === false) {
+                $buffer = @fread($request->stream, self::IO_CHUNK_BYTES);
+
+                if ($buffer === false) {
+                    throw new StorageOperationFailedException('multipart_write');
+                }
+
+                if ($buffer === '') {
+                    if (feof($request->stream)) {
+                        break;
+                    }
+
+                    throw new StorageOperationFailedException('multipart_write');
+                }
+
+                $this->writeAll($destination, $buffer);
+                hash_update($hash, $buffer);
+                $size += strlen($buffer);
+            }
+
+            $flushed = @fflush($destination);
+            $closed = @fclose($destination);
+            $destination = null;
+
+            if ($flushed === false || $closed === false) {
+                throw new StorageOperationFailedException('multipart_write');
+            }
+
+            if (DIRECTORY_SEPARATOR !== '\\') {
+                @chmod($path, 0600);
+            }
+
+            return new MultipartPartResult(
+                partNumber: $request->partNumber,
+                sizeBytes: $size,
+                sha256: hash_final($hash),
+            );
+        } catch (Throwable $exception) {
+            if (is_resource($destination)) {
+                @fclose($destination);
+            }
+
+            if (is_file($path) || is_link($path)) {
+                @unlink($path);
+            }
+
+            if ($exception instanceof StorageOperationFailedException) {
+                throw $exception;
+            }
+
+            throw new StorageOperationFailedException('multipart_write', $exception);
+        }
+    }
+
+    /**
+     * Re-verify every part, assemble the object with bounded memory, and publish it atomically.
+     */
+    public function completeMultipartWrite(CompleteMultipartWriteRequest $request): WriteResult
+    {
+        $directory = $this->existingMultipartDirectory($request->uploadId);
+        $assembled = @fopen('php://temp/maxmemory:'.self::RANGE_MEMORY_LIMIT_BYTES, 'w+b');
+
+        if ($assembled === false) {
+            $this->removeMultipartWorkspace($request->uploadId);
+
+            throw new StorageOperationFailedException('multipart_complete');
+        }
+
+        try {
+            $this->assertMultipartObjectKey($directory, $request->key);
+            $totalSize = 0;
+            $totalHash = hash_init('sha256');
+
+            foreach ($request->parts as $part) {
+                $partPath = $directory.DIRECTORY_SEPARATOR.'part-'.$part->partNumber.'.bin';
+
+                if (is_link($partPath) || is_file($partPath) === false) {
+                    throw new StorageOperationFailedException('multipart_verify');
+                }
+
+                $source = @fopen($partPath, 'rb');
+
+                if ($source === false) {
+                    throw new StorageOperationFailedException('multipart_verify');
+                }
+
+                $partSize = 0;
+                $partHash = hash_init('sha256');
+
+                try {
+                    while (feof($source) === false) {
+                        $buffer = @fread($source, self::IO_CHUNK_BYTES);
+
+                        if ($buffer === false) {
+                            throw new StorageOperationFailedException('multipart_verify');
+                        }
+
+                        if ($buffer === '') {
+                            if (feof($source)) {
+                                break;
+                            }
+
+                            throw new StorageOperationFailedException('multipart_verify');
+                        }
+
+                        $this->writeAll($assembled, $buffer);
+                        hash_update($partHash, $buffer);
+                        hash_update($totalHash, $buffer);
+                        $partSize += strlen($buffer);
+                        $totalSize += strlen($buffer);
+                    }
+                } finally {
+                    @fclose($source);
+                }
+
+                if (
+                    $partSize !== $part->sizeBytes
+                    || hash_equals(strtolower($part->sha256), hash_final($partHash)) === false
+                ) {
+                    throw new StorageOperationFailedException('multipart_verify');
+                }
+            }
+
+            if (
+                $totalSize !== $request->expectedSizeBytes
+                || hash_equals(strtolower($request->expectedSha256), hash_final($totalHash)) === false
+            ) {
+                throw new StorageOperationFailedException('multipart_verify');
+            }
+
+            if (@rewind($assembled) === false) {
+                throw new StorageOperationFailedException('multipart_complete');
+            }
+
+            return $this->writeStream(new WriteStreamRequest(
+                key: $request->key,
+                stream: $assembled,
+                mimeType: $request->mimeType,
+                visibility: $request->visibility,
+                metadata: $request->metadata,
+            ));
+        } catch (Throwable $exception) {
+            if ($exception instanceof StorageOperationFailedException) {
+                throw $exception;
+            }
+
+            throw new StorageOperationFailedException('multipart_complete', $exception);
+        } finally {
+            if (is_resource($assembled)) {
+                @fclose($assembled);
+            }
+
+            $this->removeMultipartWorkspace($request->uploadId);
+        }
+    }
+
+    /**
+     * Abort is idempotent: an already-removed workspace needs no further action.
+     */
+    public function abortMultipartWrite(string $uploadId): void
+    {
+        $this->removeMultipartWorkspace($uploadId);
     }
 
     /**
@@ -408,6 +655,70 @@ final class LocalStorageDriver implements DirectoryDriver, StorageDriver
 
         if (@rmdir($path) === false) {
             throw new StorageOperationFailedException('delete_directory');
+        }
+    }
+
+    private function multipartDirectory(string $uploadId): string
+    {
+        if (preg_match('/^[a-f0-9]{64}$/D', $uploadId) !== 1) {
+            throw new InvalidArgumentException('Multipart upload identifier is invalid.');
+        }
+
+        return rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
+            .DIRECTORY_SEPARATOR.'storix-multipart-'.$uploadId;
+    }
+
+    private function existingMultipartDirectory(string $uploadId): string
+    {
+        $directory = $this->multipartDirectory($uploadId);
+
+        if (is_link($directory) || is_dir($directory) === false) {
+            throw new StorageOperationFailedException('multipart_workspace');
+        }
+
+        return $directory;
+    }
+
+    private function assertMultipartObjectKey(string $directory, string $key): void
+    {
+        $manifestPath = $directory.DIRECTORY_SEPARATOR.'object-key';
+
+        if (is_link($manifestPath) || is_file($manifestPath) === false) {
+            throw new StorageOperationFailedException('multipart_workspace');
+        }
+
+        $storedKey = @file_get_contents($manifestPath);
+
+        if ($storedKey === false || hash_equals($storedKey, $key) === false) {
+            throw new StorageOperationFailedException('multipart_workspace');
+        }
+    }
+
+    private function removeMultipartWorkspace(string $uploadId): void
+    {
+        $directory = $this->multipartDirectory($uploadId);
+
+        if (file_exists($directory) === false && is_link($directory) === false) {
+            return;
+        }
+
+        if (is_link($directory) || is_dir($directory) === false) {
+            throw new StorageOperationFailedException('multipart_cleanup');
+        }
+
+        foreach (new FilesystemIterator($directory, FilesystemIterator::SKIP_DOTS) as $entry) {
+            $path = $entry->getPathname();
+
+            if (
+                ($entry->isLink() || $entry->isFile()) === false
+                || @unlink($path) === false
+            ) {
+                throw new StorageOperationFailedException('multipart_cleanup');
+            }
+        }
+
+        if (@rmdir($directory) === false && is_dir($directory)) {
+            throw new StorageOperationFailedException('multipart_cleanup');
         }
     }
 
