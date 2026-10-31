@@ -17,6 +17,7 @@ use ShamimStack\Storix\Exceptions\UploadTooLargeException;
 use ShamimStack\Storix\Exceptions\UploadValidationException;
 use ShamimStack\Storix\Exceptions\UnsupportedCapabilityException;
 use Throwable;
+use TypeError;
 
 final class ErrorClassifier
 {
