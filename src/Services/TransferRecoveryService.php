@@ -61,7 +61,10 @@ final class TransferRecoveryService
                         TransferState::FAILED->value,
                         TransferState::CANCELLED->value,
                         TransferState::EXPIRED->value,
-                    ])->whereNotNull('multipart_upload_id');
+                    ])->where(function (Builder $cleanup): void {
+                        $cleanup->whereNotNull('multipart_upload_id')
+                            ->orWhere('cleanup_pending', true);
+                    });
                 });
             })
             ->where('updated_at', '<=', $cutoff)
@@ -328,6 +331,7 @@ final class TransferRecoveryService
             $current->multipart_upload_id = $multipartSessionCleaned
                 ? null
                 : $transfer->multipart_upload_id;
+            $current->cleanup_pending = false;
             $current->next_retry_at = null;
             $current->transferred_bytes = $current->total_bytes;
             $current->completed_chunks = $current->total_chunks;
@@ -354,6 +358,7 @@ final class TransferRecoveryService
             }
 
             $current->multipart_upload_id = null;
+            $current->cleanup_pending = false;
             $current->next_retry_at = null;
             $current->last_heartbeat_at = now();
             $this->transfers->save($current);
@@ -380,6 +385,7 @@ final class TransferRecoveryService
 
             $current = $this->states->transition($current->id, TransferState::EXPIRED);
             $current->multipart_upload_id = null;
+            $current->cleanup_pending = false;
             $current->next_retry_at = null;
             $current->last_error_code = 'TRANSFER_EXPIRED';
             $current->last_error_message = 'Transfer expired before a verified object could be recovered.';
@@ -411,6 +417,7 @@ final class TransferRecoveryService
 
             $current = $this->states->transition($current->id, TransferState::FAILED);
             $current->multipart_upload_id = null;
+            $current->cleanup_pending = false;
             $current->next_retry_at = null;
             $current->last_error_code = $failureCode;
             $current->last_error_message = $failureCode === 'MAX_RETRIES_EXCEEDED'
