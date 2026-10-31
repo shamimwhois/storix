@@ -60,6 +60,10 @@ final class RetryPolicyTest extends TestCase
 
         self::assertTrue($policy->shouldRetryCode('STORAGE_OPERATION_FAILED', 1, 5));
         self::assertTrue($policy->shouldRetryCode('RATE_LIMITED', 1, 5));
+        self::assertSame(
+            FailureCategory::RATE_LIMITED,
+            (new ErrorClassifier)->classifyCode('RATE_LIMITED'),
+        );
         self::assertFalse($policy->shouldRetryCode('PERMANENT_FAILURE', 1, 5));
         self::assertFalse($policy->shouldRetryCode('UPLOAD_INTEGRITY_FAILED', 1, 5));
         self::assertFalse($policy->shouldRetryCode('STORAGE_OPERATION_FAILED', 5, 5));
