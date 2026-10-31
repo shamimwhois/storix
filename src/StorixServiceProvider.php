@@ -17,7 +17,6 @@ use ShamimStack\Storix\Repositories\Eloquent\EloquentDirectoryRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentStoredFileRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentTransferRepository;
 use ShamimStack\Storix\Services\ChunkPlanner;
-use ShamimStack\Storix\Services\ChunkReconciler;
 use ShamimStack\Storix\Services\MultipartSessionReconciler;
 use ShamimStack\Storix\Services\TransferStateMachine;
 use ShamimStack\Storix\Uploads\UploadManager;
@@ -44,16 +43,7 @@ final class StorixServiceProvider extends ServiceProvider
             return $manager;
         });
 
-        $this->app->singleton(ChunkReconciler::class);
-        $this->app->singleton(MultipartSessionReconciler::class, function ($app): MultipartSessionReconciler {
-            return new MultipartSessionReconciler($app->make(ChunkReconciler::class));
-        });
-
         $this->app->singleton(UploadManager::class, function ($app): UploadManager {
-            fwrite(STDERR, 'STORIX-CLASS-BEFORE\\n');
-            class_exists(UploadManager::class);
-            fwrite(STDERR, 'STORIX-CLASS-AFTER\\n');
-            fwrite(STDERR, 'STORIX-UPLOAD-BEFORE\\n');
             $manager = new UploadManager(
                 $app->make(DriverManager::class),
                 $app->make(StoredFileRepository::class),
@@ -64,8 +54,6 @@ final class StorixServiceProvider extends ServiceProvider
                 $app->make(TransferStateMachine::class),
                 $app->make(ConfigRepository::class),
             );
-            fwrite(STDERR, 'STORIX-UPLOAD-AFTER\\n');
-
             return $manager;
         });
 
