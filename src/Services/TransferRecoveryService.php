@@ -385,9 +385,32 @@ final class TransferRecoveryService
         });
     }
 
-    private function deferForSourceRetry(Transfer $transfer, string $token): void
+    private function recordRecoveryFailure(Transfer $transfer, string $token, Throwable $exception): bool
     {
-        DB::transaction(function () use ($transfer, $token): void {
+        $attempt = max(1, (int) $transfer->attempts);
+        $maxAttempts = max(1, (int) $transfer->max_attempts);
+
+        if ($this->retryPolicy->shouldRetry($exception, $attempt, $maxAttempts)) {
+            $this->deferForSourceRetry($transfer, $token, $exception);
+
+            return true;
+        }
+
+        $failureCode = $this->retryPolicy->isPermanent($exception)
+            ? $this->retryPolicy->errorCode($exception)
+            : StorixErrorCode::MAX_RETRIES_EXCEEDED->value;
+
+        $this->failExhaustedTransfer($transfer, $token, $failureCode);
+
+        return false;
+    }
+
+    private function deferForSourceRetry(
+        Transfer $transfer,
+        string $token,
+        ?Throwable $failure = null,
+    ): void {
+        DB::transaction(function () use ($transfer, $token, $failure): void {
             $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
 
             if ($current->state->isTerminal() || $current->resume_lease_token !== $token) {
@@ -402,7 +425,7 @@ final class TransferRecoveryService
                 $current = $this->states->transition($current->id, TransferState::RETRY_WAIT);
             }
 
-            if ($current->next_retry_at === null) {
+            if ($failure !== null || $current->next_retry_at === null) {
                 $delay = $this->retryPolicy->delayMilliseconds(
                     max(1, (int) $current->attempts),
                     (int) config('storix.transfers.retry_base_seconds', 2),
@@ -413,8 +436,13 @@ final class TransferRecoveryService
                 $current->next_retry_at = now()->addMilliseconds($delay);
             }
 
-            $current->last_error_code ??= StorixErrorCode::STORAGE_OPERATION_FAILED->value;
-            $current->last_error_message = 'Recovery found no verified completed object; retry requires the original source stream.';
+            if ($failure !== null) {
+                $current->last_error_code = $this->retryPolicy->errorCode($failure);
+                $current->last_error_message = 'Recovery failed temporarily; retry requires the original source stream.';
+            } else {
+                $current->last_error_code ??= StorixErrorCode::STORAGE_OPERATION_FAILED->value;
+                $current->last_error_message = 'Recovery found no verified completed object; retry requires the original source stream.';
+            }
             $current->last_heartbeat_at = now();
             $this->transfers->save($current);
         });
