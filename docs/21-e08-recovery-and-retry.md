@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation is complete on `feature/e08-recovery-retry`, stacked on E07. The current head `0ffd52150f1135770f82587247e012a9edeaf6d8` passes Composer validation, Pint, and PHPUnit on SQLite, MySQL 8.4, and PostgreSQL 17. The latest full CodeRabbit review is pending; keep the PR draft until review findings are checked and the stacked PR sequence is ready.
+Implementation is complete on `feature/e08-recovery-retry`, stacked on E07. CI run `41248928778` passed Composer validation, Pint, and PHPUnit on SQLite, MySQL 8.4, and PostgreSQL 17 at implementation commit `0ffd521`. Two additional recovery-integrity regression tests and documentation status updates were committed afterward; a new CI run for those follow-up commits is not yet available. The latest full CodeRabbit review is pending; keep the PR draft until review findings are checked and the stacked PR sequence is ready.
 
 The E08 migration rollback/reapply and preservation tests are included in the passing CI matrix. E08 is ready for final review, but is not merged or release-complete. Do not merge this branch directly into `main`; E07 remains stacked on E06.
 
