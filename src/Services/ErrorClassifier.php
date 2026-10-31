@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use LogicException;
 use PDOException;
 use ShamimStack\Storix\Enums\FailureCategory;
+use ShamimStack\Storix\Enums\StorixErrorCode;
 use ShamimStack\Storix\Exceptions\IdempotencyConflictException;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Exceptions\StorixException;
@@ -35,10 +36,26 @@ final class ErrorClassifier
     ];
 
     /**
-     * Classify an exception without exposing provider messages or credentials.
+     * Classify an exception chain without exposing provider messages or credentials.
      */
     public function classify(Throwable $exception): FailureCategory
     {
+        $status = $this->httpStatus($exception);
+
+        if ($status === 429) {
+            return FailureCategory::RATE_LIMITED;
+        }
+
+        if ($status !== null) {
+            if (in_array($status, [408, 425, 500, 502, 503, 504], true)) {
+                return FailureCategory::TRANSIENT;
+            }
+
+            if ($status >= 400 && $status < 500) {
+                return FailureCategory::PERMANENT;
+            }
+        }
+
         if (
             $exception instanceof InvalidArgumentException
             || $exception instanceof LogicException
@@ -53,24 +70,22 @@ final class ErrorClassifier
             return FailureCategory::PERMANENT;
         }
 
+        for ($current = $exception; $current !== null; $current = $current->getPrevious()) {
+            if ($current instanceof PDOException) {
+                $sqlState = is_array($current->errorInfo ?? null)
+                    ? (string) ($current->errorInfo[0] ?? '')
+                    : (string) $current->getCode();
+
+                if (str_starts_with($sqlState, '08') || str_starts_with($sqlState, '40')) {
+                    return FailureCategory::TRANSIENT;
+                }
+            }
+        }
+
         if ($exception instanceof StorageOperationFailedException) {
             return in_array($exception->operation, self::PERMANENT_STORAGE_OPERATIONS, true)
                 ? FailureCategory::PERMANENT
                 : FailureCategory::TRANSIENT;
-        }
-
-        if ($this->httpStatus($exception) === 429 || (int) $exception->getCode() === 429) {
-            return FailureCategory::RATE_LIMITED;
-        }
-
-        if ($exception instanceof PDOException) {
-            $sqlState = is_array($exception->errorInfo ?? null)
-                ? (string) ($exception->errorInfo[0] ?? '')
-                : (string) $exception->getCode();
-
-            if (str_starts_with($sqlState, '08') || str_starts_with($sqlState, '40')) {
-                return FailureCategory::TRANSIENT;
-            }
         }
 
         if ($exception instanceof StorixException) {
@@ -80,20 +95,67 @@ final class ErrorClassifier
         return FailureCategory::UNKNOWN;
     }
 
-    private function httpStatus(Throwable $exception): ?int
+    /**
+     * Classify the stable error code persisted on a transfer for restart-safe retry decisions.
+     */
+    public function classifyCode(?string $errorCode): FailureCategory
     {
-        if (method_exists($exception, 'getResponse') === false) {
-            return null;
+        if ($errorCode === null || trim($errorCode) === '') {
+            return FailureCategory::UNKNOWN;
         }
 
-        try {
-            $response = $exception->getResponse();
+        return match ($errorCode) {
+            StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+            StorixErrorCode::UPLOAD_IN_PROGRESS->value => FailureCategory::TRANSIENT,
 
-            if (is_object($response) && method_exists($response, 'status')) {
-                return (int) $response->status();
+            StorixErrorCode::DRIVER_NOT_FOUND->value,
+            StorixErrorCode::INVALID_REQUEST->value,
+            StorixErrorCode::UNSUPPORTED_CAPABILITY->value,
+            StorixErrorCode::UPLOAD_TOO_LARGE->value,
+            StorixErrorCode::IDEMPOTENCY_CONFLICT->value,
+            StorixErrorCode::UPLOAD_INTEGRITY_FAILED->value,
+            StorixErrorCode::TRANSFER_EXPIRED->value,
+            StorixErrorCode::MAX_RETRIES_EXCEEDED->value,
+            StorixErrorCode::PERMANENT_FAILURE->value => FailureCategory::PERMANENT,
+
+            default => FailureCategory::UNKNOWN,
+        };
+    }
+
+    private function httpStatus(Throwable $exception): ?int
+    {
+        for ($current = $exception; $current !== null; $current = $current->getPrevious()) {
+            try {
+                if (method_exists($current, 'getStatusCode')) {
+                    $status = (int) $current->getStatusCode();
+
+                    if ($status >= 100 && $status <= 599) {
+                        return $status;
+                    }
+                }
+
+                if (method_exists($current, 'getResponse')) {
+                    $response = $current->getResponse();
+
+                    if (is_object($response) && method_exists($response, 'getStatusCode')) {
+                        $status = (int) $response->getStatusCode();
+
+                        if ($status >= 100 && $status <= 599) {
+                            return $status;
+                        }
+                    }
+
+                    if (is_object($response) && method_exists($response, 'status')) {
+                        $status = (int) $response->status();
+
+                        if ($status >= 100 && $status <= 599) {
+                            return $status;
+                        }
+                    }
+                }
+            } catch (Throwable) {
+                // A broken provider response object must not mask the original exception.
             }
-        } catch (Throwable) {
-            return null;
         }
 
         return null;
