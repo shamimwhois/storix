@@ -472,7 +472,7 @@ final class UploadManager
             (string) $transfer->id,
             $token,
             $now,
-            $now->copy()->addSeconds($leaseSeconds),
+            $now->copy()->addSeconds($leaseSeconds + 1),
         ) === false) {
             throw new UploadInProgressException;
         }
