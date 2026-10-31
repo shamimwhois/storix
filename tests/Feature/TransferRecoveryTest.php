@@ -47,6 +47,49 @@ final class TransferRecoveryTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_recovery_does_not_take_over_a_lease_before_the_grace_window_expires(): void
+    {
+        $transfer = $this->makeTransfer(
+            null,
+            TransferState::RETRY_WAIT,
+            attempts: 1,
+            lastErrorCode: 'STORAGE_OPERATION_FAILED',
+        );
+
+        DB::table('storix_transfers')->where('id', $transfer->id)->update([
+            'resume_lease_token' => 'still-running-worker',
+            'resume_lease_expires_at' => now()->subSeconds(30),
+            'updated_at' => now()->subMinutes(10),
+        ]);
+
+        $blocked = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 10,
+            staleSeconds: 60,
+        );
+
+        $transfer->refresh();
+
+        self::assertSame(0, $blocked['examined']);
+        self::assertSame('still-running-worker', $transfer->resume_lease_token);
+        self::assertSame(TransferState::RETRY_WAIT, $transfer->state);
+
+        DB::table('storix_transfers')->where('id', $transfer->id)->update([
+            'resume_lease_expires_at' => now()->subSeconds(61),
+            'updated_at' => now()->subMinutes(10),
+        ]);
+
+        $eligible = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 10,
+            staleSeconds: 60,
+        );
+
+        $transfer->refresh();
+
+        self::assertSame(1, $eligible['examined']);
+        self::assertSame(1, $eligible['waiting']);
+        self::assertNull($transfer->resume_lease_token);
+    }
+
     public function test_it_recovers_a_published_object_after_the_process_crashes_before_database_finalization(): void
     {
         $contents = 'completed-by-provider-before-database-commit';
