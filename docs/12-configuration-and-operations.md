@@ -64,11 +64,13 @@ The implemented recovery settings live under `storix.transfers`:
 ],
 ```
 
-Inspect eligible records before cleanup:
+Preview aggregate recovery counts without changing records:
 
 ```bash
 php artisan storix:transfers:recover --dry-run
 ```
+
+The dry-run reports aggregate counts only. It does not list individual eligible transfers, identify which cleanup actions would run, or preview per-record changes.
 
 Run a bounded recovery pass:
 
