@@ -212,7 +212,9 @@ final class TransferRecoveryService
             $metadata->sizeBytes !== (int) $transfer->total_bytes
             || $metadata->sizeBytes !== (int) $file->size_bytes
         ) {
+            $this->renewRecoveryLease((string) $transfer->id, $token);
             $driver->delete(new DeleteObjectRequest($file->storage_key));
+            $this->renewRecoveryLease((string) $transfer->id, $token);
 
             return false;
         }
@@ -513,6 +515,8 @@ final class TransferRecoveryService
     {
         $hash = hash_init('sha256');
         $size = 0;
+        $lastHeartbeatAt = time();
+        $heartbeatInterval = max(1, (int) config('storix.transfers.heartbeat_interval_seconds', 15));
 
         while (feof($stream) === false) {
             $buffer = fread($stream, 1_048_576);
@@ -532,8 +536,9 @@ final class TransferRecoveryService
             hash_update($hash, $buffer);
             $size += strlen($buffer);
 
-            if ($heartbeat !== null) {
+            if ($heartbeat !== null && time() - $lastHeartbeatAt >= $heartbeatInterval) {
                 $heartbeat();
+                $lastHeartbeatAt = time();
             }
         }
 
