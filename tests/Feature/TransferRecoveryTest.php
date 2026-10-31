@@ -90,6 +90,79 @@ final class TransferRecoveryTest extends TestCase
         self::assertNull($transfer->resume_lease_token);
     }
 
+    public function test_it_retains_a_session_identifier_until_failed_abort_cleanup_succeeds(): void
+    {
+        $contents = 'verified-final-object';
+        $file = $this->makeFile($contents, 'processing');
+        $driver = $this->app->make(DriverManager::class)->driver('local');
+        $stream = $this->stream($contents);
+
+        try {
+            $driver->writeStream(new WriteStreamRequest(
+                key: $file->storage_key,
+                stream: $stream,
+            ));
+        } finally {
+            fclose($stream);
+        }
+
+        $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest(
+            key: $file->storage_key,
+        ));
+        $workspace = sys_get_temp_dir().DIRECTORY_SEPARATOR.'storix-multipart-'.$uploadId;
+        $unexpectedDirectory = $workspace.DIRECTORY_SEPARATOR.'unexpected-directory';
+        mkdir($unexpectedDirectory);
+
+        $transfer = $this->makeTransfer(
+            $file,
+            TransferState::VERIFYING,
+            attempts: 1,
+            lastErrorCode: 'STORAGE_OPERATION_FAILED',
+        );
+        $transfer->multipart_upload_id = $uploadId;
+        $transfer->save();
+
+        DB::table('storix_transfers')->where('id', $transfer->id)->update([
+            'updated_at' => now()->subMinutes(10),
+        ]);
+
+        $recovered = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 10,
+            staleSeconds: 60,
+        );
+
+        $transfer->refresh();
+        $file->refresh();
+
+        self::assertSame(1, $recovered['recovered']);
+        self::assertSame(TransferState::COMPLETED, $transfer->state);
+        self::assertSame('available', $file->status);
+        self::assertSame($uploadId, $transfer->multipart_upload_id);
+        self::assertDirectoryExists($unexpectedDirectory);
+        self::assertTrue($driver->exists($file->storage_key));
+
+        rmdir($unexpectedDirectory);
+
+        DB::table('storix_transfers')->where('id', $transfer->id)->update([
+            'updated_at' => now()->subMinutes(10),
+        ]);
+
+        $cleaned = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 10,
+            staleSeconds: 60,
+        );
+
+        $transfer->refresh();
+        $file->refresh();
+
+        self::assertSame(1, $cleaned['cleaned']);
+        self::assertSame(TransferState::COMPLETED, $transfer->state);
+        self::assertNull($transfer->multipart_upload_id);
+        self::assertSame('available', $file->status);
+        self::assertTrue($driver->exists($file->storage_key));
+        self::assertDirectoryDoesNotExist($workspace);
+    }
+
     public function test_it_expires_a_stale_session_only_after_storage_cleanup(): void
     {
         $file = $this->makeFile('not-yet-published', 'processing');
