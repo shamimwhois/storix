@@ -713,6 +713,93 @@ final class UploadManagerTest extends TestCase
         self::assertSame(1, Transfer::query()->count());
     }
 
+    public function test_it_recreates_a_missing_file_for_a_sessionless_retry_after_the_deadline(): void
+    {
+        config(['storix.transfers.chunk_size' => 4]);
+
+        $payload = 'recreate-missing-file';
+        $originalName = 'recreated-retry.txt';
+        $tenantId = 'tenant-recreated';
+        $ownerId = 'owner-recreated';
+        $idempotencyKey = 'recreated-sessionless-retry';
+        $fingerprint = hash('sha256', json_encode([
+            'sha256' => hash('sha256', $payload),
+            'size_bytes' => strlen($payload),
+            'original_name' => $originalName,
+            'tenant_id' => $tenantId,
+            'owner_id' => $ownerId,
+            'driver' => 'local',
+            'directory_id' => null,
+            'mime_type' => null,
+            'visibility' => ObjectVisibility::PRIVATE->value,
+            'metadata' => [],
+        ], JSON_THROW_ON_ERROR));
+        $transfer = $this->app->make(TransferRepository::class)->create([
+            'file_id' => null,
+            'tenant_id' => $tenantId,
+            'owner_id' => $ownerId,
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::RETRY_WAIT,
+            'source_name' => $originalName,
+            'total_bytes' => strlen($payload),
+            'transferred_bytes' => 0,
+            'total_chunks' => 0,
+            'completed_chunks' => 0,
+            'fingerprint' => $fingerprint,
+            'idempotency_key' => $idempotencyKey,
+            'attempts' => 1,
+            'max_attempts' => 5,
+            'multipart_upload_id' => null,
+            'next_retry_at' => now()->subSecond(),
+            'last_error_code' => 'STORAGE_OPERATION_FAILED',
+        ]);
+        $this->app->make(ChunkRepository::class)->create([
+            'transfer_id' => $transfer->id,
+            'chunk_index' => 99,
+            'offset_bytes' => 0,
+            'size_bytes' => 1,
+            'sha256' => null,
+            'state' => ChunkState::PENDING,
+            'driver_reference' => null,
+            'attempts' => 0,
+        ]);
+
+        $stream = $this->stream($payload);
+
+        try {
+            $result = Storix::uploads()->upload(new UploadRequest(
+                stream: $stream,
+                originalName: $originalName,
+                tenantId: $tenantId,
+                ownerId: $ownerId,
+                idempotencyKey: $idempotencyKey,
+            ));
+        } finally {
+            fclose($stream);
+        }
+
+        $expectedChunks = (int) ceil(strlen($payload) / 4);
+        $freshChunks = Chunk::query()
+            ->where('transfer_id', $transfer->id)
+            ->orderBy('chunk_index')
+            ->get();
+
+        self::assertSame($transfer->id, $result->transfer->id);
+        self::assertNotNull($result->transfer->file_id);
+        self::assertSame($result->transfer->file_id, $result->file->id);
+        self::assertSame(TransferState::COMPLETED, $result->transfer->state);
+        self::assertSame('available', $result->file->status);
+        self::assertNull($result->transfer->next_retry_at);
+        self::assertSame($expectedChunks, $freshChunks->count());
+        self::assertSame(
+            array_fill(0, $expectedChunks, ChunkState::VERIFIED),
+            $freshChunks->pluck('state')->all(),
+        );
+        self::assertSame(1, StoredFile::query()->count());
+        self::assertSame(1, Transfer::query()->count());
+    }
+
     public function test_it_rejects_a_concurrent_resume_while_another_worker_holds_the_lease(): void
     {
         $seed = $this->seedInterruptedMultipartTransfer(idempotencyKey: 'concurrent-resume');
