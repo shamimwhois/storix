@@ -31,27 +31,8 @@ final class ServiceProviderTest extends TestCase
     public function test_manager_services_are_registered_as_singletons(): void
     {
         $this->assertInstanceOf(DriverManager::class, $this->app->make(DriverManager::class));
-        $dependencies = [
-            StoredFileRepository::class,
-            TransferRepository::class,
-            DirectoryRepository::class,
-            ChunkRepository::class,
-            ChunkPlanner::class,
-            MultipartSessionReconciler::class,
-            TransferStateMachine::class,
-            ConfigRepository::class,
-        ];
-        foreach ($dependencies as $index => $dependency) {
-            fwrite(STDERR, 'DEP-'.($index + 1).'-BEFORE'.PHP_EOL);
-            $this->app->make($dependency);
-            fwrite(STDERR, 'DEP-'.($index + 1).'-AFTER'.PHP_EOL);
-        }
-        fwrite(STDERR, 'UP-1'.PHP_EOL);
         $this->assertInstanceOf(UploadManager::class, $this->app->make(UploadManager::class));
-        fwrite(STDERR, 'UP-2'.PHP_EOL);
-        fwrite(STDERR, 'UP-3'.PHP_EOL);
         $this->assertInstanceOf(StorixManager::class, $this->app->make('storix'));
-        fwrite(STDERR, 'UP-4'.PHP_EOL);
         $this->assertSame($this->app->make('storix'), $this->app->make('storix'));
     }
 }
