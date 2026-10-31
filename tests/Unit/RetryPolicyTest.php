@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ShamimStack\Storix\Tests\Unit;
 
 use InvalidArgumentException;
+use RuntimeException;
 use PHPUnit\Framework\TestCase;
 use ShamimStack\Storix\Enums\FailureCategory;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
@@ -25,6 +26,33 @@ final class RetryPolicyTest extends TestCase
             FailureCategory::PERMANENT,
             $classifier->classify(new InvalidArgumentException('invalid key')),
         );
+    }
+
+    public function test_it_preserves_provider_rate_limit_classification_through_wrapped_exceptions(): void
+    {
+        $rateLimited = new class('provider rate limit') extends RuntimeException
+        {
+            public function getStatusCode(): int
+            {
+                return 429;
+            }
+        };
+
+        $classifier = new ErrorClassifier;
+
+        self::assertSame(
+            FailureCategory::RATE_LIMITED,
+            $classifier->classify(new StorageOperationFailedException('multipart_write', $rateLimited)),
+        );
+    }
+
+    public function test_it_classifies_persisted_error_codes_for_restart_safe_retries(): void
+    {
+        $policy = new RetryPolicy(new ErrorClassifier);
+
+        self::assertTrue($policy->shouldRetryCode('STORAGE_OPERATION_FAILED', 1, 5));
+        self::assertFalse($policy->shouldRetryCode('UPLOAD_INTEGRITY_FAILED', 1, 5));
+        self::assertFalse($policy->shouldRetryCode('STORAGE_OPERATION_FAILED', 5, 5));
     }
 
     public function test_it_limits_retries_to_the_configured_attempt_count(): void
