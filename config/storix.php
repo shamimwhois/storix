@@ -23,6 +23,7 @@ return [
         'max_parallel_chunks' => 3,
         'max_attempts' => 5,
         'resume_lease_seconds' => 300,
+        'resume_lease_grace_seconds' => 60,
         'recovery_lease_seconds' => 300,
         'recovery_stale_seconds' => 300,
         'heartbeat_interval_seconds' => 15,
