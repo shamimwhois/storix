@@ -101,6 +101,16 @@ final class RetryPolicyTest extends TestCase
         ));
     }
 
+    public function test_retry_maximum_is_a_hard_cap_even_when_lower_than_the_base(): void
+    {
+        $policy = new RetryPolicy(new ErrorClassifier);
+
+        $delay = $policy->delayMilliseconds(1, 20, 5, 100);
+
+        self::assertLessThanOrEqual(5_000, $delay);
+        self::assertGreaterThanOrEqual(0, $delay);
+    }
+
     public function test_backoff_is_exponential_capped_and_jittered_within_bounds(): void
     {
         $policy = new RetryPolicy(new ErrorClassifier);
