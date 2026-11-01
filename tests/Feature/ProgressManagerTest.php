@@ -93,11 +93,12 @@ final class ProgressManagerTest extends TestCase
 
         $snapshot = Storix::progress()->forTransfer((string) $transfer->id, 'tenant-a', 'owner-a');
 
-        self::assertInstanceOf(\\DateTimeImmutable::class, $snapshot->updatedAt);
+        self::assertInstanceOf(\DateTimeImmutable::class, $snapshot->updatedAt);
 
         $before = $snapshot->updatedAt?->format('U.u');
-        $snapshot->updatedAt?->modify('+1 second');
+        $modified = $snapshot->updatedAt?->modify('+1 second');
 
+        self::assertNotSame($before, $modified?->format('U.u'));
         self::assertSame($before, $snapshot->updatedAt?->format('U.u'));
     }
 
