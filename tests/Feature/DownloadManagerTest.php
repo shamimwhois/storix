@@ -134,7 +134,7 @@ final class DownloadManagerTest extends TestCase
 
     public function test_it_rejects_ranges_for_drivers_without_range_capability(): void
     {
-        $driver = $this->createMock(StorageDriver::class);
+        $driver = $this->createStub(StorageDriver::class);
         $driver->method('name')->willReturn('no-range');
         $driver->method('capabilities')->willReturn(new DriverCapabilities(supportsRangeReads: false));
         $driver->method('writeStream')->willReturnCallback(static function (WriteStreamRequest $request): WriteResult {
@@ -166,7 +166,7 @@ final class DownloadManagerTest extends TestCase
         $contents = '0123456789abcdef';
         $rangeContents = substr($contents, 4, 6);
         $rangeStream = null;
-        $driver = $this->createMock(StorageDriver::class);
+        $driver = $this->createStub(StorageDriver::class);
         $driver->method('name')->willReturn('seekable-range');
         $driver->method('capabilities')->willReturn(new DriverCapabilities(supportsRangeReads: true));
         $driver->method('stat')->willReturn(new StorageObjectMetadata(

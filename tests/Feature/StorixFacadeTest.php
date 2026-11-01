@@ -17,7 +17,7 @@ final class StorixFacadeTest extends TestCase
 {
     public function test_facade_resolves_a_registered_driver(): void
     {
-        $driver = $this->createMock(StorageDriver::class);
+        $driver = $this->createStub(StorageDriver::class);
         $driver->method('name')->willReturn('memory');
         $driver->method('capabilities')->willReturn(new DriverCapabilities(supportsRangeReads: true));
 

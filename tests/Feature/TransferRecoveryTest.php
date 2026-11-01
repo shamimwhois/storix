@@ -666,7 +666,7 @@ final class TransferRecoveryTest extends TestCase
             driver: 'test',
             cleanupPending: true,
         );
-        $driver = $this->createMock(StorageDriver::class);
+        $driver = $this->createStub(StorageDriver::class);
         $driver->method('name')->willReturn('test');
         $driver->method('capabilities')->willReturn(new DriverCapabilities);
         $driver->method('stat')->willReturn(new StorageObjectMetadata(

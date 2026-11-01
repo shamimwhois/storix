@@ -70,7 +70,7 @@ final class UploadManagerTest extends TestCase
 
     public function test_worker_losing_its_lease_during_provider_write_cannot_finalize_and_marks_late_publication(): void
     {
-        $driver = $this->createMock(StorageDriver::class);
+        $driver = $this->createStub(StorageDriver::class);
         $driver->method('name')->willReturn('fenced');
         $driver->method('capabilities')->willReturn(new DriverCapabilities);
         $driver->method('writeStream')->willReturnCallback(function (WriteStreamRequest $request): WriteResult {
@@ -124,7 +124,7 @@ final class UploadManagerTest extends TestCase
 
     public function test_stale_worker_cannot_finalize_after_a_provider_call_exceeds_its_lease(): void
     {
-        $driver = $this->createMock(StorageDriver::class);
+        $driver = $this->createStub(StorageDriver::class);
         $driver->method('name')->willReturn('fenced');
         $driver->method('capabilities')->willReturn(new DriverCapabilities);
         $driver->method('writeStream')->willReturnCallback(function (WriteStreamRequest $request): WriteResult {
@@ -477,7 +477,7 @@ final class UploadManagerTest extends TestCase
     public function test_it_aborts_multipart_write_and_preserves_upload_error_when_chunk_failure_persistence_fails(): void
     {
         $chunkRepository = $this->app->make(ChunkRepository::class);
-        $failingRepository = $this->createMock(ChunkRepository::class);
+        $failingRepository = $this->createStub(ChunkRepository::class);
         $failingRepository->method('create')->willReturnCallback(
             fn (array $attributes) => $chunkRepository->create($attributes),
         );
