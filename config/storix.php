@@ -18,6 +18,7 @@ return [
     ],
 
     'downloads' => [
+        'max_size_bytes' => 1024 * 1024 * 1024,
         'spool_memory_bytes' => 8 * 1024 * 1024,
     ],
 
