@@ -360,8 +360,14 @@ final class DownloadManagerTest extends TestCase
 
         $file = $this->storeFile('symlink ancestors rejected');
 
-        $this->expectException(StorageOperationFailedException::class);
-        Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a'));
+        try {
+            Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a'));
+            self::fail('A symlinked lock-directory ancestor must be rejected.');
+        } catch (StorageOperationFailedException $exception) {
+            self::assertSame('download_capacity_lock', $exception->operation);
+        }
+
+        self::assertDirectoryDoesNotExist($target.DIRECTORY_SEPARATOR.'private-download-locks');
     }
 
     public function test_download_rejects_a_lock_directory_with_permissive_permissions(): void
