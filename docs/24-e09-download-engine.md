@@ -1,5 +1,9 @@
 # E09 — Download Engine
 
+## Status
+
+Implementation is present on `feature/e09-download-engine`; PR #13 head `80fe009ecdc9a36534d5b72bb7b3a3cd6975464e` passed its recorded SQLite, MySQL 8.4 and PostgreSQL 17 CI matrix in run [41279149419](https://github.com/shamimwhois/storix/actions/runs/41279149419), and all 18 review threads are resolved. That run was against the earlier E08 base `c788d86`, not the current verified E08 head `6935a116`. The E08-to-E09 branch comparison is diverged (E09 is 5 commits behind and 114 ahead), with overlapping changes in `docs/10-implementation-roadmap.md` and `docs/21-e08-recovery-and-retry.md`. Reconcile those files and revalidate E09 on the current E08 dependency before treating E09 as accepted or merge-ready. PR #13 remains open and unmerged.
+
 ## Scope
 
 E09 adds scoped, integrity-checked downloads over the provider-neutral StorageDriver::readStream() contract. It supports full-object streaming and byte ranges only when the selected driver advertises supportsStreaming and supportsRangeReads respectively.
