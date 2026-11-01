@@ -2,9 +2,9 @@
 
 ## Status
 
-Implementation and PRD reconciliation are complete for the current E08 branch head `6935a11638b9981c559f1dee26a4dd6416244bd6`. The cleanup-marker review finding was fixed by keeping `cleanup_pending` durable throughout provider I/O and retaining it after a point-in-time missing-object stat; the regression test simulates a late provider publication and a later sweep that removes it. The finding's review thread is resolved. The exact current head passed PHP 8.5 / Laravel 13 CI on SQLite, MySQL 8.4 and PostgreSQL 17 in run [41281544514](https://github.com/shamimwhois/storix/actions/runs/41281544514).
+E08 is integrated on top of the E07 merge commit through PR [#16](https://github.com/shamimwhois/storix/pull/16), from branch `integration/e08-on-main`. The current integration head is undergoing code and security review. The PR's SQLite, MySQL 8.4 and PostgreSQL 17 CI matrix passed before the latest review-driven fixes; those changes require a fresh current-head run. E08 is not merge-complete until the updated CI matrix passes and the review findings are resolved.
 
-PR #8 is open, non-draft and unmerged; it remains stacked on E07. Its implementation and branch CI are verified, but it is not release-complete until E07 is reconciled with the latest E06 branch and the full dependency chain is integrated and revalidated. Do not merge E08 directly into `main`.
+The integration preserves the fail-closed `cleanup_pending` marker during provider I/O and after a point-in-time missing-object stat. It also reserves recovery batch capacity for stale active transfers so terminal cleanup backlog cannot consume the entire pass.
 
 ## Goals
 
