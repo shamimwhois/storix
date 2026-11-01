@@ -17,8 +17,7 @@ final readonly class StorixManager
         private DriverManager $drivers,
         private ?UploadManager $uploads = null,
         private ?DownloadManager $downloads = null,
-    ) {
-    }
+    ) {}
 
     public function driver(?string $name = null): StorageDriver
     {
