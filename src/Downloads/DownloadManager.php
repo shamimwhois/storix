@@ -176,19 +176,7 @@ final class DownloadManager
             throw new StorageOperationFailedException('download_capacity_lock');
         }
 
-        if (DIRECTORY_SEPARATOR !== '\\') {
-            $directoryStat = @lstat($directory);
-            $effectiveUser = function_exists('posix_geteuid') ? posix_geteuid() : null;
-
-            if (
-                $directoryStat === false
-                || ($directoryStat['mode'] & 0170000) !== 0040000
-                || ($directoryStat['mode'] & 0077) !== 0
-                || ($effectiveUser !== null && $directoryStat['uid'] !== $effectiveUser)
-            ) {
-                throw new StorageOperationFailedException('download_capacity_lock');
-            }
-        }
+        $this->assertTrustedLockDirectory($directory);
 
         for ($slot = 0; $slot < $maximumConcurrent; $slot++) {
             $path = $directory.DIRECTORY_SEPARATOR.'slot-'.$slot.'.lock';
@@ -237,6 +225,59 @@ final class DownloadManager
         }
 
         throw new StorageOperationFailedException('download_capacity');
+    }
+
+    /**
+     * Reject writable, non-sticky ancestors so another local user cannot replace
+     * the validated lock directory between lstat() and opening a slot file.
+     */
+    private function assertTrustedLockDirectory(string $directory): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\\\') {
+            return;
+        }
+
+        $absolute = str_starts_with($directory, DIRECTORY_SEPARATOR)
+            ? $directory
+            : getcwd().DIRECTORY_SEPARATOR.$directory;
+        $segments = array_values(array_filter(
+            explode(DIRECTORY_SEPARATOR, $absolute),
+            static fn (string $segment): bool => $segment !== '' && $segment !== '.',
+        ));
+        $current = DIRECTORY_SEPARATOR;
+        $effectiveUser = function_exists('posix_geteuid') ? posix_geteuid() : null;
+        $lastIndex = count($segments) - 1;
+
+        foreach ($segments as $index => $segment) {
+            if ($segment === '..') {
+                throw new StorageOperationFailedException('download_capacity_lock');
+            }
+
+            $current = rtrim($current, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$segment;
+            $stat = @lstat($current);
+
+            if ($stat === false || ($stat['mode'] & 0170000) !== 0040000) {
+                throw new StorageOperationFailedException('download_capacity_lock');
+            }
+
+            if ($index === $lastIndex) {
+                if (
+                    ($stat['mode'] & 0077) !== 0
+                    || ($effectiveUser !== null && $stat['uid'] !== $effectiveUser)
+                ) {
+                    throw new StorageOperationFailedException('download_capacity_lock');
+                }
+
+                continue;
+            }
+
+            $writableByOtherUsers = ($stat['mode'] & 0022) !== 0;
+            $sticky = ($stat['mode'] & 01000) !== 0;
+
+            if ($writableByOtherUsers && $sticky === false) {
+                throw new StorageOperationFailedException('download_capacity_lock');
+            }
+        }
     }
 
     /** @param resource $lockHandle */
