@@ -9,11 +9,10 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use ShamimStack\Storix\DTOs\DownloadRequest;
 use ShamimStack\Storix\DTOs\DriverCapabilities;
-use ShamimStack\Storix\DTOs\StatObjectRequest;
 use ShamimStack\Storix\DTOs\StorageObjectMetadata;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
+use ShamimStack\Storix\DTOs\WriteResult;
 use ShamimStack\Storix\Drivers\DriverManager;
-use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Exceptions\UnsupportedCapabilityException;
 use ShamimStack\Storix\Exceptions\UploadIntegrityException;
@@ -122,7 +121,16 @@ final class DownloadManagerTest extends TestCase
     {
         $driver = $this->createMock(\ShamimStack\Storix\Contracts\StorageDriver::class);
         $driver->method('name')->willReturn('no-range');
-        $driver->method('capabilities')->willReturn(new DriverCapabilities(supportsRangeReads: false));\n        $driver->method('writeStream')->willReturnCallback(static function (WriteStreamRequest $request): WriteResult {\n            $contents = stream_get_contents($request->stream);\n\n            return new WriteResult(new StorageObjectMetadata(\n                key: $request->key,\n                sizeBytes: strlen($contents),\n                checksumSha256: hash('sha256', $contents),\n            ));\n        });
+        $driver->method('capabilities')->willReturn(new DriverCapabilities(supportsRangeReads: false));
+        $driver->method('writeStream')->willReturnCallback(static function (WriteStreamRequest $request): WriteResult {
+            $contents = stream_get_contents($request->stream);
+
+            return new WriteResult(new StorageObjectMetadata(
+                key: $request->key,
+                sizeBytes: strlen($contents),
+                checksumSha256: hash('sha256', $contents),
+            ));
+        });
         $this->app->make(DriverManager::class)->register('no-range', $driver);
         $file = $this->storeFile('range disabled', 'no-range');
 
