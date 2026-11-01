@@ -155,6 +155,44 @@ final class MultipartStorageDriverTest extends TestCase
         ));
     }
 
+    public function test_it_does_not_publish_when_workspace_cleanup_fails(): void
+    {
+        $key = 'multipart/cleanup-failure.txt';
+        $uploadId = $this->driver->beginMultipartWrite(new BeginMultipartWriteRequest(key: $key));
+        $stream = $this->stream('payload');
+
+        try {
+            $part = $this->driver->writeMultipartPart(new WriteMultipartPartRequest(
+                uploadId: $uploadId,
+                partNumber: 1,
+                stream: $stream,
+            ));
+        } finally {
+            fclose($stream);
+        }
+
+        $workspace = sys_get_temp_dir().DIRECTORY_SEPARATOR.'storix-multipart-'.$uploadId;
+        $unexpectedDirectory = $workspace.DIRECTORY_SEPARATOR.'unexpected-directory';
+        mkdir($unexpectedDirectory);
+
+        try {
+            $this->driver->completeMultipartWrite(new CompleteMultipartWriteRequest(
+                uploadId: $uploadId,
+                key: $key,
+                parts: [$part],
+                expectedSizeBytes: strlen('payload'),
+                expectedSha256: hash('sha256', 'payload'),
+            ));
+
+            self::fail('A workspace cleanup failure must prevent object publication.');
+        } catch (StorageOperationFailedException) {
+            self::assertFalse($this->driver->exists($key));
+        } finally {
+            rmdir($unexpectedDirectory);
+            $this->driver->abortMultipartWrite($uploadId);
+        }
+    }
+
     public function test_it_aborts_an_incomplete_multipart_workspace_idempotently(): void
     {
         $uploadId = $this->driver->beginMultipartWrite(new BeginMultipartWriteRequest(
