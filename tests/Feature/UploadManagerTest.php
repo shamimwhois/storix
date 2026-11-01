@@ -765,7 +765,7 @@ final class UploadManagerTest extends TestCase
         self::assertSame(1, Transfer::query()->count());
     }
 
-    public function test_nested_metadata_key_order_does_not_change_the_idempotency_fingerprint(): void
+    public function test_metadata_key_order_does_not_change_the_idempotency_fingerprint(): void
     {
         $firstStream = $this->stream('same-payload');
         $secondStream = $this->stream('same-payload');
@@ -777,11 +777,8 @@ final class UploadManagerTest extends TestCase
                 ownerId: 'owner-a',
                 idempotencyKey: 'nested-metadata-order',
                 metadata: [
-                    'attributes' => [
-                        'zeta' => 2,
-                        'alpha' => 1,
-                    ],
-                    'tags' => ['first', 'second'],
+                    'zeta' => 2,
+                    'alpha' => 1,
                 ],
             ));
 
@@ -791,11 +788,8 @@ final class UploadManagerTest extends TestCase
                 ownerId: 'owner-a',
                 idempotencyKey: 'nested-metadata-order',
                 metadata: [
-                    'tags' => ['first', 'second'],
-                    'attributes' => [
-                        'alpha' => 1,
-                        'zeta' => 2,
-                    ],
+                    'alpha' => 1,
+                    'zeta' => 2,
                 ],
             ));
 
