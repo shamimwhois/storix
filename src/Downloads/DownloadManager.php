@@ -233,7 +233,7 @@ final class DownloadManager
      */
     private function assertTrustedLockDirectory(string $directory): void
     {
-        if (DIRECTORY_SEPARATOR === '\\\\') {
+        if (DIRECTORY_SEPARATOR === '\\') {
             return;
         }
 
