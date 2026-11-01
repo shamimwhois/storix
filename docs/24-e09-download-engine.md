@@ -2,7 +2,7 @@
 
 ## Status
 
-Ported to `integration/e09-on-e08` from the verified E08 mainline. Current head `215b49ae66163bb54fab19c5aa156e918b841aef` passes the PHP 8.5 / Laravel 13 CI matrix on SQLite, MySQL 8.4, and PostgreSQL 17 (166 tests / 713 assertions per database), with Pint clean and zero PHPUnit notices. One Windows-specific test is skipped on Linux by design. Independent security review and final acceptance remain pending; E09 is not yet merged or release-ready.
+Ported to `integration/e09-on-e08` from the verified E08 mainline. The latest PR head passes the PHP 8.5 / Laravel 13 CI matrix on SQLite, MySQL 8.4, and PostgreSQL 17 (166 tests / 713 assertions per database), with Pint clean and zero PHPUnit notices. One Windows-specific test is skipped on Linux by design. One Windows-specific test is skipped on Linux by design. Independent security review and final acceptance remain pending; E09 is not yet merged or release-ready.
 
 ## Scope
 
