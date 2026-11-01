@@ -2,48 +2,41 @@
 
 ## 1. Example configuration
 
+The following excerpt matches the keys currently shipped by `config/storix.php`:
+
 ```php
 return [
-    'default_driver' => env('STORIX_DRIVER', 'local'),
+    'default' => env('STORIX_DRIVER', 'local'),
 
     'drivers' => [
         'local' => [
-            'disk' => env('STORIX_LOCAL_DISK', 'local'),
-            'prefix' => 'storix',
+            'root' => storage_path('app/storix'),
         ],
-        'telegram' => [
-            'enabled' => env('STORIX_TELEGRAM_ENABLED', false),
-            'bot_token' => env('STORIX_TELEGRAM_BOT_TOKEN'),
-            'chat_id' => env('STORIX_TELEGRAM_CHAT_ID'),
-            'api_base' => env('STORIX_TELEGRAM_API_BASE'),
-        ],
+    ],
+
+    'uploads' => [
+        'max_file_size_bytes' => 64 * 1024 * 1024,
+        'spool_memory_bytes' => 8 * 1024 * 1024,
     ],
 
     'transfers' => [
         'chunk_size' => 8 * 1024 * 1024,
-        'max_concurrency' => 3,
+        'max_parallel_chunks' => 3,
         'max_attempts' => 5,
-        'backoff_base_seconds' => 2,
-        'backoff_max_seconds' => 300,
+        'resume_lease_seconds' => 300,
+        'resume_lease_grace_seconds' => 60,
+        'recovery_lease_seconds' => 300,
+        'recovery_stale_seconds' => 300,
+        'heartbeat_interval_seconds' => 15,
         'session_ttl_hours' => 24,
-        'progress_persist_interval_ms' => 1000,
-    ],
-
-    'limits' => [
-        'max_file_size' => 10 * 1024 * 1024 * 1024,
-        'max_active_transfers_per_owner' => 5,
-        'temporary_disk_min_free_bytes' => 512 * 1024 * 1024,
-    ],
-
-    'api' => [
-        'enabled' => false,
-        'prefix' => 'api/v1/storix',
-        'middleware' => ['api', 'auth:sanctum'],
+        'retry_base_seconds' => 2,
+        'retry_max_seconds' => 300,
+        'retry_jitter_percent' => 20,
     ],
 ];
 ```
 
-These are illustrative defaults, not final values. Validate every setting and align limits with actual driver capability.
+These are the package's current defaults, not a production sizing recommendation. The local driver root is private application storage. The configured chunk and parallel limits do not imply that the Local multipart driver runs parallel workers; its current advertised concurrency is one. Telegram and other remote driver settings are not shipped in the current config and must not be assumed available.
 
 ## 2. E08 recovery and retry
 
