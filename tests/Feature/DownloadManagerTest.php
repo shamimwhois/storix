@@ -291,7 +291,7 @@ final class DownloadManagerTest extends TestCase
 
     public function test_download_rejects_a_filesystem_root_as_lock_directory(): void
     {
-        if (DIRECTORY_SEPARATOR === '\\\\') {
+        if (DIRECTORY_SEPARATOR === '\\') {
             self::markTestSkipped('POSIX filesystem-root path check is not available on Windows.');
         }
 
