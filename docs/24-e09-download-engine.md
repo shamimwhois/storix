@@ -6,7 +6,7 @@ E09 adds scoped, integrity-checked downloads over the provider-neutral StorageDr
 
 ## API
 
-Resolve the download service through Storix::downloads() and pass a typed DownloadRequest. The result exposes a readable PHP stream and metadata including content length, range start, partial-response state, and checksum verification. The caller owns the returned stream and must release it with DownloadResult::close(); this also releases the OS-level download-admission slot. Calling fclose() directly closes the stream but does not release the slot early.
+Resolve the download service through Storix::downloads() and pass a typed DownloadRequest. The result exposes a readable PHP stream and metadata including content length, range start, partial-response state, and checksum verification. The DownloadResult owns the returned stream. Keep the result alive while consuming the stream, then call DownloadResult::close(); this closes the stream and releases the OS-level download-admission slot. The destructor is a safety net that also closes the stream and releases the slot if the result is discarded.
 
 Example full download:
 
