@@ -62,6 +62,10 @@ final class DownloadManager
             throw new UploadIntegrityException;
         }
 
+        if ($request->isRangeRequest() && (int) $request->offset >= $metadata->sizeBytes) {
+            throw new StorageOperationFailedException('download_range');
+        }
+
         $verified = $this->stageAndVerify(
             $driver->readStream(new ReadStreamRequest((string) $file->storage_key)),
             (int) $file->size_bytes,
@@ -75,12 +79,6 @@ final class DownloadManager
         }
 
         $offset = (int) $request->offset;
-
-        if ($offset >= $verified['size']) {
-            fclose($verified['stream']);
-
-            throw new StorageOperationFailedException('download_range');
-        }
 
         $length = min((int) $request->length, $verified['size'] - $offset);
         $range = null;
