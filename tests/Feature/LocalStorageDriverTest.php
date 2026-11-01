@@ -108,6 +108,39 @@ final class LocalStorageDriverTest extends TestCase
     }
 
     /**
+     * A missing multipart workspace is restartable, while its stable error remains sanitized.
+     */
+    public function test_a_missing_multipart_workspace_is_classified_as_restartable(): void
+    {
+        $driver = $this->driver();
+        $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest('missing-session.txt'));
+        $workspace = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
+            .DIRECTORY_SEPARATOR.'storix-multipart-'.$uploadId;
+
+        self::assertDirectoryExists($workspace);
+        rmdir($workspace);
+
+        $stream = $this->inputStream('part payload');
+
+        try {
+            $driver->writeMultipartPart(new WriteMultipartPartRequest(
+                uploadId: $uploadId,
+                partNumber: 1,
+                stream: $stream,
+            ));
+            self::fail('A missing multipart workspace must be reported.');
+        } catch (StorageOperationFailedException $exception) {
+            self::assertSame('multipart_workspace_missing', $exception->operation);
+            self::assertSame(
+                ShamimStack\Storix\Enums\FailureCategory::TRANSIENT,
+                $this->app->make(\ShamimStack\Storix\Services\ErrorClassifier::class)->classify($exception),
+            );
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    /**
      * Verify orphaned staging files remain hidden from object listings.
      */
     public function test_directory_listing_omits_orphaned_staging_files(): void
