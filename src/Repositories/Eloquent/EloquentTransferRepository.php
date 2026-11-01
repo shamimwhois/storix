@@ -93,22 +93,21 @@ final class EloquentTransferRepository implements TransferRepository
                     TransferState::VERIFYING->value,
                 ]);
 
-                if ($allowTerminalCleanup === false) {
-                    return;
-                }
-
-                $query->orWhere(function (Builder $terminal): void {
-                    $terminal->whereIn('state', [
-                        TransferState::COMPLETED->value,
-                        TransferState::FAILED->value,
-                        TransferState::CANCELLED->value,
-                        TransferState::EXPIRED->value,
-                    ])->where(function (Builder $cleanup): void {
-                        $cleanup->whereNotNull('multipart_upload_id')
-                            ->orWhere('cleanup_pending', true);
+                if ($allowTerminalCleanup) {
+                    $query->orWhere(function (Builder $terminal): void {
+                        $terminal->whereIn('state', [
+                            TransferState::COMPLETED->value,
+                            TransferState::FAILED->value,
+                            TransferState::CANCELLED->value,
+                            TransferState::EXPIRED->value,
+                        ])->where(function (Builder $cleanup): void {
+                            $cleanup->whereNotNull('multipart_upload_id')
+                                ->orWhere('cleanup_pending', true);
+                        });
                     });
-                });
+                }
             })
+            ->when($allowTerminalCleanup === false, fn (Builder $query) => $query->where('cleanup_pending', false))
             ->where(function (Builder $query) use ($claimExpiredBefore): void {
                 $query->whereNull('resume_lease_expires_at')
                     ->orWhere('resume_lease_expires_at', '<=', $claimExpiredBefore);
