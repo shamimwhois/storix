@@ -8,10 +8,10 @@ use DateTimeInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use PHPUnit\Framework\Assert;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Assert;
 use ShamimStack\Storix\Contracts\MultipartStorageDriver;
 use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
 use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
@@ -212,9 +212,7 @@ final class UploadManagerTest extends TestCase
         $repository = $this->app->make(TransferRepository::class);
         $fencedRepository = new class($repository) implements TransferRepository
         {
-            public function __construct(private readonly TransferRepository $inner)
-            {
-            }
+            public function __construct(private readonly TransferRepository $inner) {}
 
             public function create(array $attributes): Transfer
             {
