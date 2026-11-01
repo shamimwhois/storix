@@ -213,6 +213,8 @@ final class UploadManagerTest extends TestCase
         $repository = $this->app->make(TransferRepository::class);
         $fencedRepository = new class($repository) implements TransferRepository
         {
+            private bool $finalizationOwnershipChecked = false;
+
             public function __construct(private readonly TransferRepository $inner) {}
 
             public function create(array $attributes): Transfer
@@ -257,8 +259,6 @@ final class UploadManagerTest extends TestCase
                     $allowTerminalCleanup,
                 );
             }
-
-            private bool $finalizationOwnershipChecked = false;
 
             public function ownsResumeLease(string $transferId, string $token, DateTimeInterface $now): bool
             {
@@ -619,7 +619,6 @@ final class UploadManagerTest extends TestCase
             'total_chunks' => 3,
             'completed_chunks' => 1,
             'fingerprint' => $fingerprint,
-            'idempotency_scope' => hash('sha256', json_encode([$tenantId, $ownerId], JSON_THROW_ON_ERROR)),
             'idempotency_key' => $idempotencyKey,
             'attempts' => 1,
             'max_attempts' => 5,
@@ -803,7 +802,7 @@ final class UploadManagerTest extends TestCase
             'visibility' => ObjectVisibility::PRIVATE,
             'metadata' => [],
         ]);
-        $transfer = Transfer::query()->create([
+        $transfer = $this->app->make(TransferRepository::class)->create([
             'file_id' => $file->id,
             'tenant_id' => $tenantId,
             'owner_id' => $ownerId,
@@ -886,7 +885,7 @@ final class UploadManagerTest extends TestCase
             'visibility' => ObjectVisibility::PRIVATE,
             'metadata' => [],
         ]);
-        $transfer = Transfer::query()->create([
+        $transfer = $this->app->make(TransferRepository::class)->create([
             'file_id' => $file->id,
             'tenant_id' => $tenantId,
             'owner_id' => $ownerId,
