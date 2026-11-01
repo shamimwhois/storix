@@ -213,7 +213,7 @@ final class DownloadManager
     }
 
     /** @param resource $source
-     * @return array{stream: resource, size: int, sha256: string}
+     * @return array{size: int, sha256: string}
      */
     private function verifyRangeStream(mixed $source, int $expectedSize, string $expectedSha256): array
     {
@@ -225,52 +225,114 @@ final class DownloadManager
 
         if (($metadata['seekable'] ?? false) === false) {
             $staged = $this->stageStream($source, $expectedSize);
-        } else {
-            $hash = hash_init('sha256');
-            $size = 0;
 
             try {
-                while (feof($source) === false) {
-                    $chunk = @fread($source, self::IO_CHUNK_BYTES);
-
-                    if ($chunk === false || ($chunk === '' && feof($source) === false)) {
-                        throw new StorageOperationFailedException('read');
-                    }
-
-                    if ($chunk === '') {
-                        break;
-                    }
-
-                    $size += strlen($chunk);
-
-                    if ($size > $expectedSize) {
-                        throw new UploadIntegrityException;
-                    }
-
-                    hash_update($hash, $chunk);
+                if (
+                    $staged['size'] !== $expectedSize
+                    || hash_equals($expectedSha256, $staged['sha256']) === false
+                ) {
+                    throw new UploadIntegrityException;
                 }
 
-                if (rewind($source) === false) {
-                    throw new StorageOperationFailedException('download_stage');
+                return ['size' => $staged['size'], 'sha256' => $staged['sha256']];
+            } finally {
+                if (is_resource($staged['stream'])) {
+                    fclose($staged['stream']);
                 }
-
-                $staged = ['stream' => $source, 'size' => $size, 'sha256' => hash_final($hash)];
-            } catch (Throwable $exception) {
-                fclose($source);
-
-                throw $exception;
             }
         }
 
-        if ($staged['size'] !== $expectedSize || hash_equals($expectedSha256, $staged['sha256']) === false) {
-            fclose($staged['stream']);
+        $hash = hash_init('sha256');
+        $size = 0;
 
-            throw new UploadIntegrityException;
+        try {
+            while (feof($source) === false) {
+                $chunk = @fread($source, self::IO_CHUNK_BYTES);
+
+                if ($chunk === false || ($chunk === '' && feof($source) === false)) {
+                    throw new StorageOperationFailedException('read');
+                }
+
+                if ($chunk === '') {
+                    break;
+                }
+
+                $size += strlen($chunk);
+
+                if ($size > $expectedSize) {
+                    throw new UploadIntegrityException;
+                }
+
+                hash_update($hash, $chunk);
+            }
+
+            $sha256 = hash_final($hash);
+
+            if ($size !== $expectedSize || hash_equals($expectedSha256, $sha256) === false) {
+                throw new UploadIntegrityException;
+            }
+
+            return ['size' => $size, 'sha256' => $sha256];
+        } finally {
+            if (is_resource($source)) {
+                fclose($source);
+            }
+        }
+    }
+
+    /** @param resource $verified
+     * @return array{stream: resource, size: int, sha256: string}
+     */
+    private function copyRange(mixed $verified, int $offset, int $length, string $expectedSha256): array
+    {
+        $memoryLimit = max(1_048_576, (int) $this->config->get('storix.downloads.spool_memory_bytes', 8 * 1024 * 1024));
+        $destination = @fopen('php://temp/maxmemory:'.$memoryLimit, 'w+b');
+
+        if ($destination === false) {
+            throw new StorageOperationFailedException('download_stage');
         }
 
-        rewind($staged['stream']);
+        if (fseek($verified, $offset, SEEK_SET) !== 0) {
+            fclose($destination);
 
-        return $staged;
+            throw new StorageOperationFailedException('download_range');
+        }
+
+        $hash = hash_init('sha256');
+        $remaining = $length;
+        $size = 0;
+
+        try {
+            while ($remaining > 0) {
+                $chunk = @fread($verified, min(self::IO_CHUNK_BYTES, $remaining));
+
+                if ($chunk === false || $chunk === '') {
+                    throw new UploadIntegrityException;
+                }
+
+                $this->writeAll($destination, $chunk);
+                hash_update($hash, $chunk);
+                $chunkSize = strlen($chunk);
+                $size += $chunkSize;
+                $remaining -= $chunkSize;
+            }
+
+            $sha256 = hash_final($hash);
+
+            if ($size !== $length || hash_equals($expectedSha256, $sha256) === false) {
+                throw new UploadIntegrityException;
+            }
+
+            if (rewind($destination) === false) {
+                throw new StorageOperationFailedException('download_stage');
+            }
+
+            return ['stream' => $destination, 'size' => $size, 'sha256' => $sha256];
+        } catch (Throwable $exception) {
+            fclose($destination);
+
+            throw $exception;
+        }
     }
 
     /** @param resource $source
