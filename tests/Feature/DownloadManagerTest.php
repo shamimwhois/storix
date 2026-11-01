@@ -12,6 +12,7 @@ use ShamimStack\Storix\Contracts\StorageDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\DTOs\DownloadRequest;
 use ShamimStack\Storix\DTOs\DriverCapabilities;
+use ShamimStack\Storix\DTOs\ReadStreamRequest;
 use ShamimStack\Storix\DTOs\StorageObjectMetadata;
 use ShamimStack\Storix\DTOs\WriteResult;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
@@ -147,6 +148,59 @@ final class DownloadManagerTest extends TestCase
 
         $this->expectException(StorageOperationFailedException::class);
         Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a', 5, 1));
+    }
+
+    public function test_seekable_native_range_stream_is_verified_without_a_second_spool_copy(): void
+    {
+        $contents = '0123456789abcdef';
+        $rangeContents = substr($contents, 4, 6);
+        $rangeStream = null;
+        $driver = $this->createMock(StorageDriver::class);
+        $driver->method('name')->willReturn('seekable-range');
+        $driver->method('capabilities')->willReturn(new DriverCapabilities(supportsRangeReads: true));
+        $driver->method('stat')->willReturn(new StorageObjectMetadata(
+            key: 'range/object.bin',
+            sizeBytes: strlen($contents),
+            checksumSha256: hash('sha256', $contents),
+        ));
+        $driver->method('readStream')->willReturnCallback(static function (ReadStreamRequest $request) use ($contents, $rangeContents, &$rangeStream) {
+            $stream = fopen('php://temp', 'w+b');
+            fwrite($stream, $request->offset === null ? $contents : $rangeContents);
+            rewind($stream);
+
+            if ($request->offset !== null) {
+                $rangeStream = $stream;
+            }
+
+            return $stream;
+        });
+        $this->app->make(DriverManager::class)->register('seekable-range', $driver);
+
+        $file = $this->app->make(StoredFileRepository::class)->create([
+            'tenant_id' => 'tenant-a',
+            'owner_id' => 'owner-a',
+            'directory_id' => null,
+            'driver' => 'seekable-range',
+            'name' => 'object.bin',
+            'original_name' => 'object.bin',
+            'extension' => 'bin',
+            'mime_type' => 'application/octet-stream',
+            'size_bytes' => strlen($contents),
+            'sha256' => hash('sha256', $contents),
+            'storage_key' => 'range/object.bin',
+            'status' => 'available',
+            'visibility' => 'private',
+            'metadata' => [],
+        ]);
+
+        $result = Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a', 4, 6));
+
+        try {
+            self::assertSame($rangeStream, $result->stream);
+            self::assertSame($rangeContents, stream_get_contents($result->stream));
+        } finally {
+            $result->close();
+        }
     }
 
     public function test_download_size_limit_is_checked_before_reading_the_provider(): void
