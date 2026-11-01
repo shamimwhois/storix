@@ -15,9 +15,11 @@ use ShamimStack\Storix\DTOs\ReadStreamRequest;
 use ShamimStack\Storix\DTOs\StatObjectRequest;
 use ShamimStack\Storix\DTOs\WriteMultipartPartRequest;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
+use ShamimStack\Storix\Enums\FailureCategory;
 use ShamimStack\Storix\Enums\StorixErrorCode;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Facades\Storix;
+use ShamimStack\Storix\Services\ErrorClassifier;
 use ShamimStack\Storix\Tests\TestCase;
 
 final class LocalStorageDriverTest extends TestCase
@@ -133,8 +135,8 @@ final class LocalStorageDriverTest extends TestCase
         } catch (StorageOperationFailedException $exception) {
             self::assertSame('multipart_workspace_missing', $exception->operation);
             self::assertSame(
-                ShamimStack\Storix\Enums\FailureCategory::TRANSIENT,
-                $this->app->make(\ShamimStack\Storix\Services\ErrorClassifier::class)->classify($exception),
+                FailureCategory::TRANSIENT,
+                $this->app->make(ErrorClassifier::class)->classify($exception),
             );
         } finally {
             fclose($stream);
