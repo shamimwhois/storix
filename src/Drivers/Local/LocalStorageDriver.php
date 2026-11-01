@@ -756,8 +756,12 @@ final class LocalStorageDriver implements DirectoryDriver, MultipartStorageDrive
     {
         $directory = $this->multipartDirectory($uploadId);
 
-        if (is_link($directory) || is_dir($directory) === false) {
+        if (is_link($directory)) {
             throw new StorageOperationFailedException('multipart_workspace');
+        }
+
+        if (is_dir($directory) === false) {
+            throw new StorageOperationFailedException('multipart_workspace_missing');
         }
 
         return $directory;
