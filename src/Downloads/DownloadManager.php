@@ -234,6 +234,8 @@ final class DownloadManager
     private function assertTrustedLockDirectory(string $directory): void
     {
         if (DIRECTORY_SEPARATOR === '\\') {
+            $this->assertTrustedWindowsLockDirectory($directory);
+
             return;
         }
 
