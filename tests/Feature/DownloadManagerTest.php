@@ -92,7 +92,7 @@ final class DownloadManagerTest extends TestCase
 
         $file->status = 'available';
         $file->save();
-        file_put_contents($this->root.DIRECTORY_SEPARATOR.$file->storage_key, 'tampered bytes');
+        file_put_contents($this->root.DIRECTORY_SEPARATOR.$file->storage_key, 'tampered_bytes!');
 
         $this->expectException(UploadIntegrityException::class);
         Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a'));
@@ -304,6 +304,31 @@ final class DownloadManagerTest extends TestCase
         } catch (StorageOperationFailedException $exception) {
             self::assertSame('download_capacity_lock', $exception->operation);
         }
+    }
+
+    public function test_download_rejects_a_lock_directory_below_a_writable_non_sticky_ancestor(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\\\') {
+            self::markTestSkipped('POSIX directory permission checks are not available on Windows.');
+        }
+
+        $parent = $this->root.DIRECTORY_SEPARATOR.'writable-parent';
+        mkdir($parent, 0700, true);
+        chmod($parent, 0777);
+
+        $directory = $parent.DIRECTORY_SEPARATOR.'private-download-locks';
+        mkdir($directory, 0700);
+        chmod($directory, 0700);
+
+        config([
+            'storix.downloads.max_concurrent_downloads' => 1,
+            'storix.downloads.lock_directory' => $directory,
+        ]);
+
+        $file = $this->storeFile('trusted ancestors required');
+
+        $this->expectException(StorageOperationFailedException::class);
+        Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a'));
     }
 
     public function test_download_rejects_a_lock_directory_with_permissive_permissions(): void
