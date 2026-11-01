@@ -92,6 +92,31 @@ final class TransferRecoveryTest extends TestCase
         self::assertNull($transfer->resume_lease_token);
     }
 
+    public function test_terminal_cleanup_backlog_cannot_starve_active_recovery(): void
+    {
+        $this->makeTransfer(null, TransferState::FAILED, attempts: 5, cleanupPending: true);
+        $this->makeTransfer(null, TransferState::FAILED, attempts: 5, cleanupPending: true);
+        $active = $this->makeTransfer(
+            null,
+            TransferState::RETRY_WAIT,
+            attempts: 1,
+            lastErrorCode: 'STORAGE_OPERATION_FAILED',
+        );
+
+        $summary = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 2,
+            staleSeconds: 60,
+        );
+
+        $active->refresh();
+
+        self::assertSame(2, $summary['examined']);
+        self::assertSame(1, $summary['cleaned']);
+        self::assertSame(1, $summary['waiting']);
+        self::assertSame(TransferState::RETRY_WAIT, $active->state);
+        self::assertNotNull($active->next_retry_at);
+    }
+
     public function test_it_recovers_a_published_object_after_the_process_crashes_before_database_finalization(): void
     {
         $contents = 'completed-by-provider-before-database-commit';
