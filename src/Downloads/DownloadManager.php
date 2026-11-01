@@ -11,6 +11,7 @@ use ShamimStack\Storix\DTOs\DownloadRequest;
 use ShamimStack\Storix\DTOs\DownloadResult;
 use ShamimStack\Storix\DTOs\ReadStreamRequest;
 use ShamimStack\Storix\DTOs\StatObjectRequest;
+use ShamimStack\Storix\Exceptions\DownloadTooLargeException;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Exceptions\UnsupportedCapabilityException;
 use ShamimStack\Storix\Exceptions\UploadIntegrityException;
@@ -60,6 +61,12 @@ final class DownloadManager
             || preg_match('/^[a-f0-9]{64}$/i', (string) $file->sha256) !== 1
         ) {
             throw new UploadIntegrityException;
+        }
+
+        $maximumBytes = $this->config->get('storix.downloads.max_size_bytes', 1024 * 1024 * 1024);
+
+        if ($maximumBytes !== null && $metadata->sizeBytes > (int) $maximumBytes) {
+            throw new DownloadTooLargeException((int) $maximumBytes);
         }
 
         if ($request->isRangeRequest() && (int) $request->offset >= $metadata->sizeBytes) {
