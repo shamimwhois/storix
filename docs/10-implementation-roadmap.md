@@ -133,7 +133,7 @@ Implement sequentially; do not start provider-specific work before core contract
 
 ## Milestone policy
 
-Verified GitHub state on 2026-11-01:
+Verified GitHub state on 2026-11-02:
 
 | Epic | Repository state | PR | Completion interpretation |
 |---|---|---|---|
@@ -142,13 +142,13 @@ Verified GitHub state on 2026-11-01:
 | E06 Chunk Engine | Merged into `main` | #6 merged | Complete |
 | E07 Resume & Idempotency | Merged into `main` | #7 integrated through #15 | Complete |
 | E08 Recovery & Retry | Merged into `main` | #16 merged | Complete; merge commit `9275ff5...` |
-| E09 Download Engine | `integration/e09-on-e08` | #17 draft | Current head `2d0f9ef...` passes SQLite/MySQL 8.4/PostgreSQL 17 CI; security review and acceptance pending |
+| E09 Download Engine | `integration/e09-on-e08` | #17 open, ready for review | Implementation head `f6eb75c4ceb7ceca990204608bae0db09a2695c5` passed the three-database CI matrix; review-feedback follow-up changes require a fresh CI run; security review and acceptance pending |
 
 E06, E07, and E08 are integrated into `main`. E09 is being validated on a clean branch based on the E08 merge commit. Keep each PR's implementation evidence distinct; a green run on an earlier head does not verify later commits.
 
 E08 includes failure classification, persisted backoff deadlines, retry-deadline enforcement, token-owned recovery leases and heartbeats, provider-published object recovery after independent size/SHA-256 verification, stale-session expiry, and terminal multipart cleanup. The Artisan command supports bounded candidate counts and aggregate-only dry-run. A recovery pass cannot recreate missing source bytes; callers must resubmit the original source stream after the persisted retry deadline. E08 was merged after its full database CI matrix, code review, security review, and migration rollback/reapply checks passed.
 
-The E07 CI run recorded 102 tests / 424 assertions on SQLite, MySQL 8.4, and PostgreSQL 17. E08 was validated on its final pre-merge head with the same three-database matrix and then merged. E09's latest PR head passed Pint and 166 tests / 713 assertions on each of SQLite, MySQL 8.4, and PostgreSQL 17, with zero PHPUnit notices. One Windows-specific test is skipped on Linux by design. E09 still requires independent security review, documentation acceptance, and final PR approval before merge. Driver-call heartbeat during a single blocking provider operation, queue-based source re-submission, and remote-provider recovery semantics remain follow-up work.
+The E07 CI run recorded 102 tests / 424 assertions on SQLite, MySQL 8.4, and PostgreSQL 17. E08 was validated on its final pre-merge head with the same three-database matrix and then merged. E09 implementation head `f6eb75c4ceb7ceca990204608bae0db09a2695c5` passed Pint and 166 tests / 713 assertions on each of SQLite, MySQL 8.4, and PostgreSQL 17, with zero PHPUnit notices. One Windows-specific test is skipped on Linux by design. Subsequent review-feedback changes must pass CI on their exact new head. E09 still requires independent security review, documentation acceptance, and final PR approval before merge. Driver-call heartbeat during a single blocking provider operation, queue-based source re-submission, and remote-provider recovery semantics remain follow-up work.
 
 
 Do not call E01/E02 a production engine. A first usable local-storage release requires at least E01–E05. A resumable/recoverable release requires E01–E10. Production readiness requires all applicable release gates and real deployment validation. E04 is complete only after the current CI workflow passes, all required code and security review findings are addressed, all review threads are resolved, and the work is merged into `main`.
