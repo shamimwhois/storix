@@ -1,6 +1,6 @@
 # E06 — Chunk Engine
 
-**Status:** Implementation in progress on feature/e06-chunk-engine  
+**Status:** Implemented on `feature/e06-chunk-engine`; latest PR head `21542bc19b015a4e52ba5f7711086f3abed1cb5e` passed SQLite, MySQL 8.4 and PostgreSQL 17 in CI run [41281249105](https://github.com/shamimwhois/storix/actions/runs/41281249105). All four PR review threads are resolved. PR #6 remains open and unmerged; E06 is not released until the PR is merged into `main`.  
 **Depends on:** E01–E05  
 **Target:** PHP 8.5+, Laravel 13.x  
 **Package:** shamimstack/storix
