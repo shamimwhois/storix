@@ -11,6 +11,7 @@ use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
 use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
 use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
 use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
+use ShamimStack\Storix\Downloads\DownloadManager;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentChunkRepository;
@@ -25,7 +26,7 @@ use ShamimStack\Storix\Uploads\UploadManager;
 final class StorixServiceProvider extends ServiceProvider
 {
     /**
-     * Merge package configuration and register drivers, upload services and persistence repositories.
+     * Merge package configuration and register drivers, transfer services and persistence repositories.
      */
     public function register(): void
     {
@@ -45,7 +46,7 @@ final class StorixServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(UploadManager::class, function ($app): UploadManager {
-            $manager = new UploadManager(
+            return new UploadManager(
                 $app->make(DriverManager::class),
                 $app->make(StoredFileRepository::class),
                 $app->make(TransferRepository::class),
@@ -56,8 +57,14 @@ final class StorixServiceProvider extends ServiceProvider
                 $app->make(ConfigRepository::class),
                 $app->make(RetryPolicy::class),
             );
+        });
 
-            return $manager;
+        $this->app->singleton(DownloadManager::class, function ($app): DownloadManager {
+            return new DownloadManager(
+                $app->make(DriverManager::class),
+                $app->make(StoredFileRepository::class),
+                $app->make(ConfigRepository::class),
+            );
         });
 
         $this->app->bind(DirectoryRepository::class, EloquentDirectoryRepository::class);
@@ -69,6 +76,7 @@ final class StorixServiceProvider extends ServiceProvider
             return new StorixManager(
                 $app->make(DriverManager::class),
                 $app->make(UploadManager::class),
+                $app->make(DownloadManager::class),
             );
         });
     }
