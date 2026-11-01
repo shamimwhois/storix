@@ -5,8 +5,8 @@ All notable changes to Storix are documented in this file.
 ## Unreleased
 
 ### Added
-- E07 durable multipart session reconciliation, token-owned resume leases, idempotent replay/conflict handling, and verified-part reuse across application-container restarts (PR #7 pending merge).
-- E08 bounded retry policy, persisted retry deadlines, stale-transfer recovery, cleanup-only retries, recovery leases, integrity-checked publication recovery, and the `storix:transfers:recover` command (PR #8 pending merge).
+- E07 durable multipart session reconciliation, token-owned resume leases, idempotent replay/conflict handling, and verified-part reuse across application-container restarts (merged into `main` via PR #15).
+- E08 bounded retry policy, persisted retry deadlines, stale-transfer recovery, cleanup-only retries, recovery leases, integrity-checked publication recovery, and the `storix:transfers:recover` command (integration PR pending current-head CI).
 - E08 regression tests for sessionless retries, expired/cleanup-pending rejection, lease takeover/finalization fencing, terminal cleanup retries, and recovery command exit semantics.
 - E06 capability-gated multipart chunk uploads with deterministic planning, durable per-chunk state, SHA-256 part verification, bounded temporary staging, and atomic final-object publication on the Local driver.
 - E06 regression coverage for chunk planning, multipart DTO validation, local finalization, workspace isolation, and cleanup.
