@@ -175,7 +175,7 @@ final class DownloadManagerTest extends TestCase
             sizeBytes: strlen($contents),
             checksumSha256: hash('sha256', $contents),
         ));
-        $driver->method('readStream')->willReturnCallback(static function (ReadStreamRequest $request) use ($contents, $rangeContents, &$rangeStream, &$rangeRequest) {
+        $driver->method('readStream')->willReturnCallback(static function (ReadStreamRequest $request) use ($contents, &$rangeContents, &$rangeStream, &$rangeRequest) {
             $stream = fopen('php://temp', 'w+b');
             fwrite($stream, $request->offset === null ? $contents : $rangeContents);
             rewind($stream);
@@ -217,6 +217,16 @@ final class DownloadManagerTest extends TestCase
             self::assertSame($rangeContents, stream_get_contents($result->stream));
         } finally {
             $result->close();
+        }
+
+        // A provider must not be able to substitute same-length bytes for a requested range.
+        $rangeContents = 'xxxxxx';
+
+        try {
+            Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a', 4, 6));
+            self::fail('Expected mismatched native-range bytes to fail integrity verification.');
+        } catch (UploadIntegrityException) {
+            self::assertTrue(true);
         }
     }
 
