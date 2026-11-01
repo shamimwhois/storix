@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation and PRD reconciliation are in progress on `feature/e08-recovery-retry`, stacked on E07. PR #8 is the source of truth for the current branch head and its required checks. CI runs on every commit across PHP 8.5 / Laravel 13 with SQLite, MySQL 8.4 and PostgreSQL 17; earlier runs on superseded commits must not be used as evidence for the latest head. One earlier run failed before PHPUnit because Pint reported two style issues; both were corrected in subsequent commits. The latest branch-head CI and full CodeRabbit review must pass before E08 can be marked verified.
+Implementation and PRD reconciliation are in progress on `feature/e08-recovery-retry`, stacked on E07. PR #8 is the source of truth for the current branch head and its required checks. CI runs on every commit across PHP 8.5 / Laravel 13 with SQLite, MySQL 8.4 and PostgreSQL 17; earlier runs on superseded commits must not be used as evidence for the latest head. One earlier run failed before PHPUnit because Pint reported two style issues; both were corrected in subsequent commits. The latest recorded pre-hardening branch head passed CI, but the cleanup-marker review finding remains a release gate. Re-run the full matrix and resolve all review threads against the updated head before E08 can be marked verified.
 
 The E08 migration rollback/reapply and preservation tests are included in the suite, but final-head execution must pass before they are verified. PR #8 remains draft and is not merged or release-complete. Do not merge this branch directly into `main`; E07 remains stacked on E06.
 
@@ -71,8 +71,9 @@ The recovery command examines stale active transfers and terminal records that c
 - A verified published object is promoted to an available file and completed transfer even if the session has expired or the retry budget is exhausted; recovery must never delete that verified object as abandoned work.
 - A terminal transfer with a leftover multipart identifier has that session cleaned without deleting a file already marked available.
 - A terminal failed transfer with an object-delete failure retains `cleanup_pending`; later sweeps retry deleting that unpublished object even when no multipart identifier remains.
-- Cleanup failures leave the multipart identifier or cleanup marker intact for a later recovery attempt; a successful cleanup clears the marker so it is not scanned indefinitely.
-- If a terminal cleanup provider call outlives its recovery lease and then fails, the catch path restores `cleanup_pending` without requiring lease ownership; the next sweep still reclaims the transfer through the normal lease/grace checks.
+- The marker stays set throughout provider I/O. If a sweep finds no object, it retains the marker because a provider write accepted earlier may still publish later; a subsequent sweep can discover and remove that late object.
+- The marker is cleared only after cleanup has actually located and removed the unpublished object (or safely preserved an already-available file while aborting its leftover session). A missing-object stat alone never clears it. When the provider cannot establish that cleanup is safe, the row remains visible to later sweeps and a retry may remain blocked indefinitely pending stronger storage-level fencing or operator resolution.
+- If a terminal cleanup provider call outlives its recovery lease and then fails, the catch path preserves `cleanup_pending` without requiring lease ownership; the next sweep still reclaims the transfer through the normal lease/grace checks.
 
 The Local driver treats abort of a missing multipart workspace as idempotent. Remote providers must implement equivalent safe abort semantics before they are considered compatible with this recovery flow.
 
