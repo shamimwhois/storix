@@ -163,7 +163,8 @@ final class UploadManagerTest extends TestCase
         $transfer = Transfer::query()->where('idempotency_key', 'late-provider-write')->firstOrFail();
         $file = StoredFile::query()->findOrFail($transfer->file_id);
 
-        self::assertTrue($transfer->resume_lease_expires_at->isPast());
+        self::assertNull($transfer->resume_lease_token);
+        self::assertNull($transfer->resume_lease_expires_at);
         self::assertTrue($transfer->cleanup_pending);
         self::assertSame('processing', $file->status);
         self::assertNotSame(TransferState::COMPLETED, $transfer->state);
@@ -618,6 +619,7 @@ final class UploadManagerTest extends TestCase
             'total_chunks' => 3,
             'completed_chunks' => 1,
             'fingerprint' => $fingerprint,
+            'idempotency_scope' => hash('sha256', json_encode([$tenantId, $ownerId], JSON_THROW_ON_ERROR)),
             'idempotency_key' => $idempotencyKey,
             'attempts' => 1,
             'max_attempts' => 5,
