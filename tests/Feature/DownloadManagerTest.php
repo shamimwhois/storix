@@ -157,7 +157,7 @@ final class DownloadManagerTest extends TestCase
             sizeBytes: 5,
             checksumSha256: hash('sha256', '12345'),
         ));
-        $driver->expects(self::never())->method('readStream');
+        $driver->expects($this->never())->method('readStream');
         $this->app->make(DriverManager::class)->register('range-guard', $driver);
 
         $file = $this->app->make(\ShamimStack\Storix\Contracts\Repositories\StoredFileRepository::class)->create([
