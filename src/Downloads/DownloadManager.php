@@ -111,7 +111,7 @@ final class DownloadManager
     }
 
     /** @param resource $source
-     *  @return array{stream: resource, size: int, sha256: string}
+     * @return array{stream: resource, size: int, sha256: string}
      */
     private function stageAndVerify(mixed $source, int $expectedSize, string $expectedSha256): array
     {
