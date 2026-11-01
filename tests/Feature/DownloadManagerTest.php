@@ -166,6 +166,7 @@ final class DownloadManagerTest extends TestCase
         $contents = '0123456789abcdef';
         $rangeContents = substr($contents, 4, 6);
         $rangeStream = null;
+        $rangeRequest = null;
         $driver = $this->createStub(StorageDriver::class);
         $driver->method('name')->willReturn('seekable-range');
         $driver->method('capabilities')->willReturn(new DriverCapabilities(supportsRangeReads: true));
@@ -174,13 +175,14 @@ final class DownloadManagerTest extends TestCase
             sizeBytes: strlen($contents),
             checksumSha256: hash('sha256', $contents),
         ));
-        $driver->method('readStream')->willReturnCallback(static function (ReadStreamRequest $request) use ($contents, $rangeContents, &$rangeStream) {
+        $driver->method('readStream')->willReturnCallback(static function (ReadStreamRequest $request) use ($contents, $rangeContents, &$rangeStream, &$rangeRequest) {
             $stream = fopen('php://temp', 'w+b');
             fwrite($stream, $request->offset === null ? $contents : $rangeContents);
             rewind($stream);
 
             if ($request->offset !== null) {
                 $rangeStream = $stream;
+                $rangeRequest = $request;
             }
 
             return $stream;
@@ -207,6 +209,9 @@ final class DownloadManagerTest extends TestCase
         $result = Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a', 4, 6));
 
         try {
+            self::assertNotNull($rangeRequest);
+            self::assertSame(4, $rangeRequest->offset);
+            self::assertSame(6, $rangeRequest->length);
             self::assertNotSame($rangeStream, $result->stream);
             self::assertFalse(is_resource($rangeStream));
             self::assertSame($rangeContents, stream_get_contents($result->stream));
