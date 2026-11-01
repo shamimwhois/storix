@@ -9,9 +9,11 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use ShamimStack\Storix\DTOs\DownloadRequest;
 use ShamimStack\Storix\DTOs\DriverCapabilities;
+use ShamimStack\Storix\DTOs\StatObjectRequest;
 use ShamimStack\Storix\DTOs\StorageObjectMetadata;
 use ShamimStack\Storix\DTOs\WriteResult;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
+use ShamimStack\Storix\Contracts\StorageDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Exceptions\UnsupportedCapabilityException;
@@ -141,6 +143,40 @@ final class DownloadManagerTest extends TestCase
     public function test_it_rejects_a_range_start_at_or_beyond_eof(): void
     {
         $file = $this->storeFile('short');
+
+        $this->expectException(StorageOperationFailedException::class);
+        Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a', 5, 1));
+    }
+
+    public function test_out_of_bounds_range_is_rejected_before_reading_the_object(): void
+    {
+        $driver = $this->createMock(StorageDriver::class);
+        $driver->method('name')->willReturn('range-guard');
+        $driver->method('capabilities')->willReturn(new DriverCapabilities(supportsRangeReads: true));
+        $driver->method('stat')->willReturn(new StorageObjectMetadata(
+            key: 'guarded/object.bin',
+            sizeBytes: 5,
+            checksumSha256: hash('sha256', '12345'),
+        ));
+        $driver->expects(self::never())->method('readStream');
+        $this->app->make(DriverManager::class)->register('range-guard', $driver);
+
+        $file = $this->app->make(\\ShamimStack\\Storix\\Contracts\\Repositories\\StoredFileRepository::class)->create([
+            'tenant_id' => 'tenant-a',
+            'owner_id' => 'owner-a',
+            'directory_id' => null,
+            'driver' => 'range-guard',
+            'name' => 'object.bin',
+            'original_name' => 'object.bin',
+            'extension' => 'bin',
+            'mime_type' => 'application/octet-stream',
+            'size_bytes' => 5,
+            'sha256' => hash('sha256', '12345'),
+            'storage_key' => 'guarded/object.bin',
+            'status' => 'available',
+            'visibility' => 'private',
+            'metadata' => [],
+        ]);
 
         $this->expectException(StorageOperationFailedException::class);
         Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a', 5, 1));
