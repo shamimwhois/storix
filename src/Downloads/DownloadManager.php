@@ -148,8 +148,9 @@ final class DownloadManager
 
             throw $exception;
         } finally {
-            if ($lockTransferred === false) {
-                $lock->release();
+            if ($lockTransferred === false && is_resource($lock)) {
+                @flock($lock, LOCK_UN);
+                @fclose($lock);
             }
         }
     }
