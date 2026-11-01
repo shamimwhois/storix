@@ -45,6 +45,7 @@ The requested range is clamped to the remaining object length. Offset and length
 - Storix checks provider metadata against the persisted file size and requires a valid persisted SHA-256 digest.
 - Before returning bytes, Storix stages the full object through a bounded-memory php://temp stream, recomputes byte count and SHA-256, and compares both with the persisted record.
 - For a range, Storix obtains the native driver range and compares its byte count and digest with the corresponding slice from the verified full-object snapshot. This detects provider mutation between verification and range retrieval.
+- Each download is subject to storix.downloads.max_size_bytes (default 1 GiB), checked from provider metadata before any object read. Set it to null only when the application deliberately accepts unbounded per-request spool size and has its own admission/concurrency controls.
 - Spool memory is bounded by storix.downloads.spool_memory_bytes; PHP spills larger streams to its temporary-file backing store. Operators must size and monitor temporary storage for concurrent downloads.
 - Source and intermediate streams are closed on success and failure. The returned stream remains caller-owned and must be closed.
 
@@ -53,9 +54,10 @@ E09 does not create public URLs, alter visibility, or bypass application authori
 ## Configuration
 
     'downloads' => [
+        'max_size_bytes' => 1024 * 1024 * 1024,
         'spool_memory_bytes' => 8 * 1024 * 1024,
     ],
 
 ## Acceptance coverage
 
-The feature suite verifies full streaming, tenant/owner isolation, unavailable/missing file rejection, checksum and size mismatch rejection, native range capability enforcement, range boundaries, and stream cleanup. The package database matrix validates service bindings and repository scoping on SQLite, MySQL 8.4, and PostgreSQL 17.
+The feature suite verifies full streaming, tenant/owner isolation, unavailable/missing file rejection, checksum and size mismatch rejection, native range capability enforcement, range boundaries, pre-read size-limit enforcement, and stream cleanup. The package database matrix validates service bindings and repository scoping on SQLite, MySQL 8.4, and PostgreSQL 17.
