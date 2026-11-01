@@ -34,7 +34,8 @@ final class DownloadManagerTest extends TestCase
     {
         parent::setUp();
 
-        $this->root = sys_get_temp_dir().'/storix-e09-'.Str::uuid();
+        $temporaryRoot = sys_get_temp_dir();
+        $this->root = (realpath($temporaryRoot) ?: $temporaryRoot).DIRECTORY_SEPARATOR.'storix-e09-'.Str::uuid();
         config(['storix.drivers.local.root' => $this->root]);
 
         if (DIRECTORY_SEPARATOR === '\\') {
