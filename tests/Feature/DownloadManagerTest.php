@@ -331,6 +331,30 @@ final class DownloadManagerTest extends TestCase
         Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a'));
     }
 
+    public function test_download_rejects_a_lock_directory_with_a_symlinked_ancestor(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\\\') {
+            self::markTestSkipped('POSIX path-component checks are not available on Windows.');
+        }
+
+        $target = $this->root.DIRECTORY_SEPARATOR.'real-parent';
+        mkdir($target, 0700, true);
+        chmod($target, 0700);
+
+        $link = $this->root.DIRECTORY_SEPARATOR.'linked-parent';
+        symlink($target, $link);
+
+        config([
+            'storix.downloads.max_concurrent_downloads' => 1,
+            'storix.downloads.lock_directory' => $link.DIRECTORY_SEPARATOR.'private-download-locks',
+        ]);
+
+        $file = $this->storeFile('symlink ancestors rejected');
+
+        $this->expectException(StorageOperationFailedException::class);
+        Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a'));
+    }
+
     public function test_download_rejects_a_lock_directory_with_permissive_permissions(): void
     {
         if (DIRECTORY_SEPARATOR === '\\') {
