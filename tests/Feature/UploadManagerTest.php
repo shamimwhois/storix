@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace ShamimStack\Storix\Tests\Feature;
 
+use DateTimeInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use PHPUnit\Framework\Assert;
 use ShamimStack\Storix\Contracts\MultipartStorageDriver;
 use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
 use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
@@ -62,6 +66,273 @@ final class UploadManagerTest extends TestCase
         File::deleteDirectory($this->root);
 
         parent::tearDown();
+    }
+
+    public function test_worker_losing_its_lease_during_provider_write_cannot_finalize_and_marks_late_publication(): void
+    {
+        $driver = $this->createMock(StorageDriver::class);
+        $driver->method('name')->willReturn('fenced');
+        $driver->method('capabilities')->willReturn(new DriverCapabilities);
+        $driver->method('writeStream')->willReturnCallback(function (WriteStreamRequest $request): WriteResult {
+            $contents = stream_get_contents($request->stream);
+            $transfer = Transfer::query()->where('idempotency_key', 'late-provider-write')->firstOrFail();
+            $repository = $this->app->make(TransferRepository::class);
+            $now = now();
+
+            DB::table('storix_transfers')->where('id', $transfer->id)->update([
+                'resume_lease_expires_at' => $now->copy()->subSeconds(61),
+            ]);
+
+            self::assertTrue($repository->claimResumeLease(
+                (string) $transfer->id,
+                'replacement-worker-token',
+                $now,
+                $now->copy()->addMinutes(5),
+                $now->copy()->subSeconds(60),
+            ));
+
+            return new WriteResult(new StorageObjectMetadata(
+                key: $request->key,
+                sizeBytes: strlen($contents),
+                checksumSha256: hash('sha256', $contents),
+            ));
+        });
+
+        $this->app->make(DriverManager::class)->register('fenced', $driver);
+        $stream = $this->stream('late provider publication');
+
+        try {
+            $this->assertUploadException(UploadInProgressException::class, fn () => Storix::uploads()->upload(new UploadRequest(
+                stream: $stream,
+                originalName: 'late.txt',
+                ownerId: 'owner-late',
+                idempotencyKey: 'late-provider-write',
+                driver: 'fenced',
+            )));
+        } finally {
+            fclose($stream);
+        }
+
+        $transfer = Transfer::query()->where('idempotency_key', 'late-provider-write')->firstOrFail();
+        $file = StoredFile::query()->findOrFail($transfer->file_id);
+
+        self::assertSame('replacement-worker-token', $transfer->resume_lease_token);
+        self::assertTrue($transfer->cleanup_pending);
+        self::assertSame('processing', $file->status);
+        self::assertNotSame(TransferState::COMPLETED, $transfer->state);
+    }
+
+    public function test_stale_worker_cannot_finalize_after_a_provider_call_exceeds_its_lease(): void
+    {
+        $driver = $this->createMock(StorageDriver::class);
+        $driver->method('name')->willReturn('fenced');
+        $driver->method('capabilities')->willReturn(new DriverCapabilities);
+        $driver->method('writeStream')->willReturnCallback(function (WriteStreamRequest $request): WriteResult {
+            $contents = stream_get_contents($request->stream);
+            $transfer = Transfer::query()->where('idempotency_key', 'late-provider-write')->firstOrFail();
+            $now = now();
+
+            DB::table('storix_transfers')->where('id', $transfer->id)->update([
+                'resume_lease_expires_at' => $now->copy()->subSeconds(61),
+            ]);
+
+            // No replacement worker claims the lease; expiry alone must fence this worker.
+
+            return new WriteResult(new StorageObjectMetadata(
+                key: $request->key,
+                sizeBytes: strlen($contents),
+                checksumSha256: hash('sha256', $contents),
+            ));
+        });
+
+        $this->app->make(DriverManager::class)->register('fenced', $driver);
+        $stream = $this->stream('late provider publication');
+
+        try {
+            $this->assertUploadException(UploadInProgressException::class, fn () => Storix::uploads()->upload(new UploadRequest(
+                stream: $stream,
+                originalName: 'late.txt',
+                ownerId: 'owner-late',
+                idempotencyKey: 'late-provider-write',
+                driver: 'fenced',
+            )));
+        } finally {
+            fclose($stream);
+        }
+
+        $transfer = Transfer::query()->where('idempotency_key', 'late-provider-write')->firstOrFail();
+        $file = StoredFile::query()->findOrFail($transfer->file_id);
+
+        self::assertNull($transfer->resume_lease_token);
+        self::assertNull($transfer->resume_lease_expires_at);
+        self::assertTrue($transfer->cleanup_pending);
+        self::assertSame('processing', $file->status);
+        self::assertNotSame(TransferState::COMPLETED, $transfer->state);
+    }
+
+    public function test_failure_finalization_preserves_a_cleanup_marker_set_by_a_late_worker(): void
+    {
+        $driver = $this->createMock(StorageDriver::class);
+        $driver->method('name')->willReturn('marker-race');
+        $driver->method('capabilities')->willReturn(new DriverCapabilities);
+        $driver->method('writeStream')->willReturnCallback(function (WriteStreamRequest $request): WriteResult {
+            $transfer = Transfer::query()->where('idempotency_key', 'cleanup-marker-race')->firstOrFail();
+            DB::table('storix_transfers')->where('id', $transfer->id)->update([
+                'cleanup_pending' => true,
+            ]);
+
+            throw new StorageOperationFailedException('simulated provider failure after late publication');
+        });
+        $driver->expects(self::once())->method('delete');
+
+        $this->app->make(DriverManager::class)->register('marker-race', $driver);
+        $stream = $this->stream('marker-race-payload');
+
+        try {
+            $this->assertUploadException(
+                StorageOperationFailedException::class,
+                fn () => Storix::uploads()->upload(new UploadRequest(
+                    stream: $stream,
+                    originalName: 'marker-race.txt',
+                    idempotencyKey: 'cleanup-marker-race',
+                    driver: 'marker-race',
+                )),
+            );
+        } finally {
+            fclose($stream);
+        }
+
+        $transfer = Transfer::query()->where('idempotency_key', 'cleanup-marker-race')->firstOrFail();
+
+        self::assertSame(TransferState::FAILED, $transfer->state);
+        self::assertTrue($transfer->cleanup_pending);
+    }
+
+    public function test_finalization_transaction_rejects_a_worker_after_lease_loss(): void
+    {
+        $repository = $this->app->make(TransferRepository::class);
+        $fencedRepository = new class($repository) implements TransferRepository
+        {
+            private bool $finalizationOwnershipChecked = false;
+
+            public function __construct(private readonly TransferRepository $inner) {}
+
+            public function create(array $attributes): Transfer
+            {
+                return $this->inner->create($attributes);
+            }
+
+            public function findScoped(string $id, ?string $tenantId, ?string $ownerId): ?Transfer
+            {
+                return $this->inner->findScoped($id, $tenantId, $ownerId);
+            }
+
+            public function findByIdempotencyKey(string $key, ?string $tenantId, ?string $ownerId): ?Transfer
+            {
+                return $this->inner->findByIdempotencyKey($key, $tenantId, $ownerId);
+            }
+
+            public function firstOrCreateIdempotent(array $attributes): Transfer
+            {
+                return $this->inner->firstOrCreateIdempotent($attributes);
+            }
+
+            public function save(Transfer $transfer): Transfer
+            {
+                return $this->inner->save($transfer);
+            }
+
+            public function claimResumeLease(
+                string $transferId,
+                string $token,
+                DateTimeInterface $now,
+                DateTimeInterface $expiresAt,
+                ?DateTimeInterface $claimExpiredBefore = null,
+                bool $allowTerminalCleanup = false,
+            ): bool {
+                return $this->inner->claimResumeLease(
+                    $transferId,
+                    $token,
+                    $now,
+                    $expiresAt,
+                    $claimExpiredBefore,
+                    $allowTerminalCleanup,
+                );
+            }
+
+            public function ownsResumeLease(string $transferId, string $token, DateTimeInterface $now): bool
+            {
+                $this->finalizationOwnershipChecked = true;
+
+                return false;
+            }
+
+            public function markCleanupPending(string $transferId, DateTimeInterface $now): bool
+            {
+                return $this->inner->markCleanupPending($transferId, $now);
+            }
+
+            public function renewResumeLease(
+                string $transferId,
+                string $token,
+                DateTimeInterface $now,
+                DateTimeInterface $expiresAt,
+            ): bool {
+                if ($this->finalizationOwnershipChecked) {
+                    // The finalization transaction has rolled back before this call.
+                    // Simulate a competing worker claiming the now-expired lease.
+                    DB::table('storix_transfers')->where('id', $transferId)->update([
+                        'resume_lease_expires_at' => now()->subSeconds(61),
+                    ]);
+
+                    Assert::assertTrue($this->inner->claimResumeLease(
+                        $transferId,
+                        'replacement-finalization-token',
+                        $now,
+                        now()->addMinutes(5),
+                        now()->subSeconds(60),
+                    ));
+
+                    return false;
+                }
+
+                return $this->inner->renewResumeLease($transferId, $token, $now, $expiresAt);
+            }
+
+            public function releaseResumeLease(string $transferId, string $token): bool
+            {
+                return $this->inner->releaseResumeLease($transferId, $token);
+            }
+
+            public function expiredBefore(DateTimeInterface $cutoff, int $limit = 100): Collection
+            {
+                return $this->inner->expiredBefore($cutoff, $limit);
+            }
+        };
+        $this->app->instance(TransferRepository::class, $fencedRepository);
+
+        $stream = $this->stream('finalization-fence-payload');
+
+        try {
+            $this->assertUploadException(
+                UploadInProgressException::class,
+                fn () => Storix::uploads()->upload(new UploadRequest(
+                    stream: $stream,
+                    originalName: 'finalization-fence.txt',
+                    idempotencyKey: 'finalization-fence',
+                )),
+            );
+        } finally {
+            fclose($stream);
+        }
+
+        $transfer = Transfer::query()->where('idempotency_key', 'finalization-fence')->firstOrFail();
+        $file = StoredFile::query()->findOrFail($transfer->file_id);
+
+        self::assertSame('replacement-finalization-token', $transfer->resume_lease_token);
+        self::assertTrue($transfer->cleanup_pending);
+        self::assertSame(TransferState::VERIFYING, $transfer->state);
+        self::assertSame('processing', $file->status);
     }
 
     public function test_it_uploads_a_binary_stream_and_verifies_the_persisted_object(): void
@@ -440,8 +711,29 @@ final class UploadManagerTest extends TestCase
         self::assertSame(TransferState::RETRY_WAIT, $interrupted->state);
         self::assertSame($uploadId, $interrupted->multipart_upload_id);
         self::assertNotNull($interrupted->last_error_code);
+        self::assertNotNull($interrupted->next_retry_at);
+        self::assertTrue($interrupted->next_retry_at->isFuture());
         self::assertNull($interrupted->resume_lease_token);
         self::assertSame('processing', StoredFile::query()->findOrFail($file->id)->status);
+
+        $earlyRetryStream = $this->stream($payload);
+
+        try {
+            $this->assertUploadException(
+                UploadInProgressException::class,
+                fn () => Storix::uploads()->upload(new UploadRequest(
+                    stream: $earlyRetryStream,
+                    originalName: $originalName,
+                    tenantId: $tenantId,
+                    ownerId: $ownerId,
+                    idempotencyKey: $idempotencyKey,
+                )),
+            );
+        } finally {
+            fclose($earlyRetryStream);
+        }
+
+        $this->travelTo($interrupted->next_retry_at->copy()->addSecond());
 
         $stream = $this->stream($payload);
 
@@ -472,6 +764,368 @@ final class UploadManagerTest extends TestCase
             Chunk::query()->where('transfer_id', $transfer->id)->orderBy('chunk_index')->get()->pluck('state')->all(),
         );
         self::assertSame($payload, file_get_contents($this->root.'/'.$storageKey));
+    }
+
+    public function test_it_rejects_a_sessionless_retry_while_cleanup_is_pending(): void
+    {
+        $payload = 'cleanup-pending-payload';
+        $originalName = 'cleanup-pending.txt';
+        $tenantId = 'tenant-cleanup';
+        $ownerId = 'owner-cleanup';
+        $idempotencyKey = 'cleanup-pending-retry';
+        $fingerprint = hash('sha256', json_encode([
+            'sha256' => hash('sha256', $payload),
+            'size_bytes' => strlen($payload),
+            'original_name' => $originalName,
+            'tenant_id' => $tenantId,
+            'owner_id' => $ownerId,
+            'driver' => 'local',
+            'directory_id' => null,
+            'mime_type' => null,
+            'visibility' => ObjectVisibility::PRIVATE->value,
+            'metadata' => [],
+        ], JSON_THROW_ON_ERROR));
+
+        $file = StoredFile::query()->create([
+            'tenant_id' => $tenantId,
+            'owner_id' => $ownerId,
+            'directory_id' => null,
+            'driver' => 'local',
+            'name' => $originalName,
+            'original_name' => $originalName,
+            'extension' => 'txt',
+            'mime_type' => null,
+            'size_bytes' => strlen($payload),
+            'sha256' => hash('sha256', $payload),
+            'storage_key' => 'cleanup-pending/'.$originalName,
+            'status' => 'processing',
+            'visibility' => ObjectVisibility::PRIVATE,
+            'metadata' => [],
+        ]);
+        $transfer = $this->app->make(TransferRepository::class)->create([
+            'file_id' => $file->id,
+            'tenant_id' => $tenantId,
+            'owner_id' => $ownerId,
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::RETRY_WAIT,
+            'source_name' => $originalName,
+            'total_bytes' => strlen($payload),
+            'transferred_bytes' => 0,
+            'total_chunks' => 0,
+            'completed_chunks' => 0,
+            'fingerprint' => $fingerprint,
+            'idempotency_key' => $idempotencyKey,
+            'attempts' => 1,
+            'max_attempts' => 5,
+            'multipart_upload_id' => null,
+            'next_retry_at' => now()->subSecond(),
+            'cleanup_pending' => true,
+            'expires_at' => now()->addDay(),
+        ]);
+
+        $stream = $this->stream($payload);
+
+        try {
+            $this->assertUploadException(
+                UploadInProgressException::class,
+                fn () => Storix::uploads()->upload(new UploadRequest(
+                    stream: $stream,
+                    originalName: $originalName,
+                    tenantId: $tenantId,
+                    ownerId: $ownerId,
+                    idempotencyKey: $idempotencyKey,
+                )),
+            );
+        } finally {
+            fclose($stream);
+        }
+
+        $transfer->refresh();
+        $file->refresh();
+
+        self::assertSame(TransferState::RETRY_WAIT, $transfer->state);
+        self::assertTrue($transfer->cleanup_pending);
+        self::assertSame('processing', $file->status);
+    }
+
+    public function test_it_rejects_a_sessionless_retry_after_transfer_expiry(): void
+    {
+        $payload = 'expired-sessionless-payload';
+        $originalName = 'expired-sessionless.txt';
+        $tenantId = 'tenant-expired';
+        $ownerId = 'owner-expired';
+        $idempotencyKey = 'expired-sessionless-retry';
+        $fingerprint = hash('sha256', json_encode([
+            'sha256' => hash('sha256', $payload),
+            'size_bytes' => strlen($payload),
+            'original_name' => $originalName,
+            'tenant_id' => $tenantId,
+            'owner_id' => $ownerId,
+            'driver' => 'local',
+            'directory_id' => null,
+            'mime_type' => null,
+            'visibility' => ObjectVisibility::PRIVATE->value,
+            'metadata' => [],
+        ], JSON_THROW_ON_ERROR));
+
+        $file = StoredFile::query()->create([
+            'tenant_id' => $tenantId,
+            'owner_id' => $ownerId,
+            'directory_id' => null,
+            'driver' => 'local',
+            'name' => $originalName,
+            'original_name' => $originalName,
+            'extension' => 'txt',
+            'mime_type' => null,
+            'size_bytes' => strlen($payload),
+            'sha256' => hash('sha256', $payload),
+            'storage_key' => 'expired-sessionless/'.$originalName,
+            'status' => 'processing',
+            'visibility' => ObjectVisibility::PRIVATE,
+            'metadata' => [],
+        ]);
+        $transfer = $this->app->make(TransferRepository::class)->create([
+            'file_id' => $file->id,
+            'tenant_id' => $tenantId,
+            'owner_id' => $ownerId,
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::RETRY_WAIT,
+            'source_name' => $originalName,
+            'total_bytes' => strlen($payload),
+            'transferred_bytes' => 0,
+            'total_chunks' => 0,
+            'completed_chunks' => 0,
+            'fingerprint' => $fingerprint,
+            'idempotency_key' => $idempotencyKey,
+            'attempts' => 1,
+            'max_attempts' => 5,
+            'multipart_upload_id' => null,
+            'next_retry_at' => now()->subSecond(),
+            'cleanup_pending' => false,
+            'expires_at' => now()->subMinute(),
+        ]);
+
+        $stream = $this->stream($payload);
+
+        try {
+            $this->assertUploadException(
+                UploadInProgressException::class,
+                fn () => Storix::uploads()->upload(new UploadRequest(
+                    stream: $stream,
+                    originalName: $originalName,
+                    tenantId: $tenantId,
+                    ownerId: $ownerId,
+                    idempotencyKey: $idempotencyKey,
+                )),
+            );
+        } finally {
+            fclose($stream);
+        }
+
+        $transfer->refresh();
+        $file->refresh();
+
+        self::assertSame(TransferState::RETRY_WAIT, $transfer->state);
+        self::assertFalse($transfer->cleanup_pending);
+        self::assertSame('processing', $file->status);
+    }
+
+    public function test_it_starts_a_fresh_attempt_for_a_sessionless_retry_after_the_deadline(): void
+    {
+        config(['storix.transfers.chunk_size' => 4]);
+
+        $payload = 'sessionless-retry-payload';
+        $originalName = 'sessionless-retry.txt';
+        $tenantId = 'tenant-sessionless';
+        $ownerId = 'owner-sessionless';
+        $idempotencyKey = 'sessionless-retry';
+        $fingerprint = hash('sha256', json_encode([
+            'sha256' => hash('sha256', $payload),
+            'size_bytes' => strlen($payload),
+            'original_name' => $originalName,
+            'tenant_id' => $tenantId,
+            'owner_id' => $ownerId,
+            'driver' => 'local',
+            'directory_id' => null,
+            'mime_type' => null,
+            'visibility' => ObjectVisibility::PRIVATE->value,
+            'metadata' => [],
+        ], JSON_THROW_ON_ERROR));
+        $storageKey = 'uploads/'.$originalName;
+
+        $file = $this->app->make(StoredFileRepository::class)->create([
+            'tenant_id' => $tenantId,
+            'owner_id' => $ownerId,
+            'directory_id' => null,
+            'driver' => 'local',
+            'name' => $originalName,
+            'original_name' => $originalName,
+            'extension' => 'txt',
+            'mime_type' => null,
+            'size_bytes' => strlen($payload),
+            'sha256' => hash('sha256', $payload),
+            'storage_key' => $storageKey,
+            'status' => 'processing',
+            'visibility' => ObjectVisibility::PRIVATE,
+            'metadata' => [],
+        ]);
+        $transfer = $this->app->make(TransferRepository::class)->create([
+            'file_id' => $file->id,
+            'tenant_id' => $tenantId,
+            'owner_id' => $ownerId,
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::RETRY_WAIT,
+            'source_name' => $originalName,
+            'total_bytes' => strlen($payload),
+            'transferred_bytes' => 0,
+            'total_chunks' => 1,
+            'completed_chunks' => 0,
+            'fingerprint' => $fingerprint,
+            'idempotency_key' => $idempotencyKey,
+            'attempts' => 1,
+            'max_attempts' => 5,
+            'multipart_upload_id' => null,
+            'next_retry_at' => now()->subSecond(),
+            'last_error_code' => 'STORAGE_OPERATION_FAILED',
+            'last_error_message' => 'Original source must be submitted again.',
+        ]);
+        $this->app->make(ChunkRepository::class)->create([
+            'transfer_id' => $transfer->id,
+            'chunk_index' => 0,
+            'offset_bytes' => 0,
+            'size_bytes' => strlen($payload),
+            'sha256' => null,
+            'state' => ChunkState::PENDING,
+            'driver_reference' => null,
+            'attempts' => 0,
+        ]);
+
+        $stream = $this->stream($payload);
+
+        try {
+            $result = Storix::uploads()->upload(new UploadRequest(
+                stream: $stream,
+                originalName: $originalName,
+                tenantId: $tenantId,
+                ownerId: $ownerId,
+                idempotencyKey: $idempotencyKey,
+            ));
+        } finally {
+            fclose($stream);
+        }
+
+        $expectedChunks = (int) ceil(strlen($payload) / 4);
+        $freshChunks = Chunk::query()
+            ->where('transfer_id', $transfer->id)
+            ->orderBy('chunk_index')
+            ->get();
+
+        self::assertSame($transfer->id, $result->transfer->id);
+        self::assertSame($file->id, $result->file->id);
+        self::assertSame(TransferState::COMPLETED, $result->transfer->state);
+        self::assertSame('available', $result->file->status);
+        self::assertNull($result->transfer->multipart_upload_id);
+        self::assertNull($result->transfer->next_retry_at);
+        self::assertNull($result->transfer->last_error_code);
+        self::assertSame(strlen($payload), $result->transfer->transferred_bytes);
+        self::assertSame($expectedChunks, $freshChunks->count());
+        self::assertSame(
+            array_fill(0, $expectedChunks, ChunkState::VERIFIED),
+            $freshChunks->pluck('state')->all(),
+        );
+        self::assertSame($payload, file_get_contents($this->root.'/'.$storageKey));
+        self::assertSame(1, StoredFile::query()->count());
+        self::assertSame(1, Transfer::query()->count());
+    }
+
+    public function test_it_recreates_a_missing_file_for_a_sessionless_retry_after_the_deadline(): void
+    {
+        config(['storix.transfers.chunk_size' => 4]);
+
+        $payload = 'recreate-missing-file';
+        $originalName = 'recreated-retry.txt';
+        $tenantId = 'tenant-recreated';
+        $ownerId = 'owner-recreated';
+        $idempotencyKey = 'recreated-sessionless-retry';
+        $fingerprint = hash('sha256', json_encode([
+            'sha256' => hash('sha256', $payload),
+            'size_bytes' => strlen($payload),
+            'original_name' => $originalName,
+            'tenant_id' => $tenantId,
+            'owner_id' => $ownerId,
+            'driver' => 'local',
+            'directory_id' => null,
+            'mime_type' => null,
+            'visibility' => ObjectVisibility::PRIVATE->value,
+            'metadata' => [],
+        ], JSON_THROW_ON_ERROR));
+        $transfer = $this->app->make(TransferRepository::class)->create([
+            'file_id' => null,
+            'tenant_id' => $tenantId,
+            'owner_id' => $ownerId,
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::RETRY_WAIT,
+            'source_name' => $originalName,
+            'total_bytes' => strlen($payload),
+            'transferred_bytes' => 0,
+            'total_chunks' => 0,
+            'completed_chunks' => 0,
+            'fingerprint' => $fingerprint,
+            'idempotency_key' => $idempotencyKey,
+            'attempts' => 1,
+            'max_attempts' => 5,
+            'multipart_upload_id' => null,
+            'next_retry_at' => now()->subSecond(),
+            'last_error_code' => 'STORAGE_OPERATION_FAILED',
+        ]);
+        $this->app->make(ChunkRepository::class)->create([
+            'transfer_id' => $transfer->id,
+            'chunk_index' => 99,
+            'offset_bytes' => 0,
+            'size_bytes' => 1,
+            'sha256' => null,
+            'state' => ChunkState::PENDING,
+            'driver_reference' => null,
+            'attempts' => 0,
+        ]);
+
+        $stream = $this->stream($payload);
+
+        try {
+            $result = Storix::uploads()->upload(new UploadRequest(
+                stream: $stream,
+                originalName: $originalName,
+                tenantId: $tenantId,
+                ownerId: $ownerId,
+                idempotencyKey: $idempotencyKey,
+            ));
+        } finally {
+            fclose($stream);
+        }
+
+        $expectedChunks = (int) ceil(strlen($payload) / 4);
+        $freshChunks = Chunk::query()
+            ->where('transfer_id', $transfer->id)
+            ->orderBy('chunk_index')
+            ->get();
+
+        self::assertSame($transfer->id, $result->transfer->id);
+        self::assertNotNull($result->transfer->file_id);
+        self::assertSame($result->transfer->file_id, $result->file->id);
+        self::assertSame(TransferState::COMPLETED, $result->transfer->state);
+        self::assertSame('available', $result->file->status);
+        self::assertNull($result->transfer->next_retry_at);
+        self::assertSame($expectedChunks, $freshChunks->count());
+        self::assertSame(
+            array_fill(0, $expectedChunks, ChunkState::VERIFIED),
+            $freshChunks->pluck('state')->all(),
+        );
+        self::assertSame(1, StoredFile::query()->count());
+        self::assertSame(1, Transfer::query()->count());
     }
 
     public function test_it_rejects_a_concurrent_resume_while_another_worker_holds_the_lease(): void

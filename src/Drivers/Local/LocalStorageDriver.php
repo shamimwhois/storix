@@ -366,6 +366,10 @@ final class LocalStorageDriver implements DirectoryDriver, MultipartStorageDrive
                 throw new StorageOperationFailedException('multipart_complete');
             }
 
+            // Clean temporary multipart state before the final object becomes visible.
+            // Cleanup must not turn a successfully published object into a reported failure.
+            $this->removeMultipartWorkspace($request->uploadId);
+
             return $this->writeStream(new WriteStreamRequest(
                 key: $request->key,
                 stream: $assembled,

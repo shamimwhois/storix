@@ -2,50 +2,90 @@
 
 ## 1. Example configuration
 
+The following excerpt matches the keys currently shipped by `config/storix.php`:
+
 ```php
 return [
-    'default_driver' => env('STORIX_DRIVER', 'local'),
+    'default' => env('STORIX_DRIVER', 'local'),
 
     'drivers' => [
         'local' => [
-            'disk' => env('STORIX_LOCAL_DISK', 'local'),
-            'prefix' => 'storix',
+            'root' => storage_path('app/storix'),
         ],
-        'telegram' => [
-            'enabled' => env('STORIX_TELEGRAM_ENABLED', false),
-            'bot_token' => env('STORIX_TELEGRAM_BOT_TOKEN'),
-            'chat_id' => env('STORIX_TELEGRAM_CHAT_ID'),
-            'api_base' => env('STORIX_TELEGRAM_API_BASE'),
-        ],
+    ],
+
+    'uploads' => [
+        'max_file_size_bytes' => 64 * 1024 * 1024,
+        'spool_memory_bytes' => 8 * 1024 * 1024,
     ],
 
     'transfers' => [
         'chunk_size' => 8 * 1024 * 1024,
-        'max_concurrency' => 3,
+        'max_parallel_chunks' => 3,
         'max_attempts' => 5,
-        'backoff_base_seconds' => 2,
-        'backoff_max_seconds' => 300,
+        'resume_lease_seconds' => 300,
+        'resume_lease_grace_seconds' => 60,
+        'recovery_lease_seconds' => 300,
+        'recovery_stale_seconds' => 300,
+        'heartbeat_interval_seconds' => 15,
         'session_ttl_hours' => 24,
-        'progress_persist_interval_ms' => 1000,
-    ],
-
-    'limits' => [
-        'max_file_size' => 10 * 1024 * 1024 * 1024,
-        'max_active_transfers_per_owner' => 5,
-        'temporary_disk_min_free_bytes' => 512 * 1024 * 1024,
-    ],
-
-    'api' => [
-        'enabled' => false,
-        'prefix' => 'api/v1/storix',
-        'middleware' => ['api', 'auth:sanctum'],
+        'retry_base_seconds' => 2,
+        'retry_max_seconds' => 300,
+        'retry_jitter_percent' => 20,
     ],
 ];
 ```
 
-These are illustrative defaults, not final values. Validate every setting and align limits with actual driver capability.
+These are the package's current defaults, not a production sizing recommendation. The local driver root is private application storage. The configured chunk and parallel limits do not imply that the Local multipart driver runs parallel workers; its current advertised concurrency is one. Telegram and other remote driver settings are not shipped in the current config and must not be assumed available.
 
-## 2. Queue operations
+## 2. E08 recovery and retry
+
+The implemented recovery settings live under `storix.transfers`:
+
+```php
+'transfers' => [
+    'max_attempts' => 5,
+    'resume_lease_seconds' => 300,
+    'resume_lease_grace_seconds' => 60,
+    'recovery_lease_seconds' => 300,
+    'recovery_stale_seconds' => 300,
+    'heartbeat_interval_seconds' => 15,
+    'session_ttl_hours' => 24,
+    'retry_base_seconds' => 2,
+    'retry_max_seconds' => 300,
+    'retry_jitter_percent' => 20,
+],
+```
+
+Preview aggregate recovery counts without changing records:
+
+```bash
+php artisan storix:transfers:recover --dry-run
+```
+
+The dry-run reports aggregate counts only. It does not list individual eligible transfers, identify which cleanup actions would run, or preview per-record changes.
+
+Run a bounded recovery pass:
+
+```bash
+php artisan storix:transfers:recover --limit=100 --stale-seconds=300
+```
+
+The command reports examined, recovered, cleaned, expired, waiting, cleanup-pending, skipped, terminated, and failed counts. `terminated` means a transfer was successfully cleaned and deliberately marked failed after permanent failure or attempt exhaustion; it is not a command error. `failed` counts reconciliation exceptions that could not be deferred or scheduled for cleanup retry and causes a non-zero exit. Exceptions successfully deferred for retry are counted as `waiting` or `cleanup-pending` and do not cause a non-zero exit. Review all result counts and sanitized application logs, not only the exit code. It verifies already-published objects before promoting them, and cleans terminal multipart sessions without deleting files already marked available. Retry deadlines are persisted; an early idempotent resume is rejected until the deadline passes.
+
+A recovery command cannot recreate source bytes that the application did not persist. A retry-ready upload requires the caller to submit the original source stream again. A long synchronous provider call cannot be heartbeated while PHP is blocked inside that call; configure driver-level network timeouts shorter than the lease lifetime. `UploadManager` renews the resume lease while hashing the read-back verification stream using `heartbeat_interval_seconds`. Keep that interval materially shorter than `resume_lease_seconds` and `recovery_lease_seconds`, leaving enough time for a slow stream read before the first heartbeat. The shared `resume_lease_grace_seconds` setting delays takeover but is not a hard fence: a worker stalled after its last renewal may still complete an already-issued provider write, abort, or delete after takeover. Lease expiry and network timeouts do not cancel a request already accepted by a provider, and a missing-object stat does not prove that an accepted operation can no longer publish. Token checks fence database finalization only. Storix keeps `cleanup_pending` fail-closed for possible late publication rather than clearing it solely from one absent-object observation; retries may remain blocked until that risk is safely resolved. Strict no-overlap guarantees require storage-level fencing (immutable per-attempt keys, isolated multipart sessions, and conditional publication/deletion), tracked separately in [issue #11](https://github.com/shamimwhois/storix/issues/11).
+
+For periodic cleanup, use Laravel's scheduler with overlap prevention after validating dry-run output:
+
+```php
+use Illuminate\Support\Facades\Schedule;
+
+Schedule::command('storix:transfers:recover --limit=100')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();
+```
+
+## 3. Queue operations
 
 - Use Laravel queues for long-running transfers.
 - Configure dedicated queue names for transfers and cleanup.
@@ -54,7 +94,7 @@ These are illustrative defaults, not final values. Validate every setting and al
 - Use unique locks and idempotent jobs.
 - Document Horizon only as an optional operational choice.
 
-## 3. Scheduler commands
+## 4. Scheduler commands
 
 Potential commands:
 - `storix:transfers:recover` — reconcile stale sessions.
@@ -64,11 +104,11 @@ Potential commands:
 
 Commands must support dry-run where destructive cleanup is involved.
 
-## 4. Observability
+## 5. Observability
 
 Log structured fields: transfer ID, file ID, driver, direction, state, attempt, chunk index, duration, byte count, error code and request ID. Exclude credentials and raw file contents. Provide hooks for Laravel events and metrics exporters.
 
-## 5. Troubleshooting
+## 6. Troubleshooting
 
 - **Transfer stuck:** inspect queue worker health, lock expiry, last heartbeat and retry state.
 - **Repeated retries:** inspect sanitized error code, provider quota and retry-after metadata.
