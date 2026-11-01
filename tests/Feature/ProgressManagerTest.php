@@ -84,6 +84,21 @@ final class ProgressManagerTest extends TestCase
         }
     }
 
+    public function test_nonterminal_transfer_at_or_above_total_does_not_report_zero_eta_or_completion(): void
+    {
+        $transfer = $this->createTransfer([
+            'total_bytes' => 1000,
+            'transferred_bytes' => 1000,
+            'average_bytes_per_second' => 100,
+        ]);
+
+        $snapshot = Storix::progress()->forTransfer((string) $transfer->id, 'tenant-a', 'owner-a');
+
+        self::assertSame(99.99, $snapshot->percent);
+        self::assertNull($snapshot->etaSeconds);
+        self::assertSame(TransferState::TRANSFERRING, $snapshot->state);
+    }
+
     /** @param array<string, mixed> $overrides */
     private function createTransfer(array $overrides = []): Transfer
     {
