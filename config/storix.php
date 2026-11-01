@@ -17,6 +17,10 @@ return [
         'spool_memory_bytes' => 8 * 1024 * 1024,
     ],
 
+    'downloads' => [
+        'spool_memory_bytes' => 8 * 1024 * 1024,
+    ],
+
     // Transfer resource and recovery limits.
     'transfers' => [
         'chunk_size' => 8 * 1024 * 1024,
