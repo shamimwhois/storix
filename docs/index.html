@@ -238,7 +238,7 @@ Optional state: paused (only where safely supported)</code></pre>
           <article class="docs-card"><h3>Integrity before availability</h3><p>Compare staged bytes, driver write metadata, stat size, and an independent streamed SHA-256 read-back.</p></article>
           <article class="docs-card"><h3>Safe replay</h3><p>Scoped idempotency returns an existing completed upload only for the same request fingerprint; conflicts never overwrite an object.</p></article>
         </div>
-        <div class="docs-callout"><strong>Scope:</strong> E05 provides the single-object streaming path; E06 adds verified sequential multipart chunk writes; E07 adds idempotent resume and provider-part reconciliation; E08 adds stale-transfer recovery and bounded retry scheduling. Queued parallel workers, download chunking, REST endpoints, and Telegram storage remain later milestones.</div>
+        <div class="docs-callout"><strong>Scope:</strong> E05 provides the single-object streaming path; E06 adds verified sequential multipart chunk writes; E07 adds idempotent resume and provider-part reconciliation; E08 adds stale-transfer recovery and bounded retry scheduling; E09 adds scoped, integrity-verified downloads with range support and bounded admission. Queued parallel workers, REST endpoints, and Telegram storage remain later milestones.</div>
         <p>Implementation specifications: <a href="18-e05-basic-upload.md">E05 Basic Upload</a> and <a href="19-e06-chunk-engine.md">E06 Chunk Engine</a>.</p>
       </section>
 
@@ -345,6 +345,7 @@ $status = Storix::transfers()->status($transfer->id);</code></pre>
           <a class="docs-doc-link" href="19-e06-chunk-engine.md">19 · E06 Chunk Engine<small>Deterministic chunk planning, multipart drivers and SHA-256 verification</small></a>
           <a class="docs-doc-link" href="20-e07-resume-idempotency.md">20 · E07 Resume & Idempotency<small>Request fingerprints, transfer leases and provider-part reconciliation</small></a>
           <a class="docs-doc-link" href="21-e08-recovery-and-retry.md">21 · E08 Recovery & Retry<small>Failure classification, persisted backoff and stale-session cleanup</small></a>
+          <a class="docs-doc-link" href="24-e09-download-engine.md">24 · E09 Download Engine<small>Scoped downloads, integrity-verified ranges and bounded staging</small></a>
           <a class="docs-doc-link" href="04-package-structure.md">04 · Package Structure<small>Composer tree and class responsibilities</small></a>
           <a class="docs-doc-link" href="05-core-api-and-rest-api.md">05 · Core API & REST<small>PHP API, routes, response and error contracts</small></a>
           <a class="docs-doc-link" href="06-transfer-engine.md">06 · Transfer Engine<small>Chunking, resume, retry, progress, downloads</small></a>
