@@ -212,7 +212,9 @@ final class UploadManagerTest extends TestCase
         $repository = $this->app->make(TransferRepository::class);
         $fencedRepository = new class($repository) implements TransferRepository
         {
-            public function __construct(private readonly TransferRepository $inner) {}
+            public function __construct(private readonly TransferRepository $inner)
+            {
+            }
 
             public function create(array $attributes): Transfer
             {
