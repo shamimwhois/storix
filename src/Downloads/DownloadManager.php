@@ -389,18 +389,19 @@ final class DownloadManager
             clearstatcache(true, $current);
             $linkStat = @lstat($current);
             $targetStat = @stat($current);
+            $resolvedComponent = realpath($current);
 
+            // Some Windows filesystems expose zero inode metadata for ordinary
+            // directories. Canonical-path equality rejects detectable junctions;
+            // the explicit ACL trust setting protects this path from local races.
             if (
                 $linkStat === false
                 || $targetStat === false
                 || is_link($current)
                 || ($linkStat['mode'] & 0170000) !== 0040000
                 || ($targetStat['mode'] & 0170000) !== 0040000
-                || ! isset($linkStat['ino'], $targetStat['ino'])
-                || $linkStat['ino'] === 0
-                || $targetStat['ino'] === 0
-                || $linkStat['dev'] !== $targetStat['dev']
-                || $linkStat['ino'] !== $targetStat['ino']
+                || $resolvedComponent === false
+                || strcasecmp(rtrim($resolvedComponent, '\\\\'), rtrim($current, '\\\\')) !== 0
             ) {
                 throw new StorageOperationFailedException('download_capacity_lock');
             }
