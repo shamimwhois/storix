@@ -543,6 +543,72 @@ final class TransferRecoveryTest extends TestCase
         self::assertSame(0, $secondPass['examined']);
     }
 
+    public function test_terminal_cleanup_retains_marker_when_object_is_missing_until_a_late_publish_is_removed(): void
+    {
+        $contents = 'late-provider-publication';
+        $file = $this->makeFile($contents, 'failed', 'late-publish');
+        $transfer = $this->makeTransfer(
+            $file,
+            TransferState::FAILED,
+            attempts: 1,
+            lastErrorCode: 'STORAGE_OPERATION_FAILED',
+            driver: 'late-publish',
+            cleanupPending: true,
+        );
+        $driver = $this->createMock(StorageDriver::class);
+        $driver->method('name')->willReturn('late-publish');
+        $driver->method('capabilities')->willReturn(new DriverCapabilities);
+
+        $objectPublished = false;
+        $driver->expects(self::exactly(2))
+            ->method('stat')
+            ->willReturnCallback(function () use (&$objectPublished, $transfer, $file): ?StorageObjectMetadata {
+                self::assertTrue((bool) DB::table('storix_transfers')
+                    ->where('id', $transfer->id)
+                    ->value('cleanup_pending'));
+
+                if ($objectPublished === false) {
+                    return null;
+                }
+
+                return new StorageObjectMetadata(
+                    key: $file->storage_key,
+                    sizeBytes: $file->size_bytes,
+                );
+            });
+        $driver->expects(self::once())->method('delete');
+        $this->app->make(DriverManager::class)->register('late-publish', $driver);
+
+        $firstPass = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 10,
+            staleSeconds: 60,
+        );
+
+        $transfer->refresh();
+
+        self::assertSame(1, $firstPass['examined']);
+        self::assertSame(0, $firstPass['cleaned']);
+        self::assertSame(1, $firstPass['cleanup_pending']);
+        self::assertTrue($transfer->cleanup_pending);
+
+        $objectPublished = true;
+        DB::table('storix_transfers')->where('id', $transfer->id)->update([
+            'updated_at' => now()->subMinutes(10),
+        ]);
+
+        $secondPass = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 10,
+            staleSeconds: 60,
+        );
+
+        $transfer->refresh();
+
+        self::assertSame(1, $secondPass['examined']);
+        self::assertSame(1, $secondPass['cleaned']);
+        self::assertSame(0, $secondPass['cleanup_pending']);
+        self::assertFalse($transfer->cleanup_pending);
+    }
+
     public function test_terminal_cleanup_failure_keeps_marker_when_provider_call_outlives_recovery_lease(): void
     {
         $file = $this->makeFile('orphan-after-lease-expiry', 'failed', 'test');
@@ -583,7 +649,8 @@ final class TransferRecoveryTest extends TestCase
         $transfer->refresh();
 
         self::assertSame(1, $firstPass['examined']);
-        self::assertSame(1, $firstPass['failed']);
+        self::assertSame(0, $firstPass['failed']);
+        self::assertSame(1, $firstPass['cleanup_pending']);
         self::assertTrue($transfer->cleanup_pending);
         self::assertSame(TransferState::FAILED, $transfer->state);
 
