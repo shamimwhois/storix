@@ -9,8 +9,10 @@ use ShamimStack\Storix\Contracts\MultipartStorageDriver;
 use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
 use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
 use ShamimStack\Storix\DTOs\CompleteMultipartWriteRequest;
+use ShamimStack\Storix\DTOs\DeleteObjectRequest;
 use ShamimStack\Storix\DTOs\ReadStreamRequest;
 use ShamimStack\Storix\DTOs\WriteMultipartPartRequest;
+use ShamimStack\Storix\DTOs\WriteStreamRequest;
 use ShamimStack\Storix\Enums\ObjectVisibility;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Tests\TestCase;
@@ -176,6 +178,113 @@ final class MultipartStorageDriverTest extends TestCase
         $this->driver->abortMultipartWrite($uploadId);
 
         self::assertFalse($this->driver->exists('multipart/aborted.txt'));
+    }
+
+    public function test_attempt_object_keys_are_immutable_and_attempt_cleanup_is_scoped(): void
+    {
+        $attemptA = 'attempt_generation_0001';
+        $attemptB = 'attempt_generation_0002';
+        $keyA = $this->driver->attemptObjectKey('documents/report.txt', $attemptA);
+        $keyB = $this->driver->attemptObjectKey('documents/report.txt', $attemptB);
+
+        self::assertNotSame($keyA, $keyB);
+        self::assertStringStartsWith('.storix-attempts/'.$attemptA.'/', $keyA);
+        self::assertStringStartsWith('.storix-attempts/'.$attemptB.'/', $keyB);
+
+        $streamA = $this->stream('old attempt');
+        $streamB = $this->stream('winning attempt');
+
+        try {
+            $this->driver->writeAttempt(new WriteStreamRequest($keyA, $streamA), $attemptA);
+            $this->driver->writeAttempt(new WriteStreamRequest($keyB, $streamB), $attemptB);
+        } finally {
+            fclose($streamA);
+            fclose($streamB);
+        }
+
+        try {
+            $this->driver->deleteAttempt(new DeleteObjectRequest($keyA), $attemptB);
+            self::fail('An attempt must not delete another attempt object.');
+        } catch (StorageOperationFailedException) {
+            self::assertTrue($this->driver->exists($keyA));
+            self::assertTrue($this->driver->exists($keyB));
+        }
+
+        $this->driver->deleteAttempt(new DeleteObjectRequest($keyA), $attemptA);
+
+        self::assertFalse($this->driver->exists($keyA));
+        self::assertTrue($this->driver->exists($keyB));
+        $read = $this->driver->readStream(new ReadStreamRequest($keyB));
+
+        try {
+            self::assertSame('winning attempt', stream_get_contents($read));
+        } finally {
+            fclose($read);
+        }
+    }
+
+    public function test_multipart_workspace_cannot_be_written_completed_or_aborted_by_another_attempt(): void
+    {
+        $attemptA = 'attempt_generation_0001';
+        $attemptB = 'attempt_generation_0002';
+        $keyA = $this->driver->attemptObjectKey('documents/multipart.txt', $attemptA);
+        $uploadId = $this->driver->beginMultipartAttempt(
+            new BeginMultipartWriteRequest(key: $keyA),
+            $attemptA,
+        );
+        $stream = $this->stream('part payload');
+
+        try {
+            $part = $this->driver->writeMultipartAttemptPart(
+                new WriteMultipartPartRequest($uploadId, 1, $stream),
+                $attemptA,
+            );
+        } finally {
+            fclose($stream);
+        }
+
+        try {
+            $lateStream = $this->stream('late payload');
+
+            try {
+                $this->driver->writeMultipartAttemptPart(
+                    new WriteMultipartPartRequest($uploadId, 2, $lateStream),
+                    $attemptB,
+                );
+                self::fail('A different attempt must not write into this multipart session.');
+            } finally {
+                fclose($lateStream);
+            }
+        } catch (StorageOperationFailedException) {
+            self::assertTrue(true);
+        }
+
+        try {
+            $this->driver->abortMultipartAttempt($uploadId, $attemptB);
+            self::fail('A different attempt must not abort this multipart session.');
+        } catch (StorageOperationFailedException) {
+            self::assertTrue(true);
+        }
+
+        $result = $this->driver->completeMultipartAttempt(
+            new CompleteMultipartWriteRequest(
+                uploadId: $uploadId,
+                key: $keyA,
+                parts: [$part],
+                expectedSizeBytes: strlen('part payload'),
+                expectedSha256: hash('sha256', 'part payload'),
+            ),
+            $attemptA,
+        );
+
+        self::assertSame($keyA, $result->object->key);
+        self::assertTrue($this->driver->exists($keyA));
+    }
+
+    public function test_attempt_namespace_rejects_invalid_attempt_identifiers_and_foreign_keys(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->driver->attemptObjectKey('documents/file.txt', '../escape');
     }
 
     /** @return resource */
