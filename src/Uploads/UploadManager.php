@@ -233,6 +233,39 @@ final class UploadManager
                 throw new UploadInProgressException;
             }
 
+            // A lease claim can race with recovery or another writer. Reload under the
+            // newly claimed token before accepting the stale pre-claim snapshot.
+            $claimedTransfer = $this->transfers->findScoped(
+                (string) $transfer->id,
+                $request->tenantId,
+                $request->ownerId,
+            );
+
+            $admissibleStates = [
+                TransferState::PENDING,
+                TransferState::PREPARING,
+                TransferState::TRANSFERRING,
+                TransferState::PAUSED,
+                TransferState::RETRY_WAIT,
+            ];
+
+            if (
+                $claimedTransfer === null
+                || in_array($claimedTransfer->state, $admissibleStates, true) === false
+                || $claimedTransfer->cleanup_pending
+                || $this->isExpiredTransfer($claimedTransfer)
+                || ($claimedTransfer->next_retry_at !== null && $claimedTransfer->next_retry_at->isFuture())
+                || ($isResume && (
+                    $claimedTransfer->multipart_upload_id !== $transfer->multipart_upload_id
+                    || $claimedTransfer->file_id !== $transfer->file_id
+                ))
+                || ($isResume === false && $claimedTransfer->multipart_upload_id !== null)
+            ) {
+                $this->transfers->releaseResumeLease((string) $transfer->id, $resumeLeaseToken);
+                throw new UploadInProgressException;
+            }
+
+            $transfer = $claimedTransfer;
             $ownsTransfer = true;
 
             if ($transfer->next_retry_at !== null) {
