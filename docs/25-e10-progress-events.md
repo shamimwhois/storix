@@ -1,6 +1,6 @@
 # E10 — Progress & Events
 
-**Status:** Planning/specification started  
+**Status:** M01 progress snapshot API implemented; lifecycle instrumentation and event dispatch pending  
 **Base:** `feature/e09-download-engine`  
 **Compatibility:** PHP 8.5+, Laravel 13  
 **Dependencies:** E05–E09
@@ -161,6 +161,22 @@ Synchronous dispatch is the default and must remain lightweight. Queue dispatch 
 ## 12. Acceptance criteria
 
 E10 is complete only when progress is derived from persisted/verified state; stale workers cannot regress counters or emit newer revisions; lifecycle/terminal events are transactionally ordered and not duplicated; throttling bounds write/dispatch volume without hiding state transitions; ETA is deterministic and restart-safe; snapshots/events are tenant-safe and secret-free; integrations remain optional; all E05–E09 regression suites and the SQLite/MySQL/PostgreSQL/Windows CI matrix pass; and all review findings are resolved.
+
+## 13. Current implementation status
+
+### M01 — Scoped progress snapshot API
+
+Implemented on `feature/e10-progress-events`:
+
+- Add `progress_revision` to `storix_transfers` with a reversible migration; default is zero for existing rows.
+- Add the `TransferProgressSnapshot` immutable DTO.
+- Add `ProgressManager::forTransfer()` using the existing tenant/owner-scoped repository lookup.
+- Expose `Storix::progress()` through the manager, service provider, and facade.
+- Add feature tests for scope enforcement, percentage, remaining bytes, ETA, completion semantics, and nonterminal totals.
+
+M01 intentionally provides read-only snapshots. Atomic revision increments, progress writes, rate sampling, throttling, lifecycle events, and upload/recovery instrumentation are later implementation steps. A snapshot's revision remains zero until the atomic progress writer is implemented.
+
+Latest implementation head and CI evidence are tracked in PR #14. Do not treat E10 as complete until all acceptance criteria in this document pass.
 
 ## Decision log
 
