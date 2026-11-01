@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace ShamimStack\Storix\Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
@@ -150,7 +151,7 @@ final class DownloadManagerTest extends TestCase
         Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a', 5, 1));
     }
 
-    public function test_seekable_native_range_stream_is_verified_without_a_second_spool_copy(): void
+    public function test_seekable_native_range_stream_is_verified_but_not_returned_to_the_caller(): void
     {
         $contents = '0123456789abcdef';
         $rangeContents = substr($contents, 4, 6);
@@ -196,11 +197,41 @@ final class DownloadManagerTest extends TestCase
         $result = Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a', 4, 6));
 
         try {
-            self::assertSame($rangeStream, $result->stream);
+            self::assertNotSame($rangeStream, $result->stream);
+            self::assertFalse(is_resource($rangeStream));
             self::assertSame($rangeContents, stream_get_contents($result->stream));
         } finally {
             $result->close();
         }
+    }
+
+    public function test_download_admission_lock_limits_concurrency_and_releases_on_close(): void
+    {
+        config([
+            'storix.downloads.max_concurrent_downloads' => 1,
+            'storix.downloads.lock_ttl_seconds' => 3600,
+            'storix.downloads.cache_store' => 'array',
+        ]);
+        Cache::store('array')->flush();
+
+        $file = $this->storeFile('capacity controlled');
+        $request = new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a');
+        $first = Storix::downloads()->download($request);
+
+        try {
+            try {
+                Storix::downloads()->download($request);
+                self::fail('A second download must be rejected while the only slot is held.');
+            } catch (StorageOperationFailedException $exception) {
+                self::assertSame('download_capacity', $exception->operation);
+            }
+        } finally {
+            $first->close();
+            $first->close();
+        }
+
+        $next = Storix::downloads()->download($request);
+        $next->close();
     }
 
     public function test_download_size_limit_is_checked_before_reading_the_provider(): void
