@@ -218,7 +218,7 @@ final class DownloadManager
 
             $handleStat = @fstat($handle);
             $pathStat = @lstat($path);
-            $effectiveUser = function_exists('posix_geteuid') ? posix_geteuid() : null;
+            $effectiveUser = DIRECTORY_SEPARATOR === '\\' ? null : $this->effectiveUserId();
 
             if (
                 $handleStat === false
@@ -242,6 +242,18 @@ final class DownloadManager
         }
 
         throw new StorageOperationFailedException('download_capacity');
+    }
+
+    /**
+     * Return the worker's effective UID or fail closed when ext-posix is unavailable.
+     */
+    private function effectiveUserId(): int
+    {
+        if (function_exists('posix_geteuid') === false) {
+            throw new StorageOperationFailedException('download_capacity_lock');
+        }
+
+        return posix_geteuid();
     }
 
     /**
