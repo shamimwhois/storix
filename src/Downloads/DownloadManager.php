@@ -30,7 +30,14 @@ final class DownloadManager
     {
         $file = $this->files->findScoped($request->fileId, $request->tenantId, $request->ownerId);
 
-        if ($file === null || $file->status !== 'available') {
+        if (
+            $file === null
+            || $file->status !== 'available'
+            || is_string($file->storage_key) === false
+            || $file->storage_key === ''
+            || is_string($file->driver) === false
+            || $file->driver === ''
+        ) {
             throw new StorageOperationFailedException('download');
         }
 
