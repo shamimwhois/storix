@@ -2,9 +2,9 @@
 
 ## Status
 
-Implementation and PRD reconciliation are in progress on `feature/e08-recovery-retry`, stacked on E07. PR #8 is the source of truth for the current branch head and its required checks. CI runs on every commit across PHP 8.5 / Laravel 13 with SQLite, MySQL 8.4 and PostgreSQL 17; earlier runs on superseded commits must not be used as evidence for the latest head. One earlier run failed before PHPUnit because Pint reported two style issues; both were corrected in subsequent commits. The latest recorded pre-hardening branch head passed CI, but the cleanup-marker review finding remains a release gate. Re-run the full matrix and resolve all review threads against the updated head before E08 can be marked verified.
+Implementation and PRD reconciliation are complete for the current E08 branch head `6935a11638b9981c559f1dee26a4dd6416244bd6`. The cleanup-marker review finding was fixed by keeping `cleanup_pending` durable throughout provider I/O and retaining it after a point-in-time missing-object stat; the regression test simulates a late provider publication and a later sweep that removes it. The finding's review thread is resolved. The exact current head passed PHP 8.5 / Laravel 13 CI on SQLite, MySQL 8.4 and PostgreSQL 17 in run [41281544514](https://github.com/shamimwhois/storix/actions/runs/41281544514).
 
-The E08 migration rollback/reapply and preservation tests are included in the suite, but final-head execution must pass before they are verified. PR #8 is open, non-draft, and unmerged; it is not release-complete. Do not merge this branch directly into `main`; E07 remains stacked on E06.
+PR #8 is open, non-draft and unmerged; it remains stacked on E07. Its implementation and branch CI are verified, but it is not release-complete until E07 is reconciled with the latest E06 branch and the full dependency chain is integrated and revalidated. Do not merge E08 directly into `main`.
 
 ## Goals
 
