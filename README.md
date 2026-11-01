@@ -16,7 +16,7 @@ Storix is an **API-first, backend-only Laravel package** designed to give applic
 
 Instead of coupling application code to a single provider, Storix places a stable PHP API over a capability-aware driver system. Its engineering design covers streaming I/O, large-file chunking, resumable transfers, retries, integrity verification, transfer observability, and tenant-aware access control.
 
-> **Project status:** E01–E08 are merged into `main`. E09 Download Engine is under review in draft PR #17 from `integration/e09-on-e08`; the current head passes SQLite, MySQL 8.4, and PostgreSQL 17 CI (165 tests / 712 assertions per database), while security review and final acceptance remain pending. Storix is not yet a production release.
+> **Project status:** E01–E08 are merged into `main`. E09 Download Engine is under review in draft PR #17 from `integration/e09-on-e08`; the implementation commit `2d0f9ef` passed SQLite, MySQL 8.4, and PostgreSQL 17 CI (165 tests / 712 assertions per database); the latest documentation-only head is undergoing a fresh CI run, while security review and final acceptance remain pending. Storix is not yet a production release.
 
 ## At a glance
 
