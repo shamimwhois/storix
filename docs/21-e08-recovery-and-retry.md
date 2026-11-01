@@ -2,9 +2,9 @@
 
 ## Status
 
-Implementation and review fixes are in progress on `feature/e08-recovery-retry`, stacked on E07. CI run `41249396407` passed the SQLite, MySQL 8.4, and PostgreSQL 17 test jobs at commit `6f8ad1e`. Additional CodeRabbit-driven correctness fixes and regression tests have been committed after that run; fresh CI validation is pending. Keep PR #8 draft until the latest head passes CI and the review findings are resolved.
+Implementation and PRD reconciliation are in progress on `feature/e08-recovery-retry`, stacked on E07. The current branch head is `8d582854ab0e64fdbfe9fa1b4ad7c505602e0d49`; latest CI run `41255415256` is running the PHP 8.5 / Laravel 13 matrix (SQLite, MySQL 8.4, PostgreSQL 17). An earlier run on commit `5186e88` failed before PHPUnit because Pint reported two style issues; both were corrected in subsequent commits. Do not treat that earlier run as a test failure or a passing test result. Fresh CI validation and the latest CodeRabbit full review are still pending.
 
-The E08 migration rollback/reapply and preservation tests are included in the passing CI matrix. E08 is ready for final review, but is not merged or release-complete. Do not merge this branch directly into `main`; E07 remains stacked on E06.
+The E08 migration rollback/reapply and preservation tests are included in the suite, but final-head execution must pass before they are verified. PR #8 remains draft and is not merged or release-complete. Do not merge this branch directly into `main`; E07 remains stacked on E06.
 
 ## Goals
 
