@@ -21,6 +21,8 @@ return [
         'max_size_bytes' => 1024 * 1024 * 1024,
         'max_concurrent_downloads' => 1,
         'lock_directory' => sys_get_temp_dir().DIRECTORY_SEPARATOR.'storix-download-locks-'.substr(hash('sha256', base_path()), 0, 16),
+        // Windows requires an explicit operator assertion that every path ancestor is protected by trusted ACLs.
+        'windows_lock_directory_trusted' => false,
         'spool_memory_bytes' => 8 * 1024 * 1024,
     ],
 
