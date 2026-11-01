@@ -168,6 +168,12 @@ final class DownloadManager
             throw new StorageOperationFailedException('download_capacity_lock');
         }
 
+        if (DIRECTORY_SEPARATOR === '\\' && is_dir($directory) === false) {
+            // On Windows, require an operator-created directory so recursive mkdir
+            // cannot traverse an unvalidated junction before path checks run.
+            throw new StorageOperationFailedException('download_capacity_lock');
+        }
+
         if (is_dir($directory) === false && @mkdir($directory, 0700, true) === false && is_dir($directory) === false) {
             throw new StorageOperationFailedException('download_capacity_lock');
         }
@@ -297,19 +303,21 @@ final class DownloadManager
             throw new StorageOperationFailedException('download_capacity_lock');
         }
 
-        $resolved = realpath($directory);
+        $absolute = str_replace('/', '\\', $directory);
 
-        // Keep this implementation local-volume only. UNC paths and paths that
-        // cannot be canonicalized fail closed rather than relying on weak checks.
-        if ($resolved === false || preg_match('/^[A-Za-z]:\\\\/', $resolved) !== 1) {
+        if (preg_match('/^[A-Za-z]:\\\\/', $absolute) !== 1) {
             throw new StorageOperationFailedException('download_capacity_lock');
         }
 
-        $normalized = rtrim(str_replace('/', '\\', $resolved), '\\');
+        if (preg_match('/(^|\\\\)\\.\\.(\\\\|$)/', $absolute) === 1) {
+            throw new StorageOperationFailedException('download_capacity_lock');
+        }
+
+        $normalized = rtrim($absolute, '\\');
         $drive = substr($normalized, 0, 2);
         $segments = array_values(array_filter(
             explode('\\', substr($normalized, 3)),
-            static fn (string $segment): bool => $segment !== '' && $segment !== '.' && $segment !== '..',
+            static fn (string $segment): bool => $segment !== '' && $segment !== '.',
         ));
         $current = $drive.'\\';
 
@@ -333,6 +341,12 @@ final class DownloadManager
             ) {
                 throw new StorageOperationFailedException('download_capacity_lock');
             }
+        }
+
+        $resolved = realpath($directory);
+
+        if ($resolved === false || strcasecmp(rtrim($resolved, '\\'), $normalized) !== 0) {
+            throw new StorageOperationFailedException('download_capacity_lock');
         }
     }
 
