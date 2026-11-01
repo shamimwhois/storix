@@ -21,8 +21,8 @@ use ShamimStack\Storix\Repositories\Eloquent\EloquentTransferRepository;
 use ShamimStack\Storix\Services\ChunkPlanner;
 use ShamimStack\Storix\Services\RetryPolicy;
 use ShamimStack\Storix\Services\TransferStateMachine;
-use ShamimStack\Storix\Uploads\UploadManager;
 use ShamimStack\Storix\Progress\ProgressManager;
+use ShamimStack\Storix\Uploads\UploadManager;
 
 final class StorixServiceProvider extends ServiceProvider
 {
