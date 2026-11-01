@@ -269,7 +269,7 @@ final class DownloadManager
             static fn (string $segment): bool => $segment !== '' && $segment !== '.',
         ));
         $current = DIRECTORY_SEPARATOR;
-        $effectiveUser = function_exists('posix_geteuid') ? posix_geteuid() : null;
+        $effectiveUser = $this->effectiveUserId();
 
         foreach ($segments as $segment) {
             if ($segment === '..') {
@@ -316,7 +316,7 @@ final class DownloadManager
             static fn (string $segment): bool => $segment !== '' && $segment !== '.',
         ));
         $current = DIRECTORY_SEPARATOR;
-        $effectiveUser = function_exists('posix_geteuid') ? posix_geteuid() : null;
+        $effectiveUser = $this->effectiveUserId();
         $lastIndex = count($segments) - 1;
 
         foreach ($segments as $index => $segment) {
