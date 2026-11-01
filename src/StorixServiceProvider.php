@@ -22,6 +22,7 @@ use ShamimStack\Storix\Services\ChunkPlanner;
 use ShamimStack\Storix\Services\RetryPolicy;
 use ShamimStack\Storix\Services\TransferStateMachine;
 use ShamimStack\Storix\Uploads\UploadManager;
+use ShamimStack\Storix\Progress\ProgressManager;
 
 final class StorixServiceProvider extends ServiceProvider
 {
@@ -57,6 +58,10 @@ final class StorixServiceProvider extends ServiceProvider
                 $app->make(ConfigRepository::class),
                 $app->make(RetryPolicy::class),
             );
+        });
+
+        $this->app->singleton(ProgressManager::class, function ($app): ProgressManager {
+            return new ProgressManager($app->make(TransferRepository::class));
         });
 
         $this->app->singleton(DownloadManager::class, function ($app): DownloadManager {
