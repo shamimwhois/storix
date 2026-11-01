@@ -143,6 +143,38 @@ final class LocalStorageDriverTest extends TestCase
         }
     }
 
+    public function test_a_non_directory_multipart_workspace_remains_a_permanent_error(): void
+    {
+        $driver = $this->driver();
+        $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest('unsafe-session.txt'));
+        $workspace = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
+            .DIRECTORY_SEPARATOR.'storix-multipart-'.$uploadId;
+
+        unlink($workspace.DIRECTORY_SEPARATOR.'object-key');
+        rmdir($workspace);
+        file_put_contents($workspace, 'not a directory');
+
+        $stream = $this->inputStream('part payload');
+
+        try {
+            $driver->writeMultipartPart(new WriteMultipartPartRequest(
+                uploadId: $uploadId,
+                partNumber: 1,
+                stream: $stream,
+            ));
+            self::fail('A non-directory multipart workspace must be rejected.');
+        } catch (StorageOperationFailedException $exception) {
+            self::assertSame('multipart_workspace', $exception->operation);
+            self::assertSame(
+                FailureCategory::PERMANENT,
+                $this->app->make(ErrorClassifier::class)->classify($exception),
+            );
+        } finally {
+            fclose($stream);
+            unlink($workspace);
+        }
+    }
+
     /**
      * Verify orphaned staging files remain hidden from object listings.
      */
