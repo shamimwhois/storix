@@ -207,7 +207,7 @@ final class UploadManagerTest extends TestCase
         self::assertTrue($transfer->cleanup_pending);
     }
 
-    public function test_finalization_transaction_rejects_a_worker_after_lease_replacement(): void
+    public function test_finalization_transaction_rejects_a_worker_after_lease_loss(): void
     {
         $repository = $this->app->make(TransferRepository::class);
         $fencedRepository = new class($repository) implements TransferRepository
@@ -257,21 +257,13 @@ final class UploadManagerTest extends TestCase
                 );
             }
 
+            private bool $finalizationOwnershipChecked = false;
+
             public function ownsResumeLease(string $transferId, string $token, DateTimeInterface $now): bool
             {
-                DB::table('storix_transfers')->where('id', $transferId)->update([
-                    'resume_lease_expires_at' => now()->subSeconds(61),
-                ]);
+                $this->finalizationOwnershipChecked = true;
 
-                Assert::assertTrue($this->inner->claimResumeLease(
-                    $transferId,
-                    'replacement-finalization-token',
-                    $now,
-                    now()->addMinutes(5),
-                    now()->subSeconds(60),
-                ));
-
-                return $this->inner->ownsResumeLease($transferId, $token, $now);
+                return false;
             }
 
             public function markCleanupPending(string $transferId, DateTimeInterface $now): bool
@@ -285,6 +277,24 @@ final class UploadManagerTest extends TestCase
                 DateTimeInterface $now,
                 DateTimeInterface $expiresAt,
             ): bool {
+                if ($this->finalizationOwnershipChecked) {
+                    // The finalization transaction has rolled back before this call.
+                    // Simulate a competing worker claiming the now-expired lease.
+                    DB::table('storix_transfers')->where('id', $transferId)->update([
+                        'resume_lease_expires_at' => now()->subSeconds(61),
+                    ]);
+
+                    Assert::assertTrue($this->inner->claimResumeLease(
+                        $transferId,
+                        'replacement-finalization-token',
+                        $now,
+                        now()->addMinutes(5),
+                        now()->subSeconds(60),
+                    ));
+
+                    return false;
+                }
+
                 return $this->inner->renewResumeLease($transferId, $token, $now, $expiresAt);
             }
 
