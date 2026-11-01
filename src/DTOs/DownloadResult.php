@@ -38,6 +38,11 @@ final readonly class DownloadResult
         $this->onClose = $onClose;
     }
 
+    public function __destruct()
+    {
+        $this->close();
+    }
+
     public function close(): void
     {
         if (is_resource($this->stream)) {
