@@ -400,7 +400,7 @@ final class UploadManager
             }
 
             try {
-                $verified = $this->hashStream($readBack);
+                $verified = $this->hashStream($readBack, $renewLease);
             } finally {
                 if (is_resource($readBack)) {
                     fclose($readBack);
@@ -989,10 +989,12 @@ final class UploadManager
      * @param  resource  $stream
      * @return array{size: int, sha256: string}
      */
-    private function hashStream(mixed $stream): array
+    private function hashStream(mixed $stream, ?callable $heartbeat = null): array
     {
         $hash = hash_init('sha256');
         $size = 0;
+        $lastHeartbeatAt = time();
+        $heartbeatInterval = max(1, (int) $this->config->get('storix.transfers.heartbeat_interval_seconds', 15));
 
         while (feof($stream) === false) {
             $buffer = @fread($stream, self::STAGING_CHUNK_BYTES);
@@ -1011,6 +1013,11 @@ final class UploadManager
 
             hash_update($hash, $buffer);
             $size += strlen($buffer);
+
+            if ($heartbeat !== null && time() - $lastHeartbeatAt >= $heartbeatInterval) {
+                $heartbeat();
+                $lastHeartbeatAt = time();
+            }
         }
 
         return ['size' => $size, 'sha256' => hash_final($hash)];
