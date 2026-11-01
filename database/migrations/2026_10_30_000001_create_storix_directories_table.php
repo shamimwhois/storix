@@ -11,10 +11,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('storix_directories', function (Blueprint $table): void {
-            $table->uuid('id')->primary();
+            $table->uuid('id');
+            $table->primary('id');
             $table->string('tenant_id', 64)->nullable()->index();
             $table->string('owner_id', 64)->nullable()->index();
-            $table->foreignUuid('parent_id')->nullable()->constrained('storix_directories')->restrictOnDelete();
+            $table->uuid('parent_id')->nullable();
+            $table->foreign('parent_id')->references('id')->on('storix_directories')->restrictOnDelete();
             $table->string('name', 255);
             $table->string('path_key', 1024);
             $table->char('scope_hash', 64);

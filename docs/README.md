@@ -37,6 +37,7 @@ Build output:
 - [E03 Persistence Layer](16-e03-persistence.md)
 - [E04 Local Storage Driver](17-e04-local-driver.md)
 - [E05 Basic Upload](18-e05-basic-upload.md)
+- [E06 Chunk Engine](19-e06-chunk-engine.md)
 - [Architecture Decisions](DECISIONS.md)
 
 > Documentation describes the intended engineering design. Feature availability must be confirmed from implementation, tests, and release notes.

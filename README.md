@@ -16,7 +16,7 @@ Storix is an **API-first, backend-only Laravel package** designed to give applic
 
 Instead of coupling application code to a single provider, Storix places a stable PHP API over a capability-aware driver system. Its engineering design covers streaming I/O, large-file chunking, resumable transfers, retries, integrity verification, transfer observability, and tenant-aware access control.
 
-> **Project status:** E01–E04 are merged into `main`. E05 Basic Upload is implemented on `feature/e05-basic-upload`; CI verification and review are pending before merge. The implementation adds bounded-size stream uploads, durable metadata, scoped idempotency and independent SHA-256 read-back verification. Chunked/resumable transfers and automatic recovery remain later epics. Storix is not yet a production release.
+> **Project status:** E01–E05 are merged into `main`. E06 Chunk Engine is in progress on `feature/e06-chunk-engine`. The Local adapter now supports verified synchronous multipart uploads with durable chunk metadata and atomic final-object publication. Queued parallel workers, resumability, automated recovery and remote providers remain later milestones. Storix is not yet a production release.
 
 ## At a glance
 
@@ -241,6 +241,7 @@ The documentation portal is available at **[docs/index.html](docs/index.html)**.
 | [E03 Persistence](docs/16-e03-persistence.md) | Database schema, Eloquent models, repositories, UUID policy, and transfer state machine |
 | [E04 Local Storage Driver](docs/17-e04-local-driver.md) | Local streaming I/O, safe keys, range reads, metadata, and directories |
 | [E05 Basic Upload](docs/18-e05-basic-upload.md) | Stream-first single-object uploads, validation, idempotency and SHA-256 verification |
+| [E06 Chunk Engine](docs/19-e06-chunk-engine.md) | Deterministic chunk planning, optional multipart driver contract and verified chunk assembly |
 
 ## Implementation roadmap
 

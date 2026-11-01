@@ -86,7 +86,9 @@ final class PersistenceRepositoryTest extends TestCase
         self::assertSame($first->id, $repository->findChild(null, 'Invoices', 'local', 'tenant-a', 'owner-a')?->id);
 
         try {
-            $repository->create([...$attributes, 'name' => 'invoices']);
+            DB::transaction(function () use ($repository, $attributes): void {
+                $repository->create([...$attributes, 'name' => 'invoices']);
+            });
             self::fail('Expected a duplicate normalized directory name to be rejected.');
         } catch (QueryException) {
             self::assertTrue(true);

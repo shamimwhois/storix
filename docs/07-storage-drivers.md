@@ -50,3 +50,10 @@ S3-compatible providers, Cloudflare R2 or other backends can be added by impleme
 
 
 ---
+
+
+## Multipart write capability (E06)
+
+Multipart support is optional. supportsMultipartWrites must agree with implementation of MultipartStorageDriver. The transfer engine checks every returned part number, byte size and SHA-256 digest before accepting a chunk. The Local adapter stores parts in a randomly named private temporary directory, re-verifies all part contents during assembly, checks the aggregate size and SHA-256, and uses its existing atomic writeStream() path for final publication.
+
+Local multipart execution is sequential and declares maxConcurrency = 1. The presence of multipart support does not imply parallel workers, resumability or durable sessions.

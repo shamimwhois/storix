@@ -9,16 +9,24 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
+use ShamimStack\Storix\Contracts\MultipartStorageDriver;
+use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
 use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
 use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
 use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
 use ShamimStack\Storix\Drivers\DriverManager;
+use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
+use ShamimStack\Storix\DTOs\ChunkDescriptor;
+use ShamimStack\Storix\DTOs\CompleteMultipartWriteRequest;
 use ShamimStack\Storix\DTOs\DeleteObjectRequest;
 use ShamimStack\Storix\DTOs\ReadStreamRequest;
 use ShamimStack\Storix\DTOs\StatObjectRequest;
 use ShamimStack\Storix\DTOs\UploadRequest;
 use ShamimStack\Storix\DTOs\UploadResult;
+use ShamimStack\Storix\DTOs\WriteMultipartPartRequest;
+use ShamimStack\Storix\DTOs\WriteResult;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
+use ShamimStack\Storix\Enums\ChunkState;
 use ShamimStack\Storix\Enums\ObjectVisibility;
 use ShamimStack\Storix\Enums\StorixErrorCode;
 use ShamimStack\Storix\Enums\TransferDirection;
@@ -34,6 +42,7 @@ use ShamimStack\Storix\Exceptions\UploadValidationException;
 use ShamimStack\Storix\Models\Directory;
 use ShamimStack\Storix\Models\StoredFile;
 use ShamimStack\Storix\Models\Transfer;
+use ShamimStack\Storix\Services\ChunkPlanner;
 use ShamimStack\Storix\Services\TransferStateMachine;
 use Throwable;
 
@@ -46,6 +55,8 @@ final class UploadManager
         private readonly StoredFileRepository $files,
         private readonly TransferRepository $transfers,
         private readonly DirectoryRepository $directories,
+        private readonly ChunkRepository $chunks,
+        private readonly ChunkPlanner $chunkPlanner,
         private readonly TransferStateMachine $states,
         private readonly ConfigRepository $config,
     ) {}
@@ -61,11 +72,22 @@ final class UploadManager
             throw new UnsupportedCapabilityException('streaming', $driverName);
         }
 
+        $multipartDriver = null;
+
+        if ($capabilities->supportsMultipartWrites) {
+            if ($driver instanceof MultipartStorageDriver === false) {
+                throw new UnsupportedCapabilityException('multipart_writes', $driverName);
+            }
+
+            $multipartDriver = $driver;
+        }
+
         if ($request->visibility !== ObjectVisibility::PRIVATE) {
             throw new UploadValidationException('Only private uploads are supported by E05.');
         }
 
         $staged = $this->stage($request, $capabilities->maxObjectSizeBytes);
+        $chunkPlan = [];
         $transfer = null;
         $file = null;
         $storageKey = null;
@@ -102,6 +124,17 @@ final class UploadManager
 
             $ownsTransfer = true;
 
+            if ($multipartDriver !== null && $staged['size'] > 0) {
+                $chunkPlan = $this->chunkPlanner->plan(
+                    $staged['size'],
+                    $capabilities,
+                    (int) $this->config->get('storix.transfers.chunk_size', $capabilities->preferredChunkSizeBytes),
+                );
+            }
+
+            $transfer->total_chunks = count($chunkPlan);
+            $transfer = $this->transfers->save($transfer);
+
             [$file, $transfer] = DB::transaction(function () use (
                 $request,
                 $directory,
@@ -110,6 +143,7 @@ final class UploadManager
                 $extension,
                 $staged,
                 $transfer,
+                $chunkPlan,
             ): array {
                 $file = $this->files->create([
                     'tenant_id' => $request->tenantId,
@@ -131,6 +165,20 @@ final class UploadManager
                 $transfer->file_id = $file->id;
                 $transfer = $this->transfers->save($transfer);
 
+                foreach ($chunkPlan as $descriptor) {
+                    $this->chunks->create([
+                        'transfer_id' => $transfer->id,
+                        'chunk_index' => $descriptor->index,
+                        'offset_bytes' => $descriptor->offsetBytes,
+                        'size_bytes' => $descriptor->sizeBytes,
+                        'sha256' => null,
+                        'state' => ChunkState::PENDING,
+                        'driver_reference' => null,
+                        'attempts' => 0,
+                        'last_error_code' => null,
+                    ]);
+                }
+
                 return [$file, $transfer];
             });
 
@@ -142,13 +190,25 @@ final class UploadManager
             $transfer = $this->states->transition($transfer->id, TransferState::TRANSFERRING);
 
             $objectMayExist = true;
-            $writeResult = $driver->writeStream(new WriteStreamRequest(
-                key: $storageKey,
-                stream: $staged['stream'],
-                mimeType: $request->mimeType,
-                visibility: $request->visibility,
-                metadata: $request->metadata,
-            ));
+
+            if ($multipartDriver !== null && $chunkPlan !== []) {
+                $writeResult = $this->writeMultipart(
+                    $multipartDriver,
+                    $request,
+                    $transfer,
+                    $storageKey,
+                    $staged,
+                    $chunkPlan,
+                );
+            } else {
+                $writeResult = $driver->writeStream(new WriteStreamRequest(
+                    key: $storageKey,
+                    stream: $staged['stream'],
+                    mimeType: $request->mimeType,
+                    visibility: $request->visibility,
+                    metadata: $request->metadata,
+                ));
+            }
 
             if ($writeResult->object->key !== $storageKey || $writeResult->object->sizeBytes !== $staged['size']) {
                 throw new UploadIntegrityException;
@@ -162,6 +222,7 @@ final class UploadManager
             }
 
             $transfer->transferred_bytes = $staged['size'];
+            $transfer->completed_chunks = count($chunkPlan);
             $transfer = $this->transfers->save($transfer);
             $transfer = $this->states->transition($transfer->id, TransferState::VERIFYING);
 
@@ -234,6 +295,184 @@ final class UploadManager
             if (is_resource($staged['stream'])) {
                 fclose($staged['stream']);
             }
+        }
+    }
+
+    /**
+     * @param  array{stream: resource, size: int, sha256: string}  $staged
+     * @param  list<ChunkDescriptor>  $plan
+     */
+    private function writeMultipart(
+        MultipartStorageDriver $driver,
+        UploadRequest $request,
+        Transfer $transfer,
+        string $storageKey,
+        array $staged,
+        array $plan,
+    ): WriteResult {
+        $uploadId = null;
+
+        try {
+            $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest(
+                key: $storageKey,
+                mimeType: $request->mimeType,
+                visibility: $request->visibility,
+                metadata: $request->metadata,
+            ));
+
+            $parts = [];
+
+            foreach ($plan as $descriptor) {
+                $chunk = $this->chunks->findByIndex((string) $transfer->id, $descriptor->index);
+
+                if ($chunk === null) {
+                    throw new StorageOperationFailedException('chunk_lookup');
+                }
+
+                $chunk->state = ChunkState::UPLOADING;
+                $chunk->attempts++;
+                $chunk = $this->chunks->save($chunk);
+
+                $partStream = null;
+
+                try {
+                    $stagedPart = $this->stageChunk($staged['stream'], $descriptor);
+                    $partStream = $stagedPart['stream'];
+
+                    $part = $driver->writeMultipartPart(new WriteMultipartPartRequest(
+                        uploadId: $uploadId,
+                        partNumber: $descriptor->index + 1,
+                        stream: $partStream,
+                    ));
+
+                    if (
+                        $part->partNumber !== $descriptor->index + 1
+                        || $part->sizeBytes !== $descriptor->sizeBytes
+                        || hash_equals($stagedPart['sha256'], strtolower($part->sha256)) === false
+                    ) {
+                        throw new UploadIntegrityException;
+                    }
+
+                    $chunk->sha256 = strtolower($part->sha256);
+                    $chunk->driver_reference = $part->driverReference;
+                    $chunk->state = ChunkState::VERIFIED;
+                    $this->chunks->save($chunk);
+
+                    $parts[] = $part;
+                    $transfer->transferred_bytes += $part->sizeBytes;
+                    $transfer->completed_chunks++;
+                    $this->transfers->save($transfer);
+                } finally {
+                    if (is_resource($partStream)) {
+                        fclose($partStream);
+                    }
+                }
+            }
+
+            return $driver->completeMultipartWrite(new CompleteMultipartWriteRequest(
+                uploadId: $uploadId,
+                key: $storageKey,
+                parts: $parts,
+                expectedSizeBytes: $staged['size'],
+                expectedSha256: $staged['sha256'],
+                mimeType: $request->mimeType,
+                visibility: $request->visibility,
+                metadata: $request->metadata,
+            ));
+        } catch (Throwable $exception) {
+            try {
+                $errorCode = $exception instanceof StorixException
+                    ? $exception->errorCode->value
+                    : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
+
+                try {
+                    foreach ($this->chunks->forTransfer((string) $transfer->id) as $chunk) {
+                        if ($chunk->state !== ChunkState::VERIFIED) {
+                            $chunk->state = ChunkState::FAILED;
+                            $chunk->last_error_code = $errorCode;
+                            $this->chunks->save($chunk);
+                        }
+                    }
+                } catch (Throwable $persistenceException) {
+                    Log::warning('Storix multipart failure state could not be persisted.', [
+                        'transfer_id' => $transfer->id,
+                        'driver' => $driver->name(),
+                        'error_code' => $persistenceException instanceof StorixException
+                            ? $persistenceException->errorCode->value
+                            : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                    ]);
+                }
+            } finally {
+                if ($uploadId !== null) {
+                    try {
+                        $driver->abortMultipartWrite($uploadId);
+                    } catch (Throwable $abortException) {
+                        Log::warning('Storix multipart abort failed.', [
+                            'transfer_id' => $transfer->id,
+                            'driver' => $driver->name(),
+                            'error_code' => $abortException instanceof StorixException
+                                ? $abortException->errorCode->value
+                                : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                        ]);
+                    }
+                }
+            }
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * @return array{stream: resource, sha256: string}
+     */
+    private function stageChunk(mixed $source, ChunkDescriptor $descriptor): array
+    {
+        if (@fseek($source, $descriptor->offsetBytes, SEEK_SET) !== 0) {
+            throw new StorageOperationFailedException('chunk_stage');
+        }
+
+        $memoryBytes = (int) $this->config->get('storix.uploads.spool_memory_bytes', 8_388_608);
+
+        if ($memoryBytes < 1) {
+            throw new RuntimeException('Storix spool memory limit must be a positive integer.');
+        }
+
+        $stream = @fopen('php://temp/maxmemory:'.$memoryBytes, 'w+b');
+
+        if ($stream === false) {
+            throw new StorageOperationFailedException('chunk_stage');
+        }
+
+        $hash = hash_init('sha256');
+        $remaining = $descriptor->sizeBytes;
+
+        try {
+            while ($remaining > 0) {
+                $buffer = @fread($source, min(self::STAGING_CHUNK_BYTES, $remaining));
+
+                if ($buffer === false || $buffer === '') {
+                    throw new StorageOperationFailedException('chunk_stage');
+                }
+
+                $this->writeAll($stream, $buffer);
+                hash_update($hash, $buffer);
+                $remaining -= strlen($buffer);
+            }
+
+            if (@rewind($stream) === false) {
+                throw new StorageOperationFailedException('chunk_stage');
+            }
+
+            return [
+                'stream' => $stream,
+                'sha256' => hash_final($hash),
+            ];
+        } catch (Throwable $exception) {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+
+            throw $exception;
         }
     }
 

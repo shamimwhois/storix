@@ -1,7 +1,7 @@
 # E05 — Basic Upload
 
-**Status:** Implementation complete on branch; CI verification and review pending  
-**Branch:** `feature/e05-basic-upload`  
+**Status:** Merged into main  
+**Merged branch:** `feature/e05-basic-upload`  
 **Depends on:** E01 Foundation, E02 Contracts & API, E03 Persistence, E04 Local Driver  
 **Target:** PHP 8.5+, Laravel 13.x  
 **Package:** `shamimstack/storix`

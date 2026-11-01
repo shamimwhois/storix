@@ -231,15 +231,15 @@ Optional state: paused (only where safely supported)</code></pre>
 
       <section id="upload" class="docs-section" x-show="matchesElement($el)" data-doc-section>
         <div class="docs-section-heading"><span class="docs-section-number">18</span><h2>Basic upload · E05</h2></div>
-        <p class="docs-lead">E05 implements a stream-first, single-object upload workflow on the existing Local driver and persistence layer. CI verification and review are pending before merge.</p>
+        <p class="docs-lead">E05 implements a stream-first, single-object upload workflow on the existing Local driver and persistence layer and is merged into main.</p>
         <div class="docs-grid">
           <article class="docs-card"><h3>Bounded input</h3><p>Readable PHP streams, 64 MiB configured default (also capped by driver limits), 8 MiB memory spool threshold, and validation while bytes are read.</p></article>
           <article class="docs-card"><h3>Durable metadata</h3><p>Scoped file and transfer records, a validated state lifecycle, tenant/owner-aware directory lookup, and private-only visibility.</p></article>
           <article class="docs-card"><h3>Integrity before availability</h3><p>Compare staged bytes, driver write metadata, stat size, and an independent streamed SHA-256 read-back.</p></article>
           <article class="docs-card"><h3>Safe replay</h3><p>Scoped idempotency returns an existing completed upload only for the same request fingerprint; conflicts never overwrite an object.</p></article>
         </div>
-        <div class="docs-callout"><strong>Scope:</strong> E05 is a synchronous single-object upload. Chunking, resumability, background retries, REST endpoints, and Telegram storage are later milestones.</div>
-        <p>Implementation specification: <a href="18-e05-basic-upload.md">E05 Basic Upload</a>.</p>
+        <div class="docs-callout"><strong>Scope:</strong> E05 provides the single-object streaming path; E06 adds verified sequential multipart chunk writes. Resume/retry, queued parallel workers, download chunking, REST endpoints, and Telegram storage remain later milestones.</div>
+        <p>Implementation specifications: <a href="18-e05-basic-upload.md">E05 Basic Upload</a> and <a href="19-e06-chunk-engine.md">E06 Chunk Engine</a>.</p>
       </section>
 
       <section id="installation" class="docs-section" x-show="matchesElement($el)" data-doc-section>
@@ -342,6 +342,7 @@ $status = Storix::transfers()->status($transfer->id);</code></pre>
           <a class="docs-doc-link" href="16-e03-persistence.md">16 · E03 Persistence<small>UUID models, repositories, migrations, transfer state machine</small></a>
           <a class="docs-doc-link" href="17-e04-local-driver.md">17 · E04 Local Storage Driver<small>Safe stream I/O, range reads, directory operations</small></a>
           <a class="docs-doc-link" href="18-e05-basic-upload.md">18 · E05 Basic Upload<small>Stream validation, metadata, idempotency and integrity verification</small></a>
+          <a class="docs-doc-link" href="19-e06-chunk-engine.md">19 · E06 Chunk Engine<small>Deterministic chunk planning, multipart drivers and SHA-256 verification</small></a>
           <a class="docs-doc-link" href="04-package-structure.md">04 · Package Structure<small>Composer tree and class responsibilities</small></a>
           <a class="docs-doc-link" href="05-core-api-and-rest-api.md">05 · Core API & REST<small>PHP API, routes, response and error contracts</small></a>
           <a class="docs-doc-link" href="06-transfer-engine.md">06 · Transfer Engine<small>Chunking, resume, retry, progress, downloads</small></a>

@@ -112,3 +112,12 @@ Package name shamimstack/storix; namespace ShamimStack\\Storix. Declare PHP ^8.5
 - UploadResult returns the persisted file and completed transfer, including whether this was an idempotent replay.
 - E05 independently verifies stored size and SHA-256 by streaming the object back before marking it available.
 - Chunk planning, resumability, background retry and REST endpoints remain deferred.
+
+
+## E06 additions
+
+- Contracts / MultipartStorageDriver: optional multipart lifecycle contract layered on top of StorageDriver.
+- DTOs / ChunkDescriptor and multipart request/result DTOs: validated chunk coordinates and provider-neutral multipart metadata.
+- Services / ChunkPlanner: deterministic offsets and sizes clamped to driver-declared minimum and maximum bounds.
+- Uploads / UploadManager: persists chunk attempts, validates part numbers, byte counts and SHA-256 digests, and only finalizes after every part is verified.
+- LocalStorageDriver: stores parts in a private temporary workspace, re-verifies them during assembly, and publishes through the existing atomic write path.

@@ -170,3 +170,10 @@ E05 creates scoped file and transfer records, writes through the selected driver
 An idempotency key replays an already-completed matching upload without writing it again. A matching in-progress request raises an in-progress exception; a changed payload under the same key raises an idempotency conflict. Failed keys are not automatically retried in E05.
 
 This is not a chunked, resumable or queued upload. Those capabilities belong to E06–E08.
+
+
+## E06 multipart driver extension
+
+Drivers that support multipart writes implement MultipartStorageDriver in addition to StorageDriver. The extension provides begin, write-part, complete and abort operations through typed DTOs. A driver must not advertise supportsMultipartWrites unless it implements this contract.
+
+Upload callers continue to use the existing Storix::uploads()->upload(UploadRequest) entry point. The manager selects multipart execution only when the selected driver declares and implements the optional capability. Drivers without multipart support retain the E05 single-object write path.

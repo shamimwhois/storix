@@ -7,6 +7,8 @@ namespace ShamimStack\Storix\Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use ShamimStack\Storix\Contracts\MultipartStorageDriver;
+use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
 use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
 use ShamimStack\Storix\Contracts\StorageDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
@@ -17,12 +19,15 @@ use ShamimStack\Storix\DTOs\StorageObjectMetadata;
 use ShamimStack\Storix\DTOs\UploadRequest;
 use ShamimStack\Storix\DTOs\WriteResult;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
+use ShamimStack\Storix\Enums\ChunkState;
 use ShamimStack\Storix\Enums\TransferState;
 use ShamimStack\Storix\Exceptions\IdempotencyConflictException;
+use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Exceptions\UploadIntegrityException;
 use ShamimStack\Storix\Exceptions\UploadTooLargeException;
 use ShamimStack\Storix\Exceptions\UploadValidationException;
 use ShamimStack\Storix\Facades\Storix;
+use ShamimStack\Storix\Models\Chunk;
 use ShamimStack\Storix\Models\StoredFile;
 use ShamimStack\Storix\Models\Transfer;
 use ShamimStack\Storix\Tests\TestCase;
@@ -68,7 +73,8 @@ final class UploadManagerTest extends TestCase
             self::assertSame(hash('sha256', $contents), $result->file->sha256);
             self::assertSame(TransferState::COMPLETED, $result->transfer->state);
             self::assertSame(strlen($contents), $result->transfer->transferred_bytes);
-            self::assertSame(0, $result->transfer->total_chunks);
+            self::assertSame(1, $result->transfer->total_chunks);
+            self::assertSame(1, $result->transfer->completed_chunks);
             self::assertFileExists($this->root.'/'.$result->file->storage_key);
             self::assertSame(1, StoredFile::query()->count());
             self::assertSame(1, Transfer::query()->count());
@@ -97,6 +103,147 @@ final class UploadManagerTest extends TestCase
         }
 
         self::assertSame(2, StoredFile::query()->count());
+    }
+
+    public function test_it_plans_persists_and_verifies_multiple_chunks(): void
+    {
+        config(['storix.transfers.chunk_size' => 4]);
+        $contents = 'abcdefghij';
+        $stream = $this->stream($contents);
+
+        try {
+            $result = Storix::uploads()->upload(new UploadRequest(
+                stream: $stream,
+                originalName: 'chunked.txt',
+            ));
+
+            self::assertSame(3, $result->transfer->total_chunks);
+            self::assertSame(3, $result->transfer->completed_chunks);
+            self::assertSame(strlen($contents), $result->transfer->transferred_bytes);
+
+            $chunks = Chunk::query()
+                ->where('transfer_id', $result->transfer->id)
+                ->orderBy('chunk_index')
+                ->get();
+
+            self::assertCount(3, $chunks);
+            self::assertSame([0, 4, 8], $chunks->pluck('offset_bytes')->all());
+            self::assertSame([4, 4, 2], $chunks->pluck('size_bytes')->all());
+            self::assertSame(
+                [
+                    hash('sha256', 'abcd'),
+                    hash('sha256', 'efgh'),
+                    hash('sha256', 'ij'),
+                ],
+                $chunks->pluck('sha256')->all(),
+            );
+
+            foreach ($chunks as $chunk) {
+                self::assertSame(ChunkState::VERIFIED, $chunk->state);
+            }
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    public function test_it_persists_failed_upload_state_when_a_multipart_part_write_fails(): void
+    {
+        $driver = $this->createMock(MultipartStorageDriver::class);
+        $driver->method('name')->willReturn('mp');
+        $driver->method('capabilities')->willReturn(new DriverCapabilities(
+            supportsMultipartWrites: true,
+        ));
+        $driver->method('beginMultipartWrite')->willReturn('upload-1');
+        $driver->method('writeMultipartPart')->willThrowException(
+            new StorageOperationFailedException('multipart_write'),
+        );
+        $driver->expects(self::once())->method('abortMultipartWrite')->with('upload-1');
+        $driver->expects(self::once())->method('delete');
+
+        $this->app->make(DriverManager::class)->register('mp', $driver);
+        $stream = $this->stream('multipart-payload');
+
+        try {
+            $this->assertUploadException(
+                StorageOperationFailedException::class,
+                fn () => Storix::uploads()->upload(new UploadRequest(
+                    stream: $stream,
+                    originalName: 'multipart.txt',
+                    driver: 'mp',
+                )),
+            );
+        } finally {
+            fclose($stream);
+        }
+
+        $file = StoredFile::query()->firstOrFail();
+        $transfer = Transfer::query()->firstOrFail();
+        $chunk = Chunk::query()->firstOrFail();
+
+        self::assertSame('failed', $file->status);
+        self::assertSame(TransferState::FAILED, $transfer->state);
+        self::assertSame(ChunkState::FAILED, $chunk->state);
+        self::assertNotNull($chunk->last_error_code);
+        self::assertSame(1, StoredFile::query()->count());
+        self::assertSame(1, Transfer::query()->count());
+        self::assertSame(1, Chunk::query()->count());
+    }
+
+    public function test_it_aborts_multipart_write_and_preserves_upload_error_when_chunk_failure_persistence_fails(): void
+    {
+        $chunkRepository = $this->app->make(ChunkRepository::class);
+        $failingRepository = $this->createMock(ChunkRepository::class);
+        $failingRepository->method('create')->willReturnCallback(
+            fn (array $attributes) => $chunkRepository->create($attributes),
+        );
+        $failingRepository->method('findByIndex')->willReturnCallback(
+            fn (string $transferId, int $chunkIndex) => $chunkRepository->findByIndex($transferId, $chunkIndex),
+        );
+        $failingRepository->method('save')->willReturnCallback(
+            fn (Chunk $chunk) => $chunkRepository->save($chunk),
+        );
+        $failingRepository->method('deleteForTransfer')->willReturnCallback(
+            fn (string $transferId) => $chunkRepository->deleteForTransfer($transferId),
+        );
+        $failingRepository->method('forTransfer')->willThrowException(
+            new \RuntimeException('Simulated chunk persistence failure.'),
+        );
+        $this->app->instance(
+            ChunkRepository::class,
+            $failingRepository,
+        );
+
+        $driver = $this->createMock(MultipartStorageDriver::class);
+        $driver->method('name')->willReturn('mp');
+        $driver->method('capabilities')->willReturn(new DriverCapabilities(
+            supportsMultipartWrites: true,
+        ));
+        $driver->method('beginMultipartWrite')->willReturn('upload-2');
+        $driver->method('writeMultipartPart')->willThrowException(
+            new StorageOperationFailedException('multipart_write'),
+        );
+        $driver->expects(self::once())->method('abortMultipartWrite')->with('upload-2');
+        $driver->expects(self::once())->method('delete');
+
+        $this->app->make(DriverManager::class)->register('mp', $driver);
+        $stream = $this->stream('multipart-payload');
+
+        try {
+            $exception = $this->assertUploadException(
+                StorageOperationFailedException::class,
+                fn () => Storix::uploads()->upload(new UploadRequest(
+                    stream: $stream,
+                    originalName: 'multipart-persistence-failure.txt',
+                    driver: 'mp',
+                )),
+            );
+
+            self::assertSame('STORAGE_OPERATION_FAILED', $exception->errorCode->value);
+        } finally {
+            fclose($stream);
+        }
+
+        self::assertSame(TransferState::FAILED, Transfer::query()->firstOrFail()->state);
     }
 
     public function test_it_accepts_an_empty_file(): void
@@ -145,6 +292,44 @@ final class UploadManagerTest extends TestCase
         } finally {
             fclose($firstStream);
             fclose($secondStream);
+        }
+    }
+
+    public function test_it_replays_a_completed_upload_before_applying_a_changed_chunk_plan(): void
+    {
+        $payload = str_repeat('x', 10_001);
+        config(['storix.transfers.chunk_size' => 10_001]);
+        $firstStream = $this->stream($payload);
+        $retryStream = $this->stream($payload);
+
+        try {
+            $first = Storix::uploads()->upload(new UploadRequest(
+                stream: $firstStream,
+                originalName: 'same.txt',
+                ownerId: 'owner-a',
+                idempotencyKey: 'chunk-plan-replay',
+            ));
+
+            self::assertSame(1, $first->transfer->total_chunks);
+
+            config(['storix.transfers.chunk_size' => 1]);
+
+            $retry = Storix::uploads()->upload(new UploadRequest(
+                stream: $retryStream,
+                originalName: 'same.txt',
+                ownerId: 'owner-a',
+                idempotencyKey: 'chunk-plan-replay',
+            ));
+
+            self::assertTrue($retry->replayed);
+            self::assertSame($first->file->id, $retry->file->id);
+            self::assertSame($first->transfer->id, $retry->transfer->id);
+            self::assertSame(1, $retry->transfer->total_chunks);
+            self::assertSame(1, Transfer::query()->count());
+            self::assertSame(1, StoredFile::query()->count());
+        } finally {
+            fclose($firstStream);
+            fclose($retryStream);
         }
     }
 
