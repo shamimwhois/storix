@@ -134,15 +134,15 @@ Verified GitHub state on 2026-11-01:
 |---|---|---|---|
 | E01–E04 | Merged into `main` | #1–#4 closed/merged | Complete |
 | E05 Basic Upload | Merged into `main` | #5 closed/merged | Complete |
-| E06 Chunk Engine | `feature/e06-chunk-engine` | #6 open, non-draft, base `main` | Implemented for review; not merged |
-| E07 Resume & Idempotency | `feature/e07-resume-idempotency` | #7 open draft, base E06 | Not merged; stacked dependency |
-| E08 Recovery & Retry | `feature/e08-recovery-retry` | #8 open, non-draft, base E07 | Current head CI green on SQLite/MySQL/PostgreSQL; terminal-cleanup marker review finding fixed and resolved; unmerged and stacked on E07 |
+| E06 Chunk Engine | Merged into `main` | #6 merged | Complete |
+| E07 Resume & Idempotency | Merged into `main` | #7 integrated through #15 | Complete |
+| E08 Recovery & Retry | `integration/e08-on-main` | New integration PR pending | Implementation transplanted onto current `main`; final CI and review pending |
 
-Do not merge E07 or E08 directly into `main` ahead of their base dependencies. E06 must merge first, then E07 must be rebased/validated against `main`, followed by E08. Keep each PR's implementation evidence distinct; a green run on an earlier head does not verify later commits.
+E06 and E07 are already integrated into `main`. E08 is being validated from a clean branch based on the E07 merge commit. Keep each PR's implementation evidence distinct; a green run on an earlier head does not verify later commits.
 
 E08 includes failure classification, persisted backoff deadlines, retry-deadline enforcement, token-owned recovery leases and heartbeats, provider-published object recovery after independent size/SHA-256 verification, stale-session expiry, and terminal multipart cleanup. The Artisan command supports bounded candidate counts and aggregate-only dry-run. A recovery pass cannot recreate missing source bytes; callers must resubmit the original source stream after the persisted retry deadline. E08 is not complete until the final PR head passes the full database CI matrix, code review, security review, and migration rollback/reapply checks.
 
-The E07 CI run recorded 102 tests / 424 assertions on SQLite, MySQL 8.4, and PostgreSQL 17. E08 current head `f7599bad7b8432718bf955a70316429c0348b9a3` passed SQLite, MySQL 8.4 and PostgreSQL 17 (run 41280888826), and its terminal-cleanup marker review thread is resolved. This verifies only the current E08 head; it does not certify E09 or E11 branches created against the earlier E08 base. E07's green run is not evidence that E08 is green. Driver-call heartbeat during a single blocking provider operation, queue-based source re-submission, and remote-provider recovery semantics remain follow-up work.
+The E07 CI run recorded 102 tests / 424 assertions on SQLite, MySQL 8.4, and PostgreSQL 17. The original stacked E08 branch passed its then-current SQLite, MySQL 8.4 and PostgreSQL 17 matrix, but that evidence does not certify the clean integration branch. The integration PR must pass its own current-head CI matrix and review gates. Driver-call heartbeat during a single blocking provider operation, queue-based source re-submission, and remote-provider recovery semantics remain follow-up work.
 
 
 Do not call E01/E02 a production engine. A first usable local-storage release requires at least E01–E05. A resumable/recoverable release requires E01–E10. Production readiness requires all applicable release gates and real deployment validation. E04 is complete only after the current CI workflow passes, all required code and security review findings are addressed, all review threads are resolved, and the work is merged into `main`.
