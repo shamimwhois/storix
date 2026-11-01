@@ -239,7 +239,6 @@ final class DownloadManagerTest extends TestCase
             'storix.downloads.max_concurrent_downloads' => 1,
             'storix.downloads.lock_directory' => $this->root.DIRECTORY_SEPARATOR.'download-locks',
         ]);
-        Cache::store('array')->flush();
 
         $file = $this->storeFile('capacity controlled');
         $request = new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a');
