@@ -883,8 +883,7 @@ final class UploadManager
         ?Directory $directory,
         array $staged,
     ): string {
-        $metadata = $request->metadata;
-        ksort($metadata);
+        $metadata = $this->canonicalizeMetadata($request->metadata);
 
         return hash('sha256', json_encode([
             'sha256' => $staged['sha256'],
@@ -898,6 +897,27 @@ final class UploadManager
             'visibility' => $request->visibility->value,
             'metadata' => $metadata,
         ], JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Sort associative metadata keys recursively while preserving list order.
+     *
+     * @param  array<array-key, mixed>  $metadata
+     * @return array<array-key, mixed>
+     */
+    private function canonicalizeMetadata(array $metadata): array
+    {
+        foreach ($metadata as $key => $value) {
+            if (is_array($value)) {
+                $metadata[$key] = $this->canonicalizeMetadata($value);
+            }
+        }
+
+        if (array_is_list($metadata) === false) {
+            ksort($metadata, SORT_STRING);
+        }
+
+        return $metadata;
     }
 
     private function extension(string $originalName): ?string
