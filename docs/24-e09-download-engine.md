@@ -46,7 +46,7 @@ The requested range is clamped to the remaining object length. Offset and length
 - Before returning bytes, Storix stages the full object through a bounded-memory php://temp stream, recomputes byte count and SHA-256, and compares both with the persisted record.
 - For a range, Storix obtains the native driver range and verifies its byte count and digest against the corresponding slice from the verified full-object snapshot. The provider range stream is then closed. Storix returns a fresh immutable range snapshot copied from the already-verified full-object spool, so a mutable provider stream cannot change bytes after checksum verification.
 - Each download is subject to storix.downloads.max_size_bytes (default 1 GiB), checked from provider metadata before any object read.
-- A shared atomic cache-lock semaphore limits active downloads to storix.downloads.max_concurrent_downloads (default 1). The slot remains held until DownloadResult::close() and expires after storix.downloads.lock_ttl_seconds (default 24 hours) if the caller process exits without closing it. Multi-node applications must configure a shared lock-capable cache store. Set max_size_bytes or max_concurrent_downloads to more permissive values only after sizing temporary storage.
+- An OS-level flock semaphore limits active downloads to storix.downloads.max_concurrent_downloads (default 1). The slot remains held until DownloadResult::close() and is automatically released by the operating system if the worker process exits. The lock directory is local to each host by default, which bounds that host's temporary storage. If multiple hosts share one temporary filesystem, configure a shared lock directory on a filesystem with reliable flock semantics. Set max_size_bytes or max_concurrent_downloads to more permissive values only after sizing temporary storage.
 - Spool memory is bounded by storix.downloads.spool_memory_bytes; PHP spills larger streams to its temporary-file backing store. Peak temporary storage is bounded by the admission slots and the configured object-size ceiling; a range request can temporarily hold the verified object plus one provider range spool, then the verified object plus the immutable returned range snapshot. With defaults, the worst-case per-slot bound is approximately twice max_size_bytes.
 - Source and intermediate streams are closed on success and failure. The returned stream remains caller-owned and must be closed.
 
@@ -57,8 +57,7 @@ E09 does not create public URLs, alter visibility, or bypass application authori
     'downloads' => [
         'max_size_bytes' => 1024 * 1024 * 1024,
         'max_concurrent_downloads' => 1,
-        'lock_ttl_seconds' => 86_400,
-        'cache_store' => null,
+        'lock_directory' => sys_get_temp_dir().DIRECTORY_SEPARATOR.'storix-download-locks-'.substr(hash('sha256', base_path()), 0, 16),
         'spool_memory_bytes' => 8 * 1024 * 1024,
     ],
 
