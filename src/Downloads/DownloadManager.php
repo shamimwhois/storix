@@ -170,7 +170,7 @@ final class DownloadManager
 
         if (DIRECTORY_SEPARATOR === '\\' && is_dir($directory) === false) {
             // On Windows, require an operator-created directory so recursive mkdir
-            // cannot traverse an unvalidated junction before path checks run.
+            if (DIRECTORY_SEPARATOR === '\\') {
             throw new StorageOperationFailedException('download_capacity_lock');
         }
 
@@ -284,11 +284,6 @@ final class DownloadManager
         }
     }
 
-    /**
-     * Reject writable, non-sticky ancestors so another local user cannot replace
-     * the validated lock directory between lstat() and opening a slot file.
-     */
-    private function assertTrustedLockDirectory(string $directory): void
     /**
      * Reject writable, non-sticky ancestors so another local user cannot replace
      * the validated lock directory between lstat() and opening a slot file.
