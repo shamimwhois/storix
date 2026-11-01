@@ -2,7 +2,9 @@
 
 ## Status
 
-The implementation branch `feature/e07-resume-idempotency` has a recorded green run on its current head `d76115bf46cde481ee37997e1e8e63d0383d4d8d`: 102 tests and 424 assertions passed on SQLite, MySQL 8.4 and PostgreSQL 17, including active-lease concurrency, changed-payload conflict, file-backed application-container restart, provider-part tamper recovery and migration rollback/reapply. However, comparison with the current E06 branch shows E07 is 10 commits behind and 131 commits ahead; it was branched from an older E06 state and does not include the latest E06 hardening. PR #7 remains draft and unmerged. Rebase/reconcile E07 onto the current E06 head, rerun all CI and review the combined diff before accepting E07 or marking the dependency complete.
+E06 was squash-merged into `main` as `420cef3a2e1ced3cfc93396073bd951d6de47730` (PR #6). The main-head CI matrix for this merge is now green on SQLite, MySQL 8.4 and PostgreSQL 17: runs [41284151130](https://github.com/shamimwhois/storix/actions/runs/41284151130), [41284151589](https://github.com/shamimwhois/storix/actions/runs/41284151589) and [41284151634](https://github.com/shamimwhois/storix/actions/runs/41284151634).
+
+E07 implementation branch `feature/e07-resume-idempotency` has its own recorded green run: 102 tests and 424 assertions passed on SQLite, MySQL 8.4 and PostgreSQL 17. However, PR #7 still targets the pre-merge `feature/e06-chunk-engine` branch at its old base SHA. Because E06 was squash-merged, Git ancestry is not linear: comparing current `main` to E07 shows a diverged history and a diff that includes E06 files as well as E07 changes. Do not simply retarget PR #7 to `main` or force-reset its branch; that could reintroduce duplicate E06 changes or discard E07 work. Create a fresh integration branch from current `main`, transplant only E07-specific changes with explicit conflict resolution (especially UploadManager, LocalStorageDriver, MultipartStorageDriver, the directory migration and related tests), then run the full CI matrix and review the resulting diff. PR #7 remains draft and unmerged until that integration branch is verified.
 
 ## Goals
 
