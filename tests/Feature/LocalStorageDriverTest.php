@@ -520,6 +520,7 @@ final class LocalStorageDriverTest extends TestCase
         self::assertTrue($capabilities->supportsRangeReads);
         self::assertTrue($capabilities->supportsAtomicFinalize);
         self::assertTrue($capabilities->supportsMultipartWrites);
+        self::assertTrue($capabilities->supportsPauseResume);
         self::assertSame(1, $capabilities->maxConcurrency);
         self::assertNull($capabilities->maxObjectSizeBytes);
     }
