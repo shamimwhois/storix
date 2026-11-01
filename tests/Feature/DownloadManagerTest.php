@@ -161,7 +161,7 @@ final class DownloadManagerTest extends TestCase
         $driver->expects(self::never())->method('readStream');
         $this->app->make(DriverManager::class)->register('range-guard', $driver);
 
-        $file = $this->app->make(\\ShamimStack\\Storix\\Contracts\\Repositories\\StoredFileRepository::class)->create([
+        $file = $this->app->make(\ShamimStack\Storix\Contracts\Repositories\StoredFileRepository::class)->create([
             'tenant_id' => 'tenant-a',
             'owner_id' => 'owner-a',
             'directory_id' => null,
