@@ -204,6 +204,24 @@ final class DownloadManagerTest extends TestCase
         }
     }
 
+    public function test_download_result_destruction_closes_stream_and_releases_slot(): void
+    {
+        config([
+            'storix.downloads.max_concurrent_downloads' => 1,
+            'storix.downloads.lock_directory' => $this->root.DIRECTORY_SEPARATOR.'download-locks',
+        ]);
+
+        $file = $this->storeFile('destructor releases slot');
+        $result = Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a'));
+        $stream = $result->stream;
+        unset($result);
+
+        self::assertFalse(is_resource($stream));
+
+        $next = Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a'));
+        $next->close();
+    }
+
     public function test_download_admission_lock_is_released_when_integrity_verification_fails(): void
     {
         config([
