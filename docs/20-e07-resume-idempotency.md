@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation and verification complete on `feature/e07-resume-idempotency`: 102 tests and 424 assertions pass on SQLite, MySQL 8.4 and PostgreSQL 17, including active-lease concurrency, changed-payload conflict, file-backed application-container restart, provider-part tamper recovery and migration rollback/reapply. PR #7 remains a draft stacked on E06 because PR #6 is still open; integration into `main` requires E06 to merge, PR #7 to be retargeted and CI to be rerun.
+The implementation branch `feature/e07-resume-idempotency` has a recorded green run on its current head `d76115bf46cde481ee37997e1e8e63d0383d4d8d`: 102 tests and 424 assertions passed on SQLite, MySQL 8.4 and PostgreSQL 17, including active-lease concurrency, changed-payload conflict, file-backed application-container restart, provider-part tamper recovery and migration rollback/reapply. However, comparison with the current E06 branch shows E07 is 10 commits behind and 131 commits ahead; it was branched from an older E06 state and does not include the latest E06 hardening. PR #7 remains draft and unmerged. Rebase/reconcile E07 onto the current E06 head, rerun all CI and review the combined diff before accepting E07 or marking the dependency complete.
 
 ## Goals
 
