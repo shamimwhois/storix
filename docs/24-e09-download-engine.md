@@ -44,9 +44,9 @@ The requested range is clamped to the remaining object length. Offset and length
 - The driver must advertise streaming. Range requests additionally require advertised native range support.
 - Storix checks provider metadata against the persisted file size and requires a valid persisted SHA-256 digest.
 - Before returning bytes, Storix stages the full object through a bounded-memory php://temp stream, recomputes byte count and SHA-256, and compares both with the persisted record.
-- For a range, Storix obtains the native driver range and compares its byte count and digest with the corresponding slice from the verified full-object snapshot. This detects provider mutation between verification and range retrieval.
+- For a range, Storix obtains the native driver range and compares its byte count and digest with the corresponding slice from the verified full-object snapshot. Seekable range streams are hashed in place and rewound; non-seekable provider streams are staged once. The package does not make a second temporary copy of a seekable range stream.
 - Each download is subject to storix.downloads.max_size_bytes (default 1 GiB), checked from provider metadata before any object read. Set it to null only when the application deliberately accepts unbounded per-request spool size and has its own admission/concurrency controls.
-- Spool memory is bounded by storix.downloads.spool_memory_bytes; PHP spills larger streams to its temporary-file backing store. Operators must size and monitor temporary storage for concurrent downloads.
+- Spool memory is bounded by storix.downloads.spool_memory_bytes; PHP spills larger streams to its temporary-file backing store. For the local driver, a range request holds the verified full-object spool plus the driver's single range spool, rather than a third duplicate. Operators must size and monitor temporary storage for concurrent downloads.
 - Source and intermediate streams are closed on success and failure. The returned stream remains caller-owned and must be closed.
 
 E09 does not create public URLs, alter visibility, or bypass application authorization. Applications must authenticate and authorize the caller before invoking the package. HTTP response construction, Content-Disposition policy, caching, and signed URLs are adapter/application concerns.
