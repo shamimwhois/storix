@@ -118,6 +118,7 @@ final class LocalStorageDriverTest extends TestCase
             .DIRECTORY_SEPARATOR.'storix-multipart-'.$uploadId;
 
         self::assertDirectoryExists($workspace);
+        unlink($workspace.DIRECTORY_SEPARATOR.'object-key');
         rmdir($workspace);
 
         $stream = $this->inputStream('part payload');
