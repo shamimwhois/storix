@@ -315,6 +315,10 @@ final class DownloadManager
             explode(DIRECTORY_SEPARATOR, $absolute),
             static fn (string $segment): bool => $segment !== '' && $segment !== '.',
         ));
+        if ($segments === []) {
+            throw new StorageOperationFailedException('download_capacity_lock');
+        }
+
         $current = DIRECTORY_SEPARATOR;
         $effectiveUser = $this->effectiveUserId();
         $lastIndex = count($segments) - 1;
@@ -382,6 +386,10 @@ final class DownloadManager
             explode('\\', substr($normalized, 3)),
             static fn (string $segment): bool => $segment !== '' && $segment !== '.',
         ));
+        if ($segments === []) {
+            throw new StorageOperationFailedException('download_capacity_lock');
+        }
+
         $current = $drive.'\\';
 
         foreach ($segments as $segment) {

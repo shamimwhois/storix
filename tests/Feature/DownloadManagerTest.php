@@ -289,6 +289,27 @@ final class DownloadManagerTest extends TestCase
         $next->close();
     }
 
+    public function test_download_rejects_a_filesystem_root_as_lock_directory(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\\\') {
+            self::markTestSkipped('POSIX filesystem-root path check is not available on Windows.');
+        }
+
+        config([
+            'storix.downloads.max_concurrent_downloads' => 1,
+            'storix.downloads.lock_directory' => DIRECTORY_SEPARATOR,
+        ]);
+
+        $file = $this->storeFile('filesystem root must not be a lock directory');
+
+        try {
+            Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a'));
+            self::fail('The filesystem root must never be accepted as a download lock directory.');
+        } catch (StorageOperationFailedException $exception) {
+            self::assertSame('download_capacity_lock', $exception->operation);
+        }
+    }
+
     public function test_download_rejects_a_preexisting_slot_file_with_permissive_permissions(): void
     {
         if (DIRECTORY_SEPARATOR === '\\') {
