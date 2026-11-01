@@ -32,7 +32,23 @@ interface TransferRepository
         string $token,
         DateTimeInterface $now,
         DateTimeInterface $expiresAt,
+        ?DateTimeInterface $claimExpiredBefore = null,
+        bool $allowTerminalCleanup = false,
     ): bool;
+
+    /**
+     * Lock the transfer row and confirm the token still owns an unexpired lease.
+     *
+     * Call inside the transaction that commits file availability and transfer completion.
+     */
+    public function ownsResumeLease(
+        string $transferId,
+        string $token,
+        DateTimeInterface $now,
+    ): bool;
+
+    /** Mark a possible late provider publication for a later cleanup sweep. */
+    public function markCleanupPending(string $transferId, DateTimeInterface $now): bool;
 
     /** Extend an unexpired lease only while the caller still owns its token. */
     public function renewResumeLease(

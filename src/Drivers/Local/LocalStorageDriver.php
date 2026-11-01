@@ -8,7 +8,6 @@ use DateTimeImmutable;
 use DirectoryIterator;
 use FilesystemIterator;
 use finfo;
-use Illuminate\Support\Facades\Log;
 use InvalidArgumentException;
 use Normalizer;
 use ShamimStack\Storix\Contracts\DirectoryDriver;
@@ -70,7 +69,7 @@ final class LocalStorageDriver implements DirectoryDriver, MultipartStorageDrive
             supportsMultipartWrites: true,
             supportsServerSideCopy: false,
             supportsAtomicFinalize: true,
-            supportsPauseResume: true,
+            supportsPauseResume: false,
         );
     }
 
@@ -301,8 +300,6 @@ final class LocalStorageDriver implements DirectoryDriver, MultipartStorageDrive
             throw new StorageOperationFailedException('multipart_complete');
         }
 
-        $workspaceCleanupAttempted = false;
-
         try {
             $this->assertMultipartObjectKey($directory, $request->key);
             $totalSize = 0;
@@ -369,9 +366,8 @@ final class LocalStorageDriver implements DirectoryDriver, MultipartStorageDrive
                 throw new StorageOperationFailedException('multipart_complete');
             }
 
-            // Remove the attempt workspace before publishing the completed object.
-            // A cleanup failure must not turn a failed completion into a published file.
-            $workspaceCleanupAttempted = true;
+            // Clean temporary multipart state before the final object becomes visible.
+            // Cleanup must not turn a successfully published object into a reported failure.
             $this->removeMultipartWorkspace($request->uploadId);
 
             return $this->writeStream(new WriteStreamRequest(
@@ -382,19 +378,6 @@ final class LocalStorageDriver implements DirectoryDriver, MultipartStorageDrive
                 metadata: $request->metadata,
             ));
         } catch (Throwable $exception) {
-            if ($workspaceCleanupAttempted === false) {
-                $workspaceCleanupAttempted = true;
-
-                try {
-                    $this->removeMultipartWorkspace($request->uploadId);
-                } catch (Throwable) {
-                    Log::warning('Storix multipart workspace cleanup failed after an earlier completion error.', [
-                        'driver' => 'local',
-                        'error_code' => 'MULTIPART_CLEANUP_FAILED',
-                    ]);
-                }
-            }
-
             if ($exception instanceof StorageOperationFailedException) {
                 throw $exception;
             }
@@ -404,6 +387,8 @@ final class LocalStorageDriver implements DirectoryDriver, MultipartStorageDrive
             if (is_resource($assembled)) {
                 @fclose($assembled);
             }
+
+            $this->removeMultipartWorkspace($request->uploadId);
         }
     }
 
@@ -771,7 +756,15 @@ final class LocalStorageDriver implements DirectoryDriver, MultipartStorageDrive
     {
         $directory = $this->multipartDirectory($uploadId);
 
-        if (is_link($directory) || is_dir($directory) === false) {
+        if (is_link($directory)) {
+            throw new StorageOperationFailedException('multipart_workspace');
+        }
+
+        if (file_exists($directory) === false) {
+            throw new StorageOperationFailedException('multipart_workspace_missing');
+        }
+
+        if (is_dir($directory) === false) {
             throw new StorageOperationFailedException('multipart_workspace');
         }
 

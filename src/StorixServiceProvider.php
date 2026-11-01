@@ -6,6 +6,7 @@ namespace ShamimStack\Storix;
 
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Support\ServiceProvider;
+use ShamimStack\Storix\Console\Commands\RecoverStaleTransfersCommand;
 use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
 use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
 use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
@@ -17,6 +18,7 @@ use ShamimStack\Storix\Repositories\Eloquent\EloquentDirectoryRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentStoredFileRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentTransferRepository;
 use ShamimStack\Storix\Services\ChunkPlanner;
+use ShamimStack\Storix\Services\RetryPolicy;
 use ShamimStack\Storix\Services\TransferStateMachine;
 use ShamimStack\Storix\Uploads\UploadManager;
 
@@ -52,6 +54,7 @@ final class StorixServiceProvider extends ServiceProvider
                 $app->make(ChunkPlanner::class),
                 $app->make(TransferStateMachine::class),
                 $app->make(ConfigRepository::class),
+                $app->make(RetryPolicy::class),
             );
 
             return $manager;
@@ -78,6 +81,8 @@ final class StorixServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
         if ($this->app->runningInConsole()) {
+            $this->commands([RecoverStaleTransfersCommand::class]);
+
             $this->publishes([
                 __DIR__.'/../config/storix.php' => config_path('storix.php'),
             ], 'storix-config');

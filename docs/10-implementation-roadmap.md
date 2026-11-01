@@ -81,10 +81,13 @@ Implement sequentially; do not start provider-specific work before core contract
 - Follow [E07 Resume & Idempotency specification](20-e07-resume-idempotency.md).
 
 ### E08 Recovery & Retry
-- Classify transient/permanent errors.
-- Add exponential backoff with jitter.
-- Add transfer/chunk locks.
-- Add stale session reconciliation and cleanup commands.
+- Classify transient, rate-limited, permanent, and unknown failures without exposing provider details.
+- Persist bounded exponential backoff deadlines with jitter and enforce them before an idempotent resume.
+- Reuse token-owned transfer leases and periodic heartbeats during recovery.
+- Recover a provider-published final object only after independent size and SHA-256 verification.
+- Reconcile stale transfers and clean abandoned or terminal multipart workspaces through a bounded, dry-run-capable Artisan command.
+- Preserve available file objects when cleaning terminal transfer sessions.
+- Follow [E08 Recovery & Retry specification](21-e08-recovery-and-retry.md).
 
 ### E09 Download Engine
 - Stream content.
@@ -125,7 +128,21 @@ Implement sequentially; do not start provider-specific work before core contract
 
 ## Milestone policy
 
-E05 Basic Upload and E06 Chunk Engine are merged into main. E06 landed as merge commit `420cef3a2e1ced3cfc93396073bd951d6de47730`; its post-merge CI matrix passed on SQLite, MySQL 8.4 and PostgreSQL 17. E07 implementation is now transplanted onto `integration/e07-on-main` from current main, with a 21-file diff and no duplicated E06 history. ChunkReconciler validates persisted layout, verification timestamps and freshly staged-byte digests; MultipartSessionReconciler inspects provider parts and discards stale/mismatched parts. TransferRepository supports atomic lease claim, token-owned renewal/release and safe same-second renewal semantics across database engines. UploadManager resumes existing multipart transfers without duplicate files/sessions, retains the persisted chunk layout, reconciles provider parts, reuses verified parts, rewrites missing/tampered parts and preserves open sessions on resumable failure. The original E07 branch passed 102 tests / 424 assertions on SQLite, MySQL 8.4 and PostgreSQL 17; the fresh integration PR #15 remains draft pending its own current-head CI and review. Driver-call heartbeat and post-provider-completion crash recovery remain E08 operational follow-up.
+Verified GitHub state on 2026-11-01:
+
+| Epic | Repository state | PR | Completion interpretation |
+|---|---|---|---|
+| E01–E04 | Merged into `main` | #1–#4 closed/merged | Complete |
+| E05 Basic Upload | Merged into `main` | #5 closed/merged | Complete |
+| E06 Chunk Engine | Merged into `main` | #6 merged | Complete |
+| E07 Resume & Idempotency | Merged into `main` | #7 integrated through #15 | Complete |
+| E08 Recovery & Retry | `integration/e08-on-main` | New integration PR pending | Implementation transplanted onto current `main`; final CI and review pending |
+
+E06 and E07 are already integrated into `main`. E08 is being validated from a clean branch based on the E07 merge commit. Keep each PR's implementation evidence distinct; a green run on an earlier head does not verify later commits.
+
+E08 includes failure classification, persisted backoff deadlines, retry-deadline enforcement, token-owned recovery leases and heartbeats, provider-published object recovery after independent size/SHA-256 verification, stale-session expiry, and terminal multipart cleanup. The Artisan command supports bounded candidate counts and aggregate-only dry-run. A recovery pass cannot recreate missing source bytes; callers must resubmit the original source stream after the persisted retry deadline. E08 is not complete until the final PR head passes the full database CI matrix, code review, security review, and migration rollback/reapply checks.
+
+The E07 CI run recorded 102 tests / 424 assertions on SQLite, MySQL 8.4, and PostgreSQL 17. The original stacked E08 branch passed its then-current SQLite, MySQL 8.4 and PostgreSQL 17 matrix, but that evidence does not certify the clean integration branch. The integration PR must pass its own current-head CI matrix and review gates. Driver-call heartbeat during a single blocking provider operation, queue-based source re-submission, and remote-provider recovery semantics remain follow-up work.
 
 
 Do not call E01/E02 a production engine. A first usable local-storage release requires at least E01–E05. A resumable/recoverable release requires E01–E10. Production readiness requires all applicable release gates and real deployment validation. E04 is complete only after the current CI workflow passes, all required code and security review findings are addressed, all review threads are resolved, and the work is merged into `main`.

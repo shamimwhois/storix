@@ -1,0 +1,84 @@
+<?php
+
+declare(strict_types=1);
+
+namespace ShamimStack\Storix\Services;
+
+use ShamimStack\Storix\Enums\FailureCategory;
+use Throwable;
+
+final class RetryPolicy
+{
+    public function __construct(private readonly ErrorClassifier $classifier) {}
+
+    /**
+     * Return whether another attempt is allowed under the configured hard attempt limit.
+     */
+    public function shouldRetry(Throwable $exception, int $attempt, int $maxAttempts): bool
+    {
+        if ($attempt < 1 || $maxAttempts < 1 || $attempt >= $maxAttempts) {
+            return false;
+        }
+
+        return $this->isRetryableCategory($this->classifier->classify($exception));
+    }
+
+    /**
+     * Convert an exception into a stable transfer error code.
+     */
+    public function errorCode(Throwable $exception): string
+    {
+        return $this->classifier->codeFor($exception);
+    }
+
+    /**
+     * Apply the same bounded retry rule to an error code restored from persistent storage.
+     */
+    public function shouldRetryCode(?string $errorCode, int $attempt, int $maxAttempts): bool
+    {
+        if ($attempt < 1 || $maxAttempts < 1 || $attempt >= $maxAttempts) {
+            return false;
+        }
+
+        return $this->isRetryableCategory($this->classifier->classifyCode($errorCode));
+    }
+
+    /**
+     * Determine whether the failure is permanent, independently of the attempt limit.
+     */
+    public function isPermanent(Throwable $exception): bool
+    {
+        return $this->classifier->classify($exception) === FailureCategory::PERMANENT;
+    }
+
+    /**
+     * Calculate capped exponential backoff with bounded full-width jitter.
+     */
+    public function delayMilliseconds(
+        int $attempt,
+        int $baseSeconds,
+        int $maximumSeconds,
+        int $jitterPercent = 20,
+    ): int {
+        $safeBaseSeconds = min(86_400, max(1, $baseSeconds));
+        $safeMaximumSeconds = min(86_400, max(1, $maximumSeconds));
+        $baseMilliseconds = $safeBaseSeconds * 1000;
+        $maximumMilliseconds = $safeMaximumSeconds * 1000;
+        $exponent = min(20, max(0, $attempt - 1));
+        $baseDelay = min($maximumMilliseconds, $baseMilliseconds * (2 ** $exponent));
+        $spread = (int) floor($baseDelay * min(100, max(0, $jitterPercent)) / 100);
+        $minimum = max(0, (int) $baseDelay - $spread);
+        $maximum = min($maximumMilliseconds, (int) $baseDelay + $spread);
+
+        return random_int($minimum, max($minimum, $maximum));
+    }
+
+    private function isRetryableCategory(FailureCategory $category): bool
+    {
+        return in_array($category, [
+            FailureCategory::TRANSIENT,
+            FailureCategory::RATE_LIMITED,
+            FailureCategory::UNKNOWN,
+        ], true);
+    }
+}

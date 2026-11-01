@@ -16,7 +16,7 @@ Storix is an **API-first, backend-only Laravel package** designed to give applic
 
 Instead of coupling application code to a single provider, Storix places a stable PHP API over a capability-aware driver system. Its engineering design covers streaming I/O, large-file chunking, resumable transfers, retries, integrity verification, transfer observability, and tenant-aware access control.
 
-> **Project status:** E01–E05 are merged into `main`. E06 Chunk Engine is in progress on `feature/e06-chunk-engine`. The Local adapter now supports verified synchronous multipart uploads with durable chunk metadata and atomic final-object publication. Queued parallel workers, resumability, automated recovery and remote providers remain later milestones. Storix is not yet a production release.
+> **Project status:** E01–E07 are merged into `main`. E08 Recovery & Retry is under integration review in PR #16 from `integration/e08-on-main`; its full CI matrix and review gates are pending. Storix is not yet a production release.
 
 ## At a glance
 
@@ -242,6 +242,8 @@ The documentation portal is available at **[docs/index.html](docs/index.html)**.
 | [E04 Local Storage Driver](docs/17-e04-local-driver.md) | Local streaming I/O, safe keys, range reads, metadata, and directories |
 | [E05 Basic Upload](docs/18-e05-basic-upload.md) | Stream-first single-object uploads, validation, idempotency and SHA-256 verification |
 | [E06 Chunk Engine](docs/19-e06-chunk-engine.md) | Deterministic chunk planning, optional multipart driver contract and verified chunk assembly |
+| [E07 Resume & Idempotency](docs/20-e07-resume-idempotency.md) | Request fingerprints, transfer leases, provider-part reconciliation and safe resume |
+| [E08 Recovery & Retry](docs/21-e08-recovery-and-retry.md) | Failure classification, persisted backoff, stale-session recovery and cleanup |
 
 ## Implementation roadmap
 

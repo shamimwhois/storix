@@ -176,19 +176,19 @@ Database transactions must not remain open during filesystem or provider I/O.
 
 ## 10. Acceptance criteria
 
-- [ ] Public `Storix::uploads()->upload(UploadRequest)` resolves from the Laravel container.
-- [ ] A binary stream can be uploaded through the configured Local driver.
-- [ ] The caller's source resource remains open after the operation.
-- [ ] The configured size limit is enforced during streaming; incorrect expected sizes are rejected.
-- [ ] Invalid names, MIME metadata, streams and inaccessible directories are rejected before storage writes.
-- [ ] File and transfer records carry matching tenant/owner/driver/directory scope.
-- [ ] Transfer lifecycle follows the state machine and finishes only after verification.
-- [ ] Stored size and SHA-256 match an independent streamed read-back.
-- [ ] Idempotent replay returns the existing completed result without rewriting; conflicts and in-progress duplicates are rejected.
-- [ ] Write, stat and read-back failures trigger safe cleanup and failed metadata state.
-- [ ] PHPUnit covers empty/binary files, size limit, invalid input, directory scope, idempotency, read-back mismatch and cleanup.
-- [ ] Pint, Composer validation and the complete PHPUnit suite pass in CI.
-- [ ] README, API reference, package structure, changelog and docs portal reflect only implemented behavior.
+- [x] Public `Storix::uploads()->upload(UploadRequest)` resolves from the Laravel container.
+- [x] A binary stream can be uploaded through the configured Local driver.
+- [x] The caller's source resource remains open after the operation.
+- [x] The configured size limit is enforced during streaming; incorrect expected sizes are rejected.
+- [x] Invalid names, MIME metadata, streams and inaccessible directories are rejected before storage writes.
+- [x] File and transfer records carry matching tenant/owner/driver/directory scope.
+- [x] Transfer lifecycle follows the state machine and finishes only after verification.
+- [x] Stored size and SHA-256 match an independent streamed read-back.
+- [x] Idempotent replay returns the existing completed result without rewriting; conflicts and in-progress duplicates are rejected.
+- [x] Write, stat and read-back failures trigger safe cleanup and failed metadata state.
+- [x] PHPUnit covers empty/binary files, size limit, invalid input, directory scope, idempotency, read-back mismatch and cleanup.
+- [x] Pint, Composer validation and the complete PHPUnit suite pass in CI.
+- [x] README, API reference, package structure, changelog and docs portal reflect only implemented behavior.
 
 ## 11. Implementation sequence
 

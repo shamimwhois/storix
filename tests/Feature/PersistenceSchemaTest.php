@@ -10,6 +10,9 @@ use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
 use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
 use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
 use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
+use ShamimStack\Storix\Enums\TransferDirection;
+use ShamimStack\Storix\Enums\TransferState;
+use ShamimStack\Storix\Models\Transfer;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentChunkRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentDirectoryRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentStoredFileRepository;
@@ -26,6 +29,36 @@ final class PersistenceSchemaTest extends TestCase
         self::assertTrue(Schema::hasTable('storix_files'));
         self::assertTrue(Schema::hasTable('storix_transfers'));
         self::assertTrue(Schema::hasTable('storix_chunks'));
+        self::assertTrue(Schema::hasColumn('storix_transfers', 'next_retry_at'));
+        self::assertTrue(Schema::hasColumn('storix_transfers', 'last_heartbeat_at'));
+        self::assertTrue(Schema::hasColumn('storix_transfers', 'cleanup_pending'));
+    }
+
+    public function test_e08_recovery_columns_can_be_rolled_back_and_reapplied_without_losing_transfer_rows(): void
+    {
+        Transfer::query()->create([
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::PENDING,
+            'total_bytes' => 1,
+        ]);
+
+        $migration = require dirname(__DIR__, 2).'/database/migrations/2026_11_01_000006_add_recovery_metadata_to_storix_transfers.php';
+
+        $migration->down();
+
+        self::assertFalse(Schema::hasColumn('storix_transfers', 'next_retry_at'));
+        self::assertFalse(Schema::hasColumn('storix_transfers', 'last_heartbeat_at'));
+        self::assertFalse(Schema::hasColumn('storix_transfers', 'cleanup_pending'));
+        self::assertSame(1, Transfer::query()->count());
+
+        $migration->up();
+
+        self::assertTrue(Schema::hasColumn('storix_transfers', 'next_retry_at'));
+        self::assertTrue(Schema::hasColumn('storix_transfers', 'last_heartbeat_at'));
+        self::assertTrue(Schema::hasColumn('storix_transfers', 'cleanup_pending'));
+        self::assertTrue(Schema::hasIndex('storix_transfers', ['state', 'next_retry_at']));
+        self::assertSame(1, Transfer::query()->count());
     }
 
     public function test_migrations_can_be_rolled_back_in_reverse_dependency_order(): void
@@ -35,6 +68,8 @@ final class PersistenceSchemaTest extends TestCase
             dirname(__DIR__, 2).'/database/migrations/2026_10_30_000002_create_storix_files_table.php',
             dirname(__DIR__, 2).'/database/migrations/2026_10_30_000003_create_storix_transfers_table.php',
             dirname(__DIR__, 2).'/database/migrations/2026_10_30_000004_create_storix_chunks_table.php',
+            dirname(__DIR__, 2).'/database/migrations/2026_10_31_000005_add_resume_metadata_to_storix_transfers_and_chunks.php',
+            dirname(__DIR__, 2).'/database/migrations/2026_11_01_000006_add_recovery_metadata_to_storix_transfers.php',
         ];
 
         foreach (array_reverse($migrationPaths) as $migrationPath) {

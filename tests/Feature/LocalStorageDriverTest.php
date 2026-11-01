@@ -9,14 +9,17 @@ use ShamimStack\Storix\Contracts\DirectoryDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
 use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
+use ShamimStack\Storix\DTOs\CompleteMultipartWriteRequest;
 use ShamimStack\Storix\DTOs\DeleteObjectRequest;
 use ShamimStack\Storix\DTOs\ReadStreamRequest;
 use ShamimStack\Storix\DTOs\StatObjectRequest;
 use ShamimStack\Storix\DTOs\WriteMultipartPartRequest;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
+use ShamimStack\Storix\Enums\FailureCategory;
 use ShamimStack\Storix\Enums\StorixErrorCode;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Facades\Storix;
+use ShamimStack\Storix\Services\ErrorClassifier;
 use ShamimStack\Storix\Tests\TestCase;
 
 final class LocalStorageDriverTest extends TestCase
@@ -104,6 +107,72 @@ final class LocalStorageDriverTest extends TestCase
         self::assertIsResource($input);
 
         fclose($input);
+    }
+
+    /**
+     * A missing multipart workspace is restartable, while its stable error remains sanitized.
+     */
+    public function test_a_missing_multipart_workspace_is_classified_as_restartable(): void
+    {
+        $driver = $this->driver();
+        $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest('missing-session.txt'));
+        $workspace = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
+            .DIRECTORY_SEPARATOR.'storix-multipart-'.$uploadId;
+
+        self::assertDirectoryExists($workspace);
+        unlink($workspace.DIRECTORY_SEPARATOR.'object-key');
+        rmdir($workspace);
+
+        $stream = $this->inputStream('part payload');
+
+        try {
+            $driver->writeMultipartPart(new WriteMultipartPartRequest(
+                uploadId: $uploadId,
+                partNumber: 1,
+                stream: $stream,
+            ));
+            self::fail('A missing multipart workspace must be reported.');
+        } catch (StorageOperationFailedException $exception) {
+            self::assertSame('multipart_workspace_missing', $exception->operation);
+            self::assertSame(
+                FailureCategory::TRANSIENT,
+                $this->app->make(ErrorClassifier::class)->classify($exception),
+            );
+        } finally {
+            fclose($stream);
+        }
+    }
+
+    public function test_a_non_directory_multipart_workspace_remains_a_permanent_error(): void
+    {
+        $driver = $this->driver();
+        $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest('unsafe-session.txt'));
+        $workspace = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
+            .DIRECTORY_SEPARATOR.'storix-multipart-'.$uploadId;
+
+        unlink($workspace.DIRECTORY_SEPARATOR.'object-key');
+        rmdir($workspace);
+        file_put_contents($workspace, 'not a directory');
+
+        $stream = $this->inputStream('part payload');
+
+        try {
+            $driver->writeMultipartPart(new WriteMultipartPartRequest(
+                uploadId: $uploadId,
+                partNumber: 1,
+                stream: $stream,
+            ));
+            self::fail('A non-directory multipart workspace must be rejected.');
+        } catch (StorageOperationFailedException $exception) {
+            self::assertSame('multipart_workspace', $exception->operation);
+            self::assertSame(
+                FailureCategory::PERMANENT,
+                $this->app->make(ErrorClassifier::class)->classify($exception),
+            );
+        } finally {
+            fclose($stream);
+            unlink($workspace);
+        }
     }
 
     /**
@@ -520,7 +589,6 @@ final class LocalStorageDriverTest extends TestCase
         self::assertTrue($capabilities->supportsRangeReads);
         self::assertTrue($capabilities->supportsAtomicFinalize);
         self::assertTrue($capabilities->supportsMultipartWrites);
-        self::assertTrue($capabilities->supportsPauseResume);
         self::assertSame(1, $capabilities->maxConcurrency);
         self::assertNull($capabilities->maxObjectSizeBytes);
     }
@@ -554,6 +622,47 @@ final class LocalStorageDriverTest extends TestCase
             fclose($stream);
             $driver->abortMultipartWrite($uploadId);
         }
+    }
+
+    public function test_multipart_cleanup_failure_does_not_publish_the_final_object(): void
+    {
+        $driver = $this->driver();
+        $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest(
+            key: 'uploads/final-object.bin',
+        ));
+        $stream = $this->inputStream('verified multipart bytes');
+        $part = null;
+
+        try {
+            $part = $driver->writeMultipartPart(new WriteMultipartPartRequest(
+                uploadId: $uploadId,
+                partNumber: 1,
+                stream: $stream,
+            ));
+        } finally {
+            fclose($stream);
+        }
+
+        $workspace = sys_get_temp_dir().DIRECTORY_SEPARATOR.'storix-multipart-'.$uploadId;
+        mkdir($workspace.DIRECTORY_SEPARATOR.'unexpected-directory');
+
+        try {
+            $driver->completeMultipartWrite(new CompleteMultipartWriteRequest(
+                uploadId: $uploadId,
+                key: 'uploads/final-object.bin',
+                parts: [$part],
+                expectedSizeBytes: strlen('verified multipart bytes'),
+                expectedSha256: hash('sha256', 'verified multipart bytes'),
+            ));
+            self::fail('Workspace cleanup failure must prevent final-object publication.');
+        } catch (StorageOperationFailedException $exception) {
+            self::assertSame(StorixErrorCode::STORAGE_OPERATION_FAILED, $exception->errorCode);
+        } finally {
+            rmdir($workspace.DIRECTORY_SEPARATOR.'unexpected-directory');
+            $driver->abortMultipartWrite($uploadId);
+        }
+
+        self::assertNull($driver->stat(new StatObjectRequest('uploads/final-object.bin')));
     }
 
     /**
