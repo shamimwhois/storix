@@ -170,12 +170,12 @@ final class DownloadManager
 
         if (DIRECTORY_SEPARATOR === '\\' && is_dir($directory) === false) {
             // On Windows, require an operator-created directory so recursive mkdir
-            if (DIRECTORY_SEPARATOR === '\\') {
+            // cannot traverse an unvalidated junction before path checks run.
             throw new StorageOperationFailedException('download_capacity_lock');
         }
 
         if (is_dir($directory) === false) {
-            if (DIRECTORY_SEPARATOR === '\\\\') {
+            if (DIRECTORY_SEPARATOR === '\\') {
                 throw new StorageOperationFailedException('download_capacity_lock');
             }
 
