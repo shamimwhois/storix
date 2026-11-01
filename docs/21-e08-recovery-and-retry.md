@@ -50,7 +50,7 @@ The package does not persist the original upload bytes. A scheduled recovery run
 
 ## Recovery lease and heartbeat
 
-Recovery claims a transfer using the existing token-owned resume lease. The repository conditionally claims only a lease that expired before the configured `resume_lease_grace_seconds` cutoff, then renews it while long-running verification is in progress. UploadManager uses the same grace cutoff. The final file-availability transaction locks the transfer row and verifies the current token before committing completion. If an old worker returns after losing ownership, it cannot commit file availability and marks `cleanup_pending` so any late provider publication is reconciled by a subsequent sweep.
+Recovery claims a transfer using the existing token-owned resume lease. The repository conditionally claims only a lease that expired before the configured `resume_lease_grace_seconds` cutoff, then renews it while long-running verification is in progress. UploadManager uses the same grace cutoff. The final file-availability transaction locks the transfer row and verifies the current token before committing completion. If an old worker returns after losing ownership, it cannot commit file availability and marks `cleanup_pending` so a subsequent sweep can attempt cleanup of unpublished storage. A completed transfer with an available file is preserved without provider revalidation.
 
 The recovery command is bounded by a maximum candidate count. It does not mutate transfers in dry-run mode. Terminal transfers that still contain a multipart upload identifier can be leased for cleanup without changing their terminal state.
 
@@ -90,7 +90,7 @@ Run a bounded recovery pass:
 php artisan storix:transfers:recover --limit=100 --stale-seconds=300
 ```
 
-The command prints counts for examined, recovered, cleaned, expired, waiting, cleanup-pending, skipped, terminated, and failed transfers. `terminated` counts transfers successfully cleaned and deliberately moved to `FAILED` because retries were exhausted or the error was permanent; this is a handled outcome and does not make the command fail. `failed` is reserved for reconciliation exceptions and causes a non-zero exit. A non-zero exit therefore signals recovery work that could not be reconciled, not merely a transfer that was correctly terminated; inspect sanitized application logs.
+The command prints counts for examined, recovered, cleaned, expired, waiting, cleanup-pending, skipped, terminated, and failed transfers. `terminated` counts transfers successfully cleaned and deliberately moved to `FAILED` because retries were exhausted or the error was permanent; this is a handled outcome and does not make the command fail. `failed` counts reconciliation exceptions that could not be deferred or scheduled for cleanup retry and causes a non-zero exit. Exceptions successfully deferred for retry are counted as `waiting` or `cleanup-pending` and do not cause a non-zero exit. Review all result counts and sanitized application logs, not only the exit code.
 
 A Laravel scheduler may run the command periodically, with overlap prevention:
 
