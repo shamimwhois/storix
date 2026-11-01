@@ -2,9 +2,9 @@
 
 ## Status
 
-Implementation and PRD reconciliation are in progress on `feature/e08-recovery-retry`, stacked on E07. PR #8 is the source of truth for the current branch head and its required checks. CI runs on every commit across PHP 8.5 / Laravel 13 with SQLite, MySQL 8.4 and PostgreSQL 17; earlier runs on superseded commits must not be used as evidence for the latest head. One earlier run failed before PHPUnit because Pint reported two style issues; both were corrected in subsequent commits. The latest branch-head CI and full CodeRabbit review must pass before E08 can be marked verified.
+Implementation and PRD reconciliation are complete on `feature/e08-recovery-retry`, stacked on E07. The final verified head is `c788d86d25f489512f4977f3a4589dd86873f76a`. GitHub Actions run 41262461959 passed all three PHP 8.5 / Laravel 13 jobs: SQLite, MySQL 8.4, and PostgreSQL 17. Composer validation, Pint, PHPUnit, and the migration rollback/reapply coverage passed on that head. The PR has no unresolved inline review threads at the verification check.
 
-The E08 migration rollback/reapply and preservation tests are included in the suite, but final-head execution must pass before they are verified. PR #8 remains draft and is not merged or release-complete. Do not merge this branch directly into `main`; E07 remains stacked on E06.
+PR #8 remains draft/open and is not merged or release-complete because it is stacked on E07, which is stacked on E06. Integrate in dependency order (E06, E07, then E08), retarget/revalidate each dependent PR, and retain the full database matrix as a required gate. Do not merge E08 directly into `main` ahead of its base dependencies.
 
 ## Goals
 
