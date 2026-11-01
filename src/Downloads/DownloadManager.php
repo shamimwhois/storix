@@ -174,8 +174,19 @@ final class DownloadManager
             throw new StorageOperationFailedException('download_capacity_lock');
         }
 
-        if (is_dir($directory) === false && @mkdir($directory, 0700, true) === false && is_dir($directory) === false) {
-            throw new StorageOperationFailedException('download_capacity_lock');
+        if (is_dir($directory) === false) {
+            if (DIRECTORY_SEPARATOR === '\\\\') {
+                throw new StorageOperationFailedException('download_capacity_lock');
+            }
+
+            $parent = dirname($directory);
+            $this->assertTrustedLockDirectoryParent($parent);
+
+            // Create only the leaf after validating its existing parent chain.
+            // Recursive mkdir could follow a symlink in a missing path's ancestors.
+            if (@mkdir($directory, 0700) === false && is_dir($directory) === false) {
+                throw new StorageOperationFailedException('download_capacity_lock');
+            }
         }
 
         if (is_link($directory) || is_dir($directory) === false) {
@@ -233,6 +244,51 @@ final class DownloadManager
         throw new StorageOperationFailedException('download_capacity');
     }
 
+    /**
+     * Validate an existing POSIX parent chain before creating the lock-directory leaf.
+     */
+    private function assertTrustedLockDirectoryParent(string $directory): void
+    {
+        $absolute = str_starts_with($directory, DIRECTORY_SEPARATOR)
+            ? $directory
+            : getcwd().DIRECTORY_SEPARATOR.$directory;
+        $segments = array_values(array_filter(
+            explode(DIRECTORY_SEPARATOR, $absolute),
+            static fn (string $segment): bool => $segment !== '' && $segment !== '.',
+        ));
+        $current = DIRECTORY_SEPARATOR;
+        $effectiveUser = function_exists('posix_geteuid') ? posix_geteuid() : null;
+
+        foreach ($segments as $segment) {
+            if ($segment === '..') {
+                throw new StorageOperationFailedException('download_capacity_lock');
+            }
+
+            $current = rtrim($current, DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.$segment;
+            $stat = @lstat($current);
+
+            if ($stat === false || ($stat['mode'] & 0170000) !== 0040000) {
+                throw new StorageOperationFailedException('download_capacity_lock');
+            }
+
+            if ($effectiveUser !== null && $stat['uid'] !== $effectiveUser && $stat['uid'] !== 0) {
+                throw new StorageOperationFailedException('download_capacity_lock');
+            }
+
+            $writableByOtherUsers = ($stat['mode'] & 0022) !== 0;
+            $sticky = ($stat['mode'] & 01000) !== 0;
+
+            if ($writableByOtherUsers && $sticky === false) {
+                throw new StorageOperationFailedException('download_capacity_lock');
+            }
+        }
+    }
+
+    /**
+     * Reject writable, non-sticky ancestors so another local user cannot replace
+     * the validated lock directory between lstat() and opening a slot file.
+     */
+    private function assertTrustedLockDirectory(string $directory): void
     /**
      * Reject writable, non-sticky ancestors so another local user cannot replace
      * the validated lock directory between lstat() and opening a slot file.
