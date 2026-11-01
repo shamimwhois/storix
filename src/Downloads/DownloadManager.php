@@ -135,7 +135,7 @@ final class DownloadManager
     }
 
     /** @param resource $source
-     *  @return array{stream: resource, size: int, sha256: string}
+     * @return array{stream: resource, size: int, sha256: string}
      */
     private function stageStream(mixed $source, ?int $maximumBytes = null): array
     {
@@ -192,7 +192,7 @@ final class DownloadManager
     }
 
     /** @param resource $verified
-     *  @return array{sha256: string}
+     * @return array{sha256: string}
      */
     private function extractRange(mixed $verified, int $offset, int $length): array
     {
