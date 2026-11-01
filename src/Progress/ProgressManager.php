@@ -44,9 +44,12 @@ final class ProgressManager
 
         $etaSeconds = $completed
             ? 0
-            : ($averageBytesPerSecond !== null && $averageBytesPerSecond > 0 && $totalBytes > 0
-                ? (int) min(PHP_INT_MAX, ceil(max(0, $totalBytes - $transferredBytes) / $averageBytesPerSecond))
-                : null);
+            : ($averageBytesPerSecond !== null
+                && $averageBytesPerSecond > 0
+                && $totalBytes > 0
+                && $transferredBytes < $totalBytes
+                    ? (int) min(PHP_INT_MAX, ceil(($totalBytes - $transferredBytes) / $averageBytesPerSecond))
+                    : null);
 
         return new TransferProgressSnapshot(
             transferId: (string) $transfer->getKey(),
