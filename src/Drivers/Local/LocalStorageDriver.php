@@ -85,6 +85,8 @@ final class LocalStorageDriver implements AttemptFencedStorageDriver, DirectoryD
             throw new InvalidArgumentException('Logical storage key is invalid.');
         }
 
+        $this->segments($logicalKey);
+
         return '.storix-attempts/'.$attemptId.'/'.$logicalKey;
     }
 
@@ -754,7 +756,11 @@ final class LocalStorageDriver implements AttemptFencedStorageDriver, DirectoryD
             foreach (new FilesystemIterator($path, FilesystemIterator::SKIP_DOTS) as $item) {
                 $name = $item->getFilename();
 
-                if ($item->isLink() || strncasecmp($name, '.storix-tmp-', 12) === 0) {
+                if (
+                    $item->isLink()
+                    || strncasecmp($name, '.storix-tmp-', 12) === 0
+                    || ($key === '' && $name === '.storix-attempts')
+                ) {
                     continue;
                 }
 
