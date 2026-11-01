@@ -22,6 +22,29 @@ interface TransferRepository
 
     public function save(Transfer $transfer): Transfer;
 
+    /**
+     * Atomically claim an active transfer for one resume worker.
+     *
+     * An unexpired lease owned by another token cannot be replaced.
+     */
+    public function claimResumeLease(
+        string $transferId,
+        string $token,
+        DateTimeInterface $now,
+        DateTimeInterface $expiresAt,
+    ): bool;
+
+    /** Extend an unexpired lease only while the caller still owns its token. */
+    public function renewResumeLease(
+        string $transferId,
+        string $token,
+        DateTimeInterface $now,
+        DateTimeInterface $expiresAt,
+    ): bool;
+
+    /** Release a lease only when the caller still owns its token. */
+    public function releaseResumeLease(string $transferId, string $token): bool;
+
     /** @return Collection<int, Transfer> */
     public function expiredBefore(DateTimeInterface $cutoff, int $limit = 100): Collection;
 }
