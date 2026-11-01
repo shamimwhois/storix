@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation branch: `feature/e11-storage-fencing`, based on the verified E08 head. This work is isolated from E08/E09. No provider is considered strictly fenced until it passes the delayed-operation acceptance suite.
+Implementation branch: `feature/e11-storage-fencing`, based on the verified E08 head. The first implementation slice defines the attempt-fenced driver contract and adds local-driver attempt-key, multipart-session, and cleanup isolation. UploadManager generation persistence, transactional winning-reference promotion, crash recovery, and delayed-operation certification remain incomplete. This work is isolated from E08/E09. No provider is considered fully strict-fenced until the complete delayed-operation acceptance suite passes.
 
 ## Problem statement
 
