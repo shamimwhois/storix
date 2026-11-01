@@ -278,6 +278,31 @@ final class DownloadManagerTest extends TestCase
         $next->close();
     }
 
+    public function test_download_rejects_a_lock_directory_with_permissive_permissions(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('POSIX directory permission checks are not available on Windows.');
+        }
+
+        $directory = $this->root.DIRECTORY_SEPARATOR.'insecure-download-locks';
+        mkdir($directory, 0755, true);
+        chmod($directory, 0755);
+
+        config([
+            'storix.downloads.max_concurrent_downloads' => 1,
+            'storix.downloads.lock_directory' => $directory,
+        ]);
+
+        $file = $this->storeFile('private lock directory required');
+
+        try {
+            Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a'));
+            self::fail('A lock directory accessible by other users must be rejected.');
+        } catch (StorageOperationFailedException $exception) {
+            self::assertSame('download_capacity_lock', $exception->operation);
+        }
+    }
+
     public function test_download_size_limit_is_checked_before_reading_the_provider(): void
     {
         config(['storix.downloads.max_size_bytes' => 4]);
