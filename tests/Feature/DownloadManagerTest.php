@@ -205,6 +205,36 @@ final class DownloadManagerTest extends TestCase
         }
     }
 
+    public function test_download_admission_lock_is_released_when_integrity_verification_fails(): void
+    {
+        config([
+            'storix.downloads.max_concurrent_downloads' => 1,
+            'storix.downloads.cache_store' => 'array',
+        ]);
+        Cache::store('array')->flush();
+
+        $contents = 'verified payload';
+        $file = $this->storeFile($contents);
+        $path = $this->root.DIRECTORY_SEPARATOR.$file->storage_key;
+        file_put_contents($path, str_repeat('x', strlen($contents)));
+
+        try {
+            Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a'));
+            self::fail('Tampered bytes must fail integrity verification.');
+        } catch (UploadIntegrityException) {
+            self::assertTrue(true);
+        }
+
+        file_put_contents($path, $contents);
+        $result = Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a'));
+
+        try {
+            self::assertSame($contents, stream_get_contents($result->stream));
+        } finally {
+            $result->close();
+        }
+    }
+
     public function test_download_admission_lock_limits_concurrency_and_releases_on_close(): void
     {
         config([
