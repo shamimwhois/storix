@@ -20,7 +20,7 @@ return [
     'downloads' => [
         'max_size_bytes' => 1024 * 1024 * 1024,
         'max_concurrent_downloads' => 1,
-        'lock_directory' => sys_get_temp_dir().DIRECTORY_SEPARATOR.'storix-download-locks-'.substr(hash('sha256', base_path()), 0, 16),
+        'lock_directory' => (realpath(sys_get_temp_dir()) ?: sys_get_temp_dir()).DIRECTORY_SEPARATOR.'storix-download-locks-'.substr(hash('sha256', base_path()), 0, 16),
         'spool_memory_bytes' => 8 * 1024 * 1024,
         'windows_lock_directory_trusted' => false,
     ],
