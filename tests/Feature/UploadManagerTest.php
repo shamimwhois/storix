@@ -765,6 +765,51 @@ final class UploadManagerTest extends TestCase
         self::assertSame(1, Transfer::query()->count());
     }
 
+    public function test_nested_metadata_key_order_does_not_change_the_idempotency_fingerprint(): void
+    {
+        $firstStream = $this->stream('same-payload');
+        $secondStream = $this->stream('same-payload');
+
+        try {
+            $first = Storix::uploads()->upload(new UploadRequest(
+                stream: $firstStream,
+                originalName: 'nested.json',
+                ownerId: 'owner-a',
+                idempotencyKey: 'nested-metadata-order',
+                metadata: [
+                    'attributes' => [
+                        'zeta' => 2,
+                        'alpha' => 1,
+                    ],
+                    'tags' => ['first', 'second'],
+                ],
+            ));
+
+            $second = Storix::uploads()->upload(new UploadRequest(
+                stream: $secondStream,
+                originalName: 'nested.json',
+                ownerId: 'owner-a',
+                idempotencyKey: 'nested-metadata-order',
+                metadata: [
+                    'tags' => ['first', 'second'],
+                    'attributes' => [
+                        'alpha' => 1,
+                        'zeta' => 2,
+                    ],
+                ],
+            ));
+
+            self::assertFalse($first->replayed);
+            self::assertTrue($second->replayed);
+            self::assertSame($first->transfer->id, $second->transfer->id);
+            self::assertSame(1, Transfer::query()->count());
+            self::assertSame(1, StoredFile::query()->count());
+        } finally {
+            fclose($firstStream);
+            fclose($secondStream);
+        }
+    }
+
     public function test_request_fingerprint_is_bound_to_tenant_and_owner_security_scope(): void
     {
         $firstStream = $this->stream('same-payload');
