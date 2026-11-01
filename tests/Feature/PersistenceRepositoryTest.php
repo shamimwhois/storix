@@ -277,6 +277,29 @@ final class PersistenceRepositoryTest extends TestCase
             $now->copy()->addMinutes(5),
             allowTerminalCleanup: true,
         ));
+
+        $activeCleanup = $repository->create([
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::TRANSFERRING,
+            'total_bytes' => 12,
+            'cleanup_pending' => true,
+        ]);
+
+        self::assertFalse($repository->claimResumeLease(
+            $activeCleanup->id,
+            'upload-worker-token',
+            $now,
+            $now->copy()->addMinutes(5),
+        ));
+
+        self::assertTrue($repository->claimResumeLease(
+            $activeCleanup->id,
+            'recovery-worker-token',
+            $now,
+            $now->copy()->addMinutes(5),
+            allowTerminalCleanup: true,
+        ));
     }
 
     public function test_upload_lease_ownership_is_locked_and_late_provider_publication_is_marked_for_cleanup(): void
