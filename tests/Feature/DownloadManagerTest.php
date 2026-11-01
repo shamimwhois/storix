@@ -196,7 +196,7 @@ final class DownloadManagerTest extends TestCase
             fclose($stream);
         }
 
-        return $this->app->make(\ShamimStack\Storix\Contracts\Repositories\StoredFileRepository::class)->create([
+        return $this->app->make(StoredFileRepository::class)->create([
             'tenant_id' => 'tenant-a',
             'owner_id' => 'owner-a',
             'directory_id' => null,
