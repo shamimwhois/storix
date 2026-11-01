@@ -71,10 +71,14 @@ Implement sequentially; do not start provider-specific work before core contract
 - Keep the Local adapter sequential with maxConcurrency = 1. Queued parallel workers, resume and retry remain E07–E08 work.
 
 ### E07 Resume & Idempotency
-- Implement idempotency key uniqueness.
-- Implement content fingerprint and security scope.
-- Reconcile completed chunks.
-- Test restart and duplicate request scenarios.
+- Persist opaque multipart session identifiers and chunk verification timestamps.
+- Bind canonical request fingerprints to tenant/owner security scope and all upload attributes.
+- Acquire idempotency records atomically; retain the database unique constraint as the concurrency invariant.
+- Reconcile verified chunks against deterministic offsets, sizes, staged-byte digests and provider session identity.
+- Resume only matching sessions; fail closed on changed payloads, scope, chunk layout or provider references.
+- Recompute progress from verified chunks rather than incrementing counters during recovery.
+- Test restart, duplicate request, concurrency, changed payload and stale-session scenarios.
+- Follow [E07 Resume & Idempotency specification](20-e07-resume-idempotency.md).
 
 ### E08 Recovery & Retry
 - Classify transient/permanent errors.
@@ -121,7 +125,7 @@ Implement sequentially; do not start provider-specific work before core contract
 
 ## Milestone policy
 
-E05 Basic Upload is merged into main. E06 is implemented on feature/e06-chunk-engine as a synchronous sequential multipart workflow. Do not describe the current Local path as resumable or parallel until E07/E08 deliver and test those guarantees.
+E05 Basic Upload is merged into main. E06 is implemented on feature/e06-chunk-engine as a synchronous sequential multipart workflow; PR #6 remains open and unmerged. E07 implementation and verification are complete on feature/e07-resume-idempotency, stacked on E06 until PR #6 merges. ChunkReconciler validates persisted layout, verification timestamps and freshly staged-byte digests; MultipartSessionReconciler inspects provider parts and discards stale/mismatched parts. TransferRepository supports atomic lease claim, token-owned renewal/release and safe same-second renewal semantics across database engines. UploadManager resumes existing multipart transfers without duplicate files/sessions, retains the persisted chunk layout, reconciles provider parts, reuses verified parts, rewrites missing/tampered parts and preserves open sessions on resumable failure. Verification passes 102 tests / 424 assertions on SQLite, MySQL 8.4 and PostgreSQL 17, including file-backed application-container restart, provider tamper recovery, active-lease concurrency, changed-payload conflict and migration rollback/reapply. PR #7 remains draft until E06 merges; then retarget to main and rerun CI before integration. Driver-call heartbeat and post-provider-completion crash recovery remain E08 operational follow-up.
 
 
 Do not call E01/E02 a production engine. A first usable local-storage release requires at least E01–E05. A resumable/recoverable release requires E01–E10. Production readiness requires all applicable release gates and real deployment validation. E04 is complete only after the current CI workflow passes, all required code and security review findings are addressed, all review threads are resolved, and the work is merged into `main`.

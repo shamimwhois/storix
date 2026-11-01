@@ -174,6 +174,97 @@ final class PersistenceRepositoryTest extends TestCase
         $repository->save($transfer);
     }
 
+    public function test_resume_lease_is_exclusive_expires_and_requires_its_own_token_to_release(): void
+    {
+        $repository = $this->app->make(TransferRepository::class);
+        $transfer = $repository->create([
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::TRANSFERRING,
+            'total_bytes' => 12,
+        ]);
+        $now = now();
+
+        self::assertTrue($repository->claimResumeLease(
+            $transfer->id,
+            'worker-token-a',
+            $now,
+            $now->copy()->addSeconds(30),
+        ));
+        self::assertFalse($repository->claimResumeLease(
+            $transfer->id,
+            'worker-token-b',
+            $now->copy()->addSecond(),
+            $now->copy()->addSeconds(31),
+        ));
+        self::assertFalse($repository->releaseResumeLease($transfer->id, 'worker-token-b'));
+
+        $afterExpiry = $now->copy()->addSeconds(31);
+
+        self::assertTrue($repository->claimResumeLease(
+            $transfer->id,
+            'worker-token-b',
+            $afterExpiry,
+            $afterExpiry->copy()->addSeconds(30),
+        ));
+        self::assertFalse($repository->releaseResumeLease($transfer->id, 'worker-token-a'));
+        self::assertTrue($repository->releaseResumeLease($transfer->id, 'worker-token-b'));
+        self::assertNull($repository->findScoped($transfer->id, null, null)?->resume_lease_token);
+    }
+
+    public function test_resume_lease_can_only_be_renewed_by_its_owner_before_expiry(): void
+    {
+        $repository = $this->app->make(TransferRepository::class);
+        $transfer = $repository->create([
+            'direction' => TransferDirection::UPLOAD,
+            'driver' => 'local',
+            'state' => TransferState::TRANSFERRING,
+            'total_bytes' => 12,
+        ]);
+        $now = now();
+
+        self::assertTrue($repository->claimResumeLease(
+            $transfer->id,
+            'worker-token-a',
+            $now,
+            $now->copy()->addSeconds(30),
+        ));
+
+        $renewedAt = $now->copy()->addSeconds(20);
+        $newExpiry = $renewedAt->copy()->addSeconds(60);
+
+        self::assertTrue($repository->renewResumeLease(
+            $transfer->id,
+            'worker-token-a',
+            $renewedAt,
+            $newExpiry,
+        ));
+
+        self::assertTrue($repository->renewResumeLease(
+            $transfer->id,
+            'worker-token-a',
+            $renewedAt,
+            $newExpiry,
+        ));
+        self::assertFalse($repository->renewResumeLease(
+            $transfer->id,
+            'worker-token-b',
+            $renewedAt,
+            $newExpiry->copy()->addMinute(),
+        ));
+        self::assertFalse($repository->renewResumeLease(
+            $transfer->id,
+            'worker-token-a',
+            $newExpiry->copy()->addSecond(),
+            $newExpiry->copy()->addSeconds(30),
+        ));
+
+        self::assertSame(
+            $newExpiry->timestamp,
+            $repository->findScoped($transfer->id, null, null)?->resume_lease_expires_at?->timestamp,
+        );
+    }
+
     public function test_blank_idempotency_keys_are_rejected(): void
     {
         $this->expectException(InvalidArgumentException::class);
