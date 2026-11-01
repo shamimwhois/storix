@@ -10,6 +10,7 @@ use FilesystemIterator;
 use finfo;
 use InvalidArgumentException;
 use Normalizer;
+use ShamimStack\Storix\Contracts\AttemptFencedStorageDriver;
 use ShamimStack\Storix\Contracts\DirectoryDriver;
 use ShamimStack\Storix\Contracts\MultipartStorageDriver;
 use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
@@ -27,7 +28,7 @@ use ShamimStack\Storix\DTOs\WriteStreamRequest;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use Throwable;
 
-final class LocalStorageDriver implements DirectoryDriver, MultipartStorageDriver
+final class LocalStorageDriver implements AttemptFencedStorageDriver, DirectoryDriver, MultipartStorageDriver
 {
     private const int IO_CHUNK_BYTES = 1_048_576;
 
@@ -71,6 +72,81 @@ final class LocalStorageDriver implements DirectoryDriver, MultipartStorageDrive
             supportsAtomicFinalize: true,
             supportsPauseResume: false,
         );
+    }
+
+    /**
+     * Derive an immutable object key scoped to one upload attempt.
+     */
+    public function attemptObjectKey(string $logicalKey, string $attemptId): string
+    {
+        $this->assertAttemptId($attemptId);
+
+        if (trim($logicalKey) === '' || str_contains($logicalKey, "\0")) {
+            throw new InvalidArgumentException('Logical storage key is invalid.');
+        }
+
+        return '.storix-attempts/'.$attemptId.'/'.$logicalKey;
+    }
+
+    /**
+     * Write only to the immutable namespace belonging to this attempt.
+     */
+    public function writeAttempt(WriteStreamRequest $request, string $attemptId): WriteResult
+    {
+        $this->assertAttemptKey($request->key, $attemptId);
+
+        return $this->writeStream($request);
+    }
+
+    /**
+     * Create an isolated multipart session whose manifest binds it to this attempt key.
+     */
+    public function beginMultipartAttempt(BeginMultipartWriteRequest $request, string $attemptId): string
+    {
+        $this->assertAttemptKey($request->key, $attemptId);
+
+        return $this->beginMultipartWrite($request);
+    }
+
+    /**
+     * Reject part writes when the multipart session belongs to another attempt.
+     */
+    public function writeMultipartAttemptPart(WriteMultipartPartRequest $request, string $attemptId): MultipartPartResult
+    {
+        $this->assertMultipartAttempt($request->uploadId, $attemptId);
+
+        return $this->writeMultipartPart($request);
+    }
+
+    /**
+     * Complete only the multipart session and immutable key owned by this attempt.
+     */
+    public function completeMultipartAttempt(CompleteMultipartWriteRequest $request, string $attemptId): WriteResult
+    {
+        $this->assertAttemptKey($request->key, $attemptId);
+        $this->assertMultipartAttempt($request->uploadId, $attemptId);
+
+        return $this->completeMultipartWrite($request);
+    }
+
+    /**
+     * An old attempt cannot abort a multipart workspace owned by a newer attempt.
+     */
+    public function abortMultipartAttempt(string $uploadId, string $attemptId): void
+    {
+        $this->assertMultipartAttempt($uploadId, $attemptId);
+
+        $this->abortMultipartWrite($uploadId);
+    }
+
+    /**
+     * Delete only an object within the exact immutable attempt namespace.
+     */
+    public function deleteAttempt(DeleteObjectRequest $request, string $attemptId): void
+    {
+        $this->assertAttemptKey($request->key, $attemptId);
+
+        $this->delete($request);
     }
 
     /**
@@ -740,6 +816,50 @@ final class LocalStorageDriver implements DirectoryDriver, MultipartStorageDrive
         if (@rmdir($path) === false) {
             throw new StorageOperationFailedException('delete_directory');
         }
+    }
+
+    private function assertAttemptId(string $attemptId): void
+    {
+        if (preg_match('/^[A-Za-z0-9_-]{16,128}$/D', $attemptId) !== 1) {
+            throw new InvalidArgumentException('Storage attempt identifier is invalid.');
+        }
+    }
+
+    private function attemptPrefix(string $attemptId): string
+    {
+        $this->assertAttemptId($attemptId);
+
+        return '.storix-attempts/'.$attemptId.'/';
+    }
+
+    private function assertAttemptKey(string $key, string $attemptId): void
+    {
+        $prefix = $this->attemptPrefix($attemptId);
+
+        if (str_starts_with($key, $prefix) === false || strlen($key) <= strlen($prefix)) {
+            throw new StorageOperationFailedException('attempt_namespace');
+        }
+
+        // Reuse the driver's path validator before any filesystem operation.
+        $this->segments($key);
+    }
+
+    private function assertMultipartAttempt(string $uploadId, string $attemptId): void
+    {
+        $directory = $this->existingMultipartDirectory($uploadId);
+        $manifestPath = $directory.DIRECTORY_SEPARATOR.'object-key';
+
+        if (is_link($manifestPath) || is_file($manifestPath) === false) {
+            throw new StorageOperationFailedException('multipart_workspace');
+        }
+
+        $key = @file_get_contents($manifestPath);
+
+        if ($key === false) {
+            throw new StorageOperationFailedException('multipart_workspace');
+        }
+
+        $this->assertAttemptKey($key, $attemptId);
     }
 
     private function multipartDirectory(string $uploadId): string
