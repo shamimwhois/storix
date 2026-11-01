@@ -49,39 +49,52 @@ final class TransferRecoveryService
         $claimExpiredBefore = $now->copy()->subSeconds($leaseGraceSeconds);
         $limit = max(1, min(1000, $limit));
 
-        $candidates = Transfer::query()
-            ->where(function (Builder $query): void {
-                $query->whereIn('state', [
-                    TransferState::PENDING->value,
-                    TransferState::PREPARING->value,
-                    TransferState::TRANSFERRING->value,
-                    TransferState::PAUSED->value,
-                    TransferState::RETRY_WAIT->value,
-                    TransferState::VERIFYING->value,
-                ])->orWhere(function (Builder $terminal): void {
-                    $terminal->whereIn('state', [
-                        TransferState::COMPLETED->value,
-                        TransferState::FAILED->value,
-                        TransferState::CANCELLED->value,
-                        TransferState::EXPIRED->value,
-                    ])->where(function (Builder $cleanup): void {
-                        $cleanup->whereNotNull('multipart_upload_id')
-                            ->orWhere('cleanup_pending', true);
-                    });
-                });
-            })
-            ->where('updated_at', '<=', $cutoff)
-            ->where(function (Builder $query) use ($claimExpiredBefore): void {
-                $query->whereNull('resume_lease_expires_at')
-                    ->orWhere('resume_lease_expires_at', '<=', $claimExpiredBefore);
-            })
-            ->where(function (Builder $query) use ($now): void {
-                $query->whereNull('next_retry_at')
-                    ->orWhere('next_retry_at', '<=', $now);
-            })
-            ->orderBy('updated_at')
-            ->limit($limit)
-            ->get();
+        // Query active recovery and terminal cleanup independently. Reserving half
+        // the batch for active transfers prevents a terminal cleanup backlog from
+        // starving transfers that need verification or a source-retry deadline.
+        $activeLimit = max(1, intdiv($limit + 1, 2));
+        $terminalLimit = $limit - $activeLimit;
+
+        $eligible = static function (Builder $query) use ($cutoff, $claimExpiredBefore, $now): Builder {
+            return $query
+                ->where('updated_at', '<=', $cutoff)
+                ->where(function (Builder $lease) use ($claimExpiredBefore): void {
+                    $lease->whereNull('resume_lease_expires_at')
+                        ->orWhere('resume_lease_expires_at', '<=', $claimExpiredBefore);
+                })
+                ->where(function (Builder $retry) use ($now): void {
+                    $retry->whereNull('next_retry_at')
+                        ->orWhere('next_retry_at', '<=', $now);
+                })
+                ->orderBy('updated_at');
+        };
+
+        $activeCandidates = $eligible(Transfer::query()->whereIn('state', [
+            TransferState::PENDING->value,
+            TransferState::PREPARING->value,
+            TransferState::TRANSFERRING->value,
+            TransferState::PAUSED->value,
+            TransferState::RETRY_WAIT->value,
+            TransferState::VERIFYING->value,
+        ]))->limit($activeLimit)->get();
+
+        $terminalCandidates = $terminalLimit > 0
+            ? $eligible(Transfer::query()
+                ->whereIn('state', [
+                    TransferState::COMPLETED->value,
+                    TransferState::FAILED->value,
+                    TransferState::CANCELLED->value,
+                    TransferState::EXPIRED->value,
+                ])
+                ->where(function (Builder $cleanup): void {
+                    $cleanup->whereNotNull('multipart_upload_id')
+                        ->orWhere('cleanup_pending', true);
+                }))
+                ->limit($terminalLimit)
+                ->get()
+            : collect();
+
+        $candidates = $activeCandidates->concat($terminalCandidates)->sortBy('updated_at')->values();
 
         $summary = [
             'examined' => $candidates->count(),
