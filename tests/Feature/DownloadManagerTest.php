@@ -36,6 +36,15 @@ final class DownloadManagerTest extends TestCase
 
         $this->root = sys_get_temp_dir().'/storix-e09-'.Str::uuid();
         config(['storix.drivers.local.root' => $this->root]);
+
+        if (DIRECTORY_SEPARATOR === '\\\\') {
+            $lockDirectory = $this->root.DIRECTORY_SEPARATOR.'locks';
+            File::ensureDirectoryExists($lockDirectory, 0700, true);
+            config([
+                'storix.downloads.lock_directory' => $lockDirectory,
+                'storix.downloads.windows_lock_directory_trusted' => true,
+            ]);
+        }
     }
 
     protected function tearDown(): void
