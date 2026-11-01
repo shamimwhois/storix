@@ -122,7 +122,7 @@ final class DownloadManagerTest extends TestCase
     {
         $driver = $this->createMock(\ShamimStack\Storix\Contracts\StorageDriver::class);
         $driver->method('name')->willReturn('no-range');
-        $driver->method('capabilities')->willReturn(new DriverCapabilities(supportsRangeReads: false));
+        $driver->method('capabilities')->willReturn(new DriverCapabilities(supportsRangeReads: false));\n        $driver->method('writeStream')->willReturnCallback(static function (WriteStreamRequest $request): WriteResult {\n            $contents = stream_get_contents($request->stream);\n\n            return new WriteResult(new StorageObjectMetadata(\n                key: $request->key,\n                sizeBytes: strlen($contents),\n                checksumSha256: hash('sha256', $contents),\n            ));\n        });
         $this->app->make(DriverManager::class)->register('no-range', $driver);
         $file = $this->storeFile('range disabled', 'no-range');
 
