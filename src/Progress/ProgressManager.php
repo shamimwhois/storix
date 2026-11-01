@@ -32,10 +32,10 @@ final class ProgressManager
         $completed = $state === TransferState::COMPLETED;
         $percent = null;
 
-        if ($completed) {
-            $percent = 100.0;
-        } elseif ($totalBytes > 0) {
-            $percent = min(99.99, max(0.0, ($transferredBytes / $totalBytes) * 100));
+        if ($totalBytes > 0) {
+            $percent = $completed
+                ? 100.0
+                : min(99.99, max(0.0, ($transferredBytes / $totalBytes) * 100));
         }
 
         $averageBytesPerSecond = $transfer->average_bytes_per_second === null
@@ -65,7 +65,7 @@ final class ProgressManager
             completedChunks: min($completedChunks, $totalChunks > 0 ? $totalChunks : $completedChunks),
             revision: max(0, (int) $transfer->progress_revision),
             startedAt: $transfer->started_at,
-            updatedAt: $transfer->updated_at,
+            updatedAt: $transfer->updated_at?->toImmutable(),
             finishedAt: $transfer->finished_at,
         );
     }
