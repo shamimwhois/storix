@@ -760,8 +760,12 @@ final class LocalStorageDriver implements DirectoryDriver, MultipartStorageDrive
             throw new StorageOperationFailedException('multipart_workspace');
         }
 
-        if (is_dir($directory) === false) {
+        if (file_exists($directory) === false) {
             throw new StorageOperationFailedException('multipart_workspace_missing');
+        }
+
+        if (is_dir($directory) === false) {
+            throw new StorageOperationFailedException('multipart_workspace');
         }
 
         return $directory;
