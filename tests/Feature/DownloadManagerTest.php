@@ -39,7 +39,9 @@ final class DownloadManagerTest extends TestCase
 
         if (DIRECTORY_SEPARATOR === '\\') {
             $lockDirectory = $this->root.DIRECTORY_SEPARATOR.'locks';
+            $downloadLockDirectory = $this->root.DIRECTORY_SEPARATOR.'download-locks';
             File::ensureDirectoryExists($lockDirectory, 0700, true);
+            File::ensureDirectoryExists($downloadLockDirectory, 0700, true);
             config([
                 'storix.downloads.lock_directory' => $lockDirectory,
                 'storix.downloads.windows_lock_directory_trusted' => true,
