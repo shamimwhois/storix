@@ -278,6 +278,34 @@ final class DownloadManagerTest extends TestCase
         $next->close();
     }
 
+    public function test_download_rejects_a_preexisting_slot_file_with_permissive_permissions(): void
+    {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            self::markTestSkipped('POSIX file permission checks are not available on Windows.');
+        }
+
+        $directory = $this->root.DIRECTORY_SEPARATOR.'private-download-locks';
+        mkdir($directory, 0700, true);
+        chmod($directory, 0700);
+        $slot = $directory.DIRECTORY_SEPARATOR.'slot-0.lock';
+        file_put_contents($slot, '');
+        chmod($slot, 0644);
+
+        config([
+            'storix.downloads.max_concurrent_downloads' => 1,
+            'storix.downloads.lock_directory' => $directory,
+        ]);
+
+        $file = $this->storeFile('private slot file required');
+
+        try {
+            Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a'));
+            self::fail('A pre-existing slot file accessible by other users must be rejected.');
+        } catch (StorageOperationFailedException $exception) {
+            self::assertSame('download_capacity_lock', $exception->operation);
+        }
+    }
+
     public function test_download_rejects_a_lock_directory_with_permissive_permissions(): void
     {
         if (DIRECTORY_SEPARATOR === '\\') {
