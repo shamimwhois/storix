@@ -90,10 +90,15 @@ Implement sequentially; do not start provider-specific work before core contract
 - Follow [E08 Recovery & Retry specification](21-e08-recovery-and-retry.md).
 
 ### E09 Download Engine
-- Stream content.
-- Implement range support where driver advertises it.
-- Verify chunks and final checksum.
-- Clean temp resources on all exits.
+- Add typed DownloadRequest/DownloadResult and expose DownloadManager through the Storix facade.
+- Resolve files only through tenant/owner-scoped repository lookup and allow only available records.
+- Derive the storage driver and opaque key from persisted file metadata; never accept a caller-supplied storage key.
+- Require advertised streaming capability and native range-read capability for range requests.
+- Verify provider size metadata, stream byte count, and full-object SHA-256 before returning content.
+- Verify native range bytes against the corresponding slice of the verified full-object snapshot.
+- Bound in-memory spooling and close all intermediate resources on every exit path.
+- Test full downloads, range boundaries, capability rejection, scope isolation, unavailable files, tampering, and stream cleanup.
+- Follow [E09 Download Engine specification](24-e09-download-engine.md).
 
 ### E10 Progress & Events
 - Expose bytes, percent, speed, ETA and chunk counts.
@@ -135,17 +140,26 @@ Verified GitHub state on 2026-11-01:
 | E01–E04 | Merged into `main` | #1–#4 closed/merged | Complete |
 | E05 Basic Upload | Merged into `main` | #5 closed/merged | Complete |
 | E06 Chunk Engine | `feature/e06-chunk-engine` | #6 open, non-draft, base `main` | Implemented for review; not merged |
-| E07 Resume & Idempotency | `feature/e07-resume-idempotency` | #7 open draft, base E06 | Not merged; stacked dependency |
-| E08 Recovery & Retry | `feature/e08-recovery-retry` | #8 open draft, base E07 | Not complete; final CI/review gates pending |
+| E07 Resume & Idempotency | `feature/e07-resume-idempotency` | #7 open draft, base E06 | Implemented for review; not merged |
+| E08 Recovery & Retry | `feature/e08-recovery-retry` | #8 open, non-draft, base E07 | Final-head CI and review gates verified; not merged |
+| E09 Download Engine | `feature/e09-download-engine` | #13 open, non-draft, base E08 | Implementation, 4-way CI, and code/security review verified; not merged |
+| E10 Progress & Events | Not started | — | Next milestone; depends on E05–E09 implementation contracts |
 
 Do not merge E07 or E08 directly into `main` ahead of their base dependencies. E06 must merge first, then E07 must be rebased/validated against `main`, followed by E08. Keep each PR's implementation evidence distinct; a green run on an earlier head does not verify later commits.
 
-E08 includes failure classification, persisted backoff deadlines, retry-deadline enforcement, token-owned recovery leases and heartbeats, provider-published object recovery after independent size/SHA-256 verification, stale-session expiry, and terminal multipart cleanup. The Artisan command supports bounded candidate counts and aggregate-only dry-run. A recovery pass cannot recreate missing source bytes; callers must resubmit the original source stream after the persisted retry deadline. E08 is not complete until the final PR head passes the full database CI matrix, code review, security review, and migration rollback/reapply checks.
+E08 includes failure classification, persisted backoff deadlines, retry-deadline enforcement, token-owned recovery leases and heartbeats, provider-published object recovery after independent size/SHA-256 verification, stale-session expiry, and terminal multipart cleanup. The Artisan command supports bounded candidate counts and aggregate-only dry-run. A recovery pass cannot recreate missing source bytes; callers must resubmit the original source stream after the persisted retry deadline. E08 final-head Composer, Pint, PHPUnit, and SQLite/MySQL 8.4/PostgreSQL 17 CI gates passed on commit c788d86d25f489512f4977f3a4589dd86873f76a, including migration rollback/reapply coverage; no unresolved inline review threads remained at the verification check. The milestone is implementation-verified but remains unmerged because E06 and E07 are stacked dependencies. A separate security hardening item remains: strict provider-level no-overlap fencing is not provided by database leases and is tracked in issue #11.
 
-The E07 CI run recorded 102 tests / 424 assertions on SQLite, MySQL 8.4, and PostgreSQL 17. E08 verification results must be recorded separately; E07's green run is not evidence that E08 is green. Driver-call heartbeat during a single blocking provider operation, queue-based source re-submission, and remote-provider recovery semantics remain follow-up work.
+The E07 CI run recorded 102 tests / 424 assertions on SQLite, MySQL 8.4, and PostgreSQL 17. E08's final-head green run is recorded separately above; the E07 run is not used as evidence for E08. Driver-call heartbeat during a single blocking provider operation, queue-based source re-submission, and remote-provider recovery semantics remain follow-up work.
 
 
 Do not call E01/E02 a production engine. A first usable local-storage release requires at least E01–E05. A resumable/recoverable release requires E01–E10. Production readiness requires all applicable release gates and real deployment validation. E04 is complete only after the current CI workflow passes, all required code and security review findings are addressed, all review threads are resolved, and the work is merged into `main`.
 
 
 ---
+
+
+E08 final-head validation on commit c788d86d25f489512f4977f3a4589dd86873f76a passed the PHP 8.5 / Laravel 13 SQLite, MySQL 8.4, and PostgreSQL 17 jobs. No unresolved inline review threads remained at the verification check. E08 is still stacked on E07 and is not merged. Database lease ownership is not provider-level fencing: an accepted in-flight write/abort/delete may finish after lease expiry. The fail-closed cleanup_pending behaviour remains intentional; strict no-overlap storage fencing is tracked separately in issue #11 and must not be represented as an E08 guarantee.
+
+E09 implementation is on `feature/e09-download-engine`, based on `feature/e08-recovery-retry`. PR #13 is open, non-draft, and unmerged. Current head `da069a864cf7610c149b5192be172e0527747b5c` passed four-way CI run [#41278638231](https://github.com/shamimwhois/storix/actions/runs/41278638231) on PHP 8.5 / Laravel 13: SQLite, MySQL 8.4, PostgreSQL 17, and Windows SQLite. Linux Pint passed across 94 PHP files. The 159-test suite passed in every job (689 assertions on the three database jobs; 683 on Windows). Nine PHPUnit notices remain per job, with 1 skipped test on each database job and 4 on Windows. All four inline review threads are resolved; a dedicated Codex security review and general code review on the current head reported no major issues. The Windows lock-directory trust opt-in remains an explicit operator ACL/reparse-point trust boundary, documented in `docs/24-e09-download-engine.md`. E09 is implementation-verified and review-ready but remains unmerged because E06–E08 are stacked dependencies.
+
+E10 is the next planned epic. Do not implement it as a frontend-specific feature: progress snapshots, event contracts, notification hooks, persistence throttling, and queue/worker-safe dispatch must remain framework/package-level contracts. Begin E10 planning against the E05–E09 APIs without changing or merging the stacked E06–E09 branches until their dependency sequence is explicitly handled.

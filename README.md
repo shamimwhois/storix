@@ -16,7 +16,7 @@ Storix is an **API-first, backend-only Laravel package** designed to give applic
 
 Instead of coupling application code to a single provider, Storix places a stable PHP API over a capability-aware driver system. Its engineering design covers streaming I/O, large-file chunking, resumable transfers, retries, integrity verification, transfer observability, and tenant-aware access control.
 
-> **Project status:** E01–E05 are merged into `main`. E06 PR #6 is open; E07 PR #7 is a draft stacked on E06; E08 recovery/retry is in progress on `feature/e08-recovery-retry`, stacked on E07. E06 provides sequential verified multipart writes, E07 adds resumable/idempotent uploads, and E08 adds bounded recovery, retry deadlines, and stale-session cleanup. Storix is not yet a production release.
+> **Project status:** E01–E05 are merged into `main`. E06 PR #6 is open; E07 PR #7 is a draft stacked on E06; E08 recovery/retry is in progress on `feature/e08-recovery-retry`, stacked on E07. E06 provides sequential verified multipart writes, E07 adds resumable/idempotent uploads, and E08 adds bounded recovery, retry deadlines, and stale-session cleanup. E09 adds scoped, integrity-checked full and range downloads on the E08 stack. E08 and E09 remain unmerged; Storix is not yet a production release.
 
 ## At a glance
 
@@ -244,6 +244,7 @@ The documentation portal is available at **[docs/index.html](docs/index.html)**.
 | [E06 Chunk Engine](docs/19-e06-chunk-engine.md) | Deterministic chunk planning, optional multipart driver contract and verified chunk assembly |
 | [E07 Resume & Idempotency](docs/20-e07-resume-idempotency.md) | Request fingerprints, transfer leases, provider-part reconciliation and safe resume |
 | [E08 Recovery & Retry](docs/21-e08-recovery-and-retry.md) | Failure classification, persisted backoff, stale-session recovery and cleanup |
+| [E09 Download Engine](docs/24-e09-download-engine.md) | Scoped full downloads, native byte ranges, SHA-256 verification and stream cleanup |
 
 ## Implementation roadmap
 

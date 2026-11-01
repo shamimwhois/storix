@@ -176,6 +176,10 @@ final class WorkerRestartTest extends TestCase
             'attempts' => 0,
         ]);
 
+        // A restarted worker releases its database connection before the new
+        // application container reconnects to the same file-backed database.
+        DB::purge('sqlite');
+
         // Recreate the Laravel application while retaining the file-backed database
         // and provider multipart workspace, exactly as a restarted worker would.
         $this->refreshApplication();

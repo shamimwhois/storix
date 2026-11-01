@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use ShamimStack\Storix\Enums\FailureCategory;
+use ShamimStack\Storix\Exceptions\DownloadTooLargeException;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Exceptions\UploadInProgressException;
 use ShamimStack\Storix\Services\ErrorClassifier;
@@ -26,6 +27,14 @@ final class RetryPolicyTest extends TestCase
         self::assertSame(
             FailureCategory::PERMANENT,
             $classifier->classify(new InvalidArgumentException('invalid key')),
+        );
+        self::assertSame(
+            FailureCategory::PERMANENT,
+            $classifier->classify(new StorageOperationFailedException('download_range_bounds')),
+        );
+        self::assertSame(
+            FailureCategory::TRANSIENT,
+            $classifier->classify(new StorageOperationFailedException('download_range')),
         );
         self::assertSame(
             FailureCategory::TRANSIENT,
@@ -76,6 +85,8 @@ final class RetryPolicyTest extends TestCase
         );
         self::assertFalse($policy->shouldRetryCode('PERMANENT_FAILURE', 1, 5));
         self::assertFalse($policy->shouldRetryCode('UPLOAD_INTEGRITY_FAILED', 1, 5));
+        self::assertFalse($policy->shouldRetryCode('DOWNLOAD_TOO_LARGE', 1, 5));
+        self::assertSame('DOWNLOAD_TOO_LARGE', (new ErrorClassifier)->codeFor(new DownloadTooLargeException(1024)));
         self::assertFalse($policy->shouldRetryCode('STORAGE_OPERATION_FAILED', 5, 5));
     }
 
