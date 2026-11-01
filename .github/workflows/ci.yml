@@ -89,7 +89,7 @@ jobs:
           php-version: "8.5"
           coverage: none
           tools: composer:v2
-          extensions: pdo_sqlite
+          extensions: fileinfo, pdo_sqlite
       - name: Validate Composer metadata
         run: composer validate --strict
       - name: Install dependencies
