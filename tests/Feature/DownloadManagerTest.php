@@ -450,6 +450,23 @@ final class DownloadManagerTest extends TestCase
         Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a', 5, 1));
     }
 
+    public function test_windows_downloads_fail_closed_without_a_trusted_lock_path_opt_in(): void
+    {
+        if (DIRECTORY_SEPARATOR !== '\\\\') {
+            self::markTestSkipped('Windows lock-path policy is Windows-specific.');
+        }
+
+        $file = $this->storeFile('windows lock policy');
+        config(['storix.downloads.windows_lock_directory_trusted' => false]);
+
+        try {
+            Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a'));
+            self::fail('Windows downloads must fail closed until the lock path ACL boundary is explicitly trusted.');
+        } catch (StorageOperationFailedException $exception) {
+            self::assertSame('download_capacity_lock', $exception->operation);
+        }
+    }
+
     private function storeFile(string $contents, string $driverName = 'local'): StoredFile
     {
         $driver = $this->app->make(DriverManager::class)->driver($driverName);
