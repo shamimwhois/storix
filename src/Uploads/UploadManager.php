@@ -516,6 +516,20 @@ final class UploadManager
                     )) {
                         try {
                             $transfer = $this->states->transition($transfer->id, TransferState::RETRY_WAIT);
+
+                            // A missing Local multipart workspace cannot be resumed. Keep the
+                            // transfer nonterminal and sessionless so the caller's next source
+                            // submission starts a clean multipart attempt. Malformed or unsafe
+                            // workspaces remain permanent and fail closed.
+                            if (
+                                $exception instanceof StorageOperationFailedException
+                                && $exception->operation === 'multipart_workspace_missing'
+                            ) {
+                                $transfer->multipart_upload_id = null;
+                                $transfer->multipart_started_at = null;
+                                $transfer = $this->transfers->save($transfer);
+                            }
+
                             $transfer->last_error_code = $this->retryPolicy->errorCode($exception);
                             $transfer->last_error_message = 'Multipart upload paused after an interrupted resume attempt.';
                             $transfer->next_retry_at = now()->addMilliseconds(
