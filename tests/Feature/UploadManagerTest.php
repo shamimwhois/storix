@@ -8,6 +8,7 @@ use DateTimeInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Assert;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -209,7 +210,8 @@ final class UploadManagerTest extends TestCase
     public function test_finalization_transaction_rejects_a_worker_after_lease_replacement(): void
     {
         $repository = $this->app->make(TransferRepository::class);
-        $fencedRepository = new class($repository) implements TransferRepository {
+        $fencedRepository = new class($repository) implements TransferRepository
+        {
             public function __construct(private readonly TransferRepository $inner) {}
 
             public function create(array $attributes): Transfer
@@ -240,9 +242,9 @@ final class UploadManagerTest extends TestCase
             public function claimResumeLease(
                 string $transferId,
                 string $token,
-                \DateTimeInterface $now,
-                \DateTimeInterface $expiresAt,
-                ?\DateTimeInterface $claimExpiredBefore = null,
+                DateTimeInterface $now,
+                DateTimeInterface $expiresAt,
+                ?DateTimeInterface $claimExpiredBefore = null,
                 bool $allowTerminalCleanup = false,
             ): bool {
                 return $this->inner->claimResumeLease(
@@ -255,13 +257,13 @@ final class UploadManagerTest extends TestCase
                 );
             }
 
-            public function ownsResumeLease(string $transferId, string $token, \DateTimeInterface $now): bool
+            public function ownsResumeLease(string $transferId, string $token, DateTimeInterface $now): bool
             {
                 DB::table('storix_transfers')->where('id', $transferId)->update([
                     'resume_lease_expires_at' => now()->subSeconds(61),
                 ]);
 
-                self::assertTrue($this->inner->claimResumeLease(
+                Assert::assertTrue($this->inner->claimResumeLease(
                     $transferId,
                     'replacement-finalization-token',
                     $now,
@@ -272,7 +274,7 @@ final class UploadManagerTest extends TestCase
                 return $this->inner->ownsResumeLease($transferId, $token, $now);
             }
 
-            public function markCleanupPending(string $transferId, \DateTimeInterface $now): bool
+            public function markCleanupPending(string $transferId, DateTimeInterface $now): bool
             {
                 return $this->inner->markCleanupPending($transferId, $now);
             }
@@ -280,8 +282,8 @@ final class UploadManagerTest extends TestCase
             public function renewResumeLease(
                 string $transferId,
                 string $token,
-                \DateTimeInterface $now,
-                \DateTimeInterface $expiresAt,
+                DateTimeInterface $now,
+                DateTimeInterface $expiresAt,
             ): bool {
                 return $this->inner->renewResumeLease($transferId, $token, $now, $expiresAt);
             }
@@ -291,7 +293,7 @@ final class UploadManagerTest extends TestCase
                 return $this->inner->releaseResumeLease($transferId, $token);
             }
 
-            public function expiredBefore(\DateTimeInterface $cutoff, int $limit = 100): \Illuminate\Support\Collection
+            public function expiredBefore(DateTimeInterface $cutoff, int $limit = 100): Collection
             {
                 return $this->inner->expiredBefore($cutoff, $limit);
             }
