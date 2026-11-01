@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace ShamimStack\Storix\Downloads;
 
 use Closure;
-use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
-use Illuminate\Support\Facades\Cache;
 use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\DTOs\DownloadRequest;
@@ -156,35 +154,89 @@ final class DownloadManager
         }
     }
 
-    private function acquireDownloadSlot(): Lock
+    /** @return resource */
+    private function acquireDownloadSlot(): mixed
     {
         $maximumConcurrent = min(100, max(1, (int) $this->config->get('storix.downloads.max_concurrent_downloads', 1)));
-        $lockTtl = min(604_800, max(60, (int) $this->config->get('storix.downloads.lock_ttl_seconds', 86_400)));
-        $storeName = $this->config->get('storix.downloads.cache_store');
-        $cache = Cache::store(is_string($storeName) && $storeName !== '' ? $storeName : null);
+        $directory = (string) $this->config->get(
+            'storix.downloads.lock_directory',
+            sys_get_temp_dir().DIRECTORY_SEPARATOR.'storix-download-locks',
+        );
+
+        if (trim($directory) === '') {
+            throw new StorageOperationFailedException('download_capacity_lock');
+        }
+
+        if (is_dir($directory) === false && @mkdir($directory, 0700, true) === false && is_dir($directory) === false) {
+            throw new StorageOperationFailedException('download_capacity_lock');
+        }
+
+        if (is_link($directory) || is_dir($directory) === false) {
+            throw new StorageOperationFailedException('download_capacity_lock');
+        }
+
+        if (DIRECTORY_SEPARATOR !== '\\') {
+            @chmod($directory, 0700);
+        }
 
         for ($slot = 0; $slot < $maximumConcurrent; $slot++) {
-            $lock = $cache->lock('storix:downloads:slot:'.$slot, $lockTtl);
+            $path = $directory.DIRECTORY_SEPARATOR.'slot-'.$slot.'.lock';
 
-            if ($lock->get()) {
-                return $lock;
+            if (is_link($path)) {
+                throw new StorageOperationFailedException('download_capacity_lock');
             }
+
+            $handle = @fopen($path, 'c+b');
+
+            if ($handle === false) {
+                throw new StorageOperationFailedException('download_capacity_lock');
+            }
+
+            if (DIRECTORY_SEPARATOR !== '\\') {
+                @chmod($path, 0600);
+            }
+
+            $handleStat = @fstat($handle);
+            $pathStat = @lstat($path);
+
+            if (
+                $handleStat === false
+                || $pathStat === false
+                || $handleStat['dev'] !== $pathStat['dev']
+                || $handleStat['ino'] !== $pathStat['ino']
+                || ($handleStat['mode'] & 0170000) !== 0100000
+            ) {
+                @fclose($handle);
+
+                throw new StorageOperationFailedException('download_capacity_lock');
+            }
+
+            if (@flock($handle, LOCK_EX | LOCK_NB)) {
+                return $handle;
+            }
+
+            @fclose($handle);
         }
 
         throw new StorageOperationFailedException('download_capacity');
     }
 
-    private function lockReleaseCallback(Lock $lock): Closure
+    /** @param resource $lockHandle */
+    private function lockReleaseCallback(mixed $lockHandle): Closure
     {
         $released = false;
 
-        return static function () use ($lock, &$released): void {
+        return static function () use ($lockHandle, &$released): void {
             if ($released) {
                 return;
             }
 
             $released = true;
-            $lock->release();
+
+            if (is_resource($lockHandle)) {
+                @flock($lockHandle, LOCK_UN);
+                @fclose($lockHandle);
+            }
         };
     }
 
