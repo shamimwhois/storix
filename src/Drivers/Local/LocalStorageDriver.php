@@ -69,9 +69,8 @@ final class LocalStorageDriver implements DirectoryDriver, MultipartStorageDrive
             supportsRangeReads: true,
             supportsMultipartWrites: true,
             supportsServerSideCopy: false,
-            supportsPauseResume: true,
             supportsAtomicFinalize: true,
-            supportsPauseResume: false,
+            supportsPauseResume: true,
         );
     }
 
