@@ -485,7 +485,7 @@ final class TransferRecoveryService
                     ? $this->retryPolicy->errorCode($exception)
                     : StorixErrorCode::MAX_RETRIES_EXCEEDED->value);
 
-            return $this->scheduleCleanupRetry($transfer, $token, $exception, $failureCode);
+            return $this->scheduleCleanupRetry($transfer, $token, $failureCode);
         }
 
         return $this->deferForSourceRetry($transfer, $token, $exception);
@@ -494,10 +494,9 @@ final class TransferRecoveryService
     private function scheduleCleanupRetry(
         Transfer $transfer,
         string $token,
-        Throwable $exception,
         string $failureCode,
     ): bool {
-        return DB::transaction(function () use ($transfer, $token, $exception, $failureCode): bool {
+        return DB::transaction(function () use ($transfer, $token, $failureCode): bool {
             $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
 
             if ($current->state->isTerminal() || $this->ownsRecoveryLease($current, $token) === false) {
