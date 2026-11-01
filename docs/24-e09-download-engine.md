@@ -2,7 +2,7 @@
 
 ## Status
 
-Ported to `integration/e09-on-e08` from the verified E08 mainline. The latest PR head passes the PHP 8.5 / Laravel 13 CI matrix on SQLite, MySQL 8.4, and PostgreSQL 17 (166 tests / 713 assertions per database), with Pint clean and zero PHPUnit notices. One Windows-specific test is skipped on Linux by design. One Windows-specific test is skipped on Linux by design. Independent security review and final acceptance remain pending; E09 is not yet merged or release-ready.
+Ported to `integration/e09-on-e08` from the verified E08 mainline. The implementation head `f6eb75c4ceb7ceca990204608bae0db09a2695c5` passed the PHP 8.5 / Laravel 13 CI matrix on SQLite, MySQL 8.4, and PostgreSQL 17 (166 tests / 713 assertions per database), with Pint clean and zero PHPUnit notices. One Windows-specific test is skipped on Linux by design. Subsequent review-feedback changes require a fresh CI run. Independent security review and final acceptance remain pending; E09 is not yet merged or release-ready.
 
 ## Scope
 
@@ -61,10 +61,12 @@ E09 does not create public URLs, alter visibility, or bypass application authori
     'downloads' => [
         'max_size_bytes' => 1024 * 1024 * 1024,
         'max_concurrent_downloads' => 1,
-        'lock_directory' => sys_get_temp_dir().DIRECTORY_SEPARATOR.'storix-download-locks-'.substr(hash('sha256', base_path()), 0, 16),
+        'lock_directory' => (realpath(sys_get_temp_dir()) ?: sys_get_temp_dir()).DIRECTORY_SEPARATOR.'storix-download-locks-'.substr(hash('sha256', base_path()), 0, 16),
         'spool_memory_bytes' => 8 * 1024 * 1024,
         'windows_lock_directory_trusted' => false,
     ],
+
+The default resolves the temporary-directory path with realpath() before adding the package-specific directory name, avoiding symlinked temporary-root ancestors where canonicalization succeeds. If realpath() fails, it falls back to sys_get_temp_dir(); the download path validator still fails closed if that fallback contains an untrusted or symlinked ancestor.
 
 ## Acceptance coverage
 
