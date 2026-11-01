@@ -6,6 +6,7 @@ namespace ShamimStack\Storix\Tests\Feature;
 
 use ShamimStack\Storix\Contracts\StorageDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
+use ShamimStack\Storix\Downloads\DownloadManager;
 use ShamimStack\Storix\DTOs\DriverCapabilities;
 use ShamimStack\Storix\Facades\Storix;
 use ShamimStack\Storix\StorixManager;
@@ -26,6 +27,11 @@ final class StorixFacadeTest extends TestCase
 
         self::assertSame($driver, Storix::driver());
         self::assertTrue(Storix::capabilities()->supportsRangeReads);
+    }
+
+    public function test_facade_exposes_the_download_manager(): void
+    {
+        self::assertInstanceOf(DownloadManager::class, Storix::downloads());
     }
 
     public function test_facade_exposes_the_upload_manager(): void

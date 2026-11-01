@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use ShamimStack\Storix\Enums\FailureCategory;
+use ShamimStack\Storix\Exceptions\DownloadTooLargeException;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Exceptions\UploadInProgressException;
 use ShamimStack\Storix\Services\ErrorClassifier;
@@ -26,6 +27,10 @@ final class RetryPolicyTest extends TestCase
         self::assertSame(
             FailureCategory::PERMANENT,
             $classifier->classify(new InvalidArgumentException('invalid key')),
+        );
+        self::assertSame(
+            FailureCategory::PERMANENT,
+            $classifier->classify(new DownloadTooLargeException(1024)),
         );
         self::assertSame(
             FailureCategory::TRANSIENT,

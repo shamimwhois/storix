@@ -9,6 +9,7 @@ use LogicException;
 use PDOException;
 use ShamimStack\Storix\Enums\FailureCategory;
 use ShamimStack\Storix\Enums\StorixErrorCode;
+use ShamimStack\Storix\Exceptions\DownloadTooLargeException;
 use ShamimStack\Storix\Exceptions\IdempotencyConflictException;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Exceptions\StorixException;
@@ -27,6 +28,7 @@ final class ErrorClassifier
         'create_root',
         'delete',
         'delete_directory',
+        'download_range_bounds',
         'multipart_cleanup',
         'multipart_discard',
         'multipart_verify',
@@ -65,6 +67,7 @@ final class ErrorClassifier
             || $exception instanceof LogicException
             || $exception instanceof TypeError
             || $exception instanceof IdempotencyConflictException
+            || $exception instanceof DownloadTooLargeException
             || $exception instanceof UploadIntegrityException
             || $exception instanceof UploadTooLargeException
             || $exception instanceof UploadValidationException
@@ -146,6 +149,7 @@ final class ErrorClassifier
             StorixErrorCode::INVALID_REQUEST->value,
             StorixErrorCode::UNSUPPORTED_CAPABILITY->value,
             StorixErrorCode::UPLOAD_TOO_LARGE->value,
+            StorixErrorCode::DOWNLOAD_TOO_LARGE->value,
             StorixErrorCode::IDEMPOTENCY_CONFLICT->value,
             StorixErrorCode::UPLOAD_INTEGRITY_FAILED->value,
             StorixErrorCode::TRANSFER_EXPIRED->value,
