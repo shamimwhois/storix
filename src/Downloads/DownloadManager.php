@@ -91,11 +91,12 @@ final class DownloadManager
         $range = null;
 
         try {
+            $expected = $this->extractRange($verified['stream'], $offset, $length);
             $range = $this->verifyRangeStream($driver->readStream(new ReadStreamRequest(
                 key: (string) $file->storage_key,
                 offset: $offset,
                 length: $length,
-            )), $length, $this->extractRange($verified['stream'], $offset, $length)['sha256']);
+            )), $length, $expected['sha256']);
             if ($range['size'] !== $length) {
                 throw new UploadIntegrityException;
             }
