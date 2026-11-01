@@ -2,7 +2,7 @@
 
 ## Status
 
-E08 is integrated on top of the E07 merge commit through PR [#16](https://github.com/shamimwhois/storix/pull/16), from branch `integration/e08-on-main`. The current integration head is undergoing code and security review. The PR's SQLite, MySQL 8.4 and PostgreSQL 17 CI matrix passed before the latest review-driven fixes; those changes require a fresh current-head run. E08 is not merge-complete until the updated CI matrix passes and the review findings are resolved.
+E08 is integrated on top of the E07 merge commit through PR [#16](https://github.com/shamimwhois/storix/pull/16), from branch `integration/e08-on-main`. The latest verified CI run [#41293381843](https://github.com/shamimwhois/storix/actions/runs/41293381843) passed on integration head `bdea07332cc8da025b8c40e38b8ec7a4d52b7dab` across PHP 8.5 / Laravel 13 with SQLite, MySQL and PostgreSQL. The PR remains open and unmerged while the final code/security review gate is completed; automated review comments are not human approval. Any new commit requires its own current-head CI verification before merge.
 
 The integration preserves the fail-closed `cleanup_pending` marker during provider I/O and after a point-in-time missing-object stat. It also reserves recovery batch capacity for stale active transfers so terminal cleanup backlog cannot consume the entire pass.
 
