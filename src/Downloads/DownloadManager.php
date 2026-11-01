@@ -271,6 +271,10 @@ final class DownloadManager
                 continue;
             }
 
+            if ($effectiveUser !== null && $stat['uid'] !== $effectiveUser && $stat['uid'] !== 0) {
+                throw new StorageOperationFailedException('download_capacity_lock');
+            }
+
             $writableByOtherUsers = ($stat['mode'] & 0022) !== 0;
             $sticky = ($stat['mode'] & 01000) !== 0;
 
