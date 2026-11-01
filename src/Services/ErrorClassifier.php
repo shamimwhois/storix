@@ -27,6 +27,7 @@ final class ErrorClassifier
         'create_root',
         'delete',
         'delete_directory',
+        'download_range_bounds',
         'multipart_cleanup',
         'multipart_discard',
         'multipart_verify',
