@@ -391,9 +391,9 @@ final class DownloadManager
             $targetStat = @stat($current);
             $resolvedComponent = realpath($current);
 
-            // Some Windows filesystems expose zero inode metadata for ordinary
-            // directories. Canonical-path equality rejects detectable junctions;
-            // the explicit ACL trust setting protects this path from local races.
+            // Windows PHP/filesystems do not expose portable, reliable reparse
+            // metadata for every junction type. The explicit ACL trust assertion
+            // must therefore cover the entire path and exclude untrusted reparse points.
             if (
                 $linkStat === false
                 || $targetStat === false
@@ -401,7 +401,6 @@ final class DownloadManager
                 || ($linkStat['mode'] & 0170000) !== 0040000
                 || ($targetStat['mode'] & 0170000) !== 0040000
                 || $resolvedComponent === false
-                || strcasecmp(rtrim($resolvedComponent, '\\'), rtrim($current, '\\')) !== 0
             ) {
                 throw new StorageOperationFailedException('download_capacity_lock');
             }
