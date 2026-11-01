@@ -78,6 +78,7 @@ final class RetryPolicyTest extends TestCase
         self::assertFalse($policy->shouldRetryCode('PERMANENT_FAILURE', 1, 5));
         self::assertFalse($policy->shouldRetryCode('UPLOAD_INTEGRITY_FAILED', 1, 5));
         self::assertFalse($policy->shouldRetryCode('DOWNLOAD_TOO_LARGE', 1, 5));
+        self::assertFalse($policy->shouldRetryCode('PERMANENT_FAILURE', 1, 5));
         self::assertSame('DOWNLOAD_TOO_LARGE', (new ErrorClassifier)->codeFor(new DownloadTooLargeException(1024)));
         self::assertFalse($policy->shouldRetryCode('STORAGE_OPERATION_FAILED', 5, 5));
     }
