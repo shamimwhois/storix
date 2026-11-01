@@ -401,7 +401,7 @@ final class DownloadManager
                 || ($linkStat['mode'] & 0170000) !== 0040000
                 || ($targetStat['mode'] & 0170000) !== 0040000
                 || $resolvedComponent === false
-                || strcasecmp(rtrim($resolvedComponent, '\\\\'), rtrim($current, '\\\\')) !== 0
+                || strcasecmp(rtrim($resolvedComponent, '\\'), rtrim($current, '\\')) !== 0
             ) {
                 throw new StorageOperationFailedException('download_capacity_lock');
             }
