@@ -19,7 +19,7 @@ The repository integration is intentionally staged:
 | Workflow | Trigger | Responsibility |
 |---|---|---|
 | `Storix CI` | Push, PR to `main` or `feature/**`, manual | Composer validation, PHP 8.5 setup, Pint, PHPUnit on SQLite/MySQL 8.4/PostgreSQL 17 |
-| `Dependency security audit` | Same CI workflow | `composer audit --locked` |
+| `Dependency security audit` | Same CI workflow | Resolve a temporary dependency graph for this library (no committed lockfile), then run `composer audit --locked` against that generated lockfile. The lockfile is CI-local and is not committed. |
 | `Autonomous Engineering — Task Intake` | Issue receives `ai-task`, or manual dispatch | Validate issue and publish a task-context artifact |
 
 ## Pipeline stages
