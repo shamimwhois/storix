@@ -559,7 +559,7 @@ final class UploadManager
                         }
                     }
 
-                    $this->markFailed($transfer, $file, $request, $exception, $cleanupFailed);
+                    $this->markFailed($transfer, $file, $request, $exception, $cleanupFailed, $resumeLeaseToken);
                 }
             }
 
