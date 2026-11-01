@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ShamimStack\Storix\DTOs;
 
+use Closure;
 use InvalidArgumentException;
 use ShamimStack\Storix\Models\StoredFile;
 
@@ -12,6 +13,8 @@ final readonly class DownloadResult
     /** @var resource */
     public mixed $stream;
 
+    private ?Closure $onClose;
+
     public function __construct(
         public StoredFile $file,
         mixed $stream,
@@ -19,6 +22,7 @@ final readonly class DownloadResult
         public int $rangeStart,
         public bool $partial,
         public bool $checksumVerified,
+        ?Closure $onClose = null,
     ) {
         if (is_resource($stream) === false || get_resource_type($stream) !== 'stream') {
             throw new InvalidArgumentException('Download result requires a readable stream resource.');
@@ -31,6 +35,7 @@ final readonly class DownloadResult
         }
 
         $this->stream = $stream;
+        $this->onClose = $onClose;
     }
 
     public function close(): void
@@ -38,5 +43,7 @@ final readonly class DownloadResult
         if (is_resource($this->stream)) {
             fclose($this->stream);
         }
+
+        ($this->onClose)?->__invoke();
     }
 }
