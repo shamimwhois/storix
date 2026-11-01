@@ -111,8 +111,8 @@ Do not infer agent activity from GitHub Actions job count. Agent runtime telemet
 
 | Milestone | Scope | Status |
 |---|---|---|
-| AE-01 | CI matrix for stacked PR targets and Composer dependency audit | Implemented in this branch; CI pending |
-| AE-02 | Issue template and safe task-context artifact workflow | Implemented in this branch; CI pending |
+| AE-01 | CI matrix for stacked PR targets and Composer dependency audit | Implemented; current PR head `bb8f4c3` passed dependency audit and SQLite/MySQL/PostgreSQL PR CI in run [41281557539](https://github.com/shamimwhois/storix/actions/runs/41281557539). Branch still requires dependency rebase. |
+| AE-02 | Issue template and safe task-context artifact workflow | Implemented; included in the same verified PR head. The workflow prepares a context artifact only; it does not run an AI coder. |
 | AE-03 | External agent runner contract and event persistence | Documented; not implemented |
 | AE-04 | Standalone dashboard with live pipeline and agent graph | Planned |
 | AE-05 | Permission modes, approvals, GitHub App write integration | Planned; requires explicit security review |
