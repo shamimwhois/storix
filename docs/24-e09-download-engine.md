@@ -6,7 +6,7 @@ E09 adds scoped, integrity-checked downloads over the provider-neutral StorageDr
 
 ## API
 
-Resolve the download service through Storix::downloads() and pass a typed DownloadRequest. The result exposes a readable PHP stream and metadata including content length, range start, partial-response state, and checksum verification. The caller owns the returned stream and must close it with DownloadResult::close() or fclose().
+Resolve the download service through Storix::downloads() and pass a typed DownloadRequest. The result exposes a readable PHP stream and metadata including content length, range start, partial-response state, and checksum verification. The caller owns the returned stream and must release it with DownloadResult::close(); this also releases the shared download-admission slot. Calling fclose() directly closes the stream but does not release the slot early.
 
 Example full download:
 
@@ -44,9 +44,10 @@ The requested range is clamped to the remaining object length. Offset and length
 - The driver must advertise streaming. Range requests additionally require advertised native range support.
 - Storix checks provider metadata against the persisted file size and requires a valid persisted SHA-256 digest.
 - Before returning bytes, Storix stages the full object through a bounded-memory php://temp stream, recomputes byte count and SHA-256, and compares both with the persisted record.
-- For a range, Storix obtains the native driver range and compares its byte count and digest with the corresponding slice from the verified full-object snapshot. Seekable range streams are hashed in place and rewound; non-seekable provider streams are staged once. The package does not make a second temporary copy of a seekable range stream.
-- Each download is subject to storix.downloads.max_size_bytes (default 1 GiB), checked from provider metadata before any object read. Set it to null only when the application deliberately accepts unbounded per-request spool size and has its own admission/concurrency controls.
-- Spool memory is bounded by storix.downloads.spool_memory_bytes; PHP spills larger streams to its temporary-file backing store. For the local driver, a range request holds the verified full-object spool plus the driver's single range spool, rather than a third duplicate. Operators must size and monitor temporary storage for concurrent downloads.
+- For a range, Storix obtains the native driver range and verifies its byte count and digest against the corresponding slice from the verified full-object snapshot. The provider range stream is then closed. Storix returns a fresh immutable range snapshot copied from the already-verified full-object spool, so a mutable provider stream cannot change bytes after checksum verification.
+- Each download is subject to storix.downloads.max_size_bytes (default 1 GiB), checked from provider metadata before any object read.
+- A shared atomic cache-lock semaphore limits active downloads to storix.downloads.max_concurrent_downloads (default 1). The slot remains held until DownloadResult::close() and expires after storix.downloads.lock_ttl_seconds (default 24 hours) if the caller process exits without closing it. Multi-node applications must configure a shared lock-capable cache store. Set max_size_bytes or max_concurrent_downloads to more permissive values only after sizing temporary storage.
+- Spool memory is bounded by storix.downloads.spool_memory_bytes; PHP spills larger streams to its temporary-file backing store. Peak temporary storage is bounded by the admission slots and the configured object-size ceiling; a range request can temporarily hold the verified object plus one provider range spool, then the verified object plus the immutable returned range snapshot. With defaults, the worst-case per-slot bound is approximately twice max_size_bytes.
 - Source and intermediate streams are closed on success and failure. The returned stream remains caller-owned and must be closed.
 
 E09 does not create public URLs, alter visibility, or bypass application authorization. Applications must authenticate and authorize the caller before invoking the package. HTTP response construction, Content-Disposition policy, caching, and signed URLs are adapter/application concerns.
@@ -55,9 +56,12 @@ E09 does not create public URLs, alter visibility, or bypass application authori
 
     'downloads' => [
         'max_size_bytes' => 1024 * 1024 * 1024,
+        'max_concurrent_downloads' => 1,
+        'lock_ttl_seconds' => 86_400,
+        'cache_store' => null,
         'spool_memory_bytes' => 8 * 1024 * 1024,
     ],
 
 ## Acceptance coverage
 
-The feature suite verifies full streaming, tenant/owner isolation, unavailable/missing file rejection, checksum and size mismatch rejection, native range capability enforcement, range boundaries, pre-read size-limit enforcement, and stream cleanup. The package database matrix validates service bindings and repository scoping on SQLite, MySQL 8.4, and PostgreSQL 17.
+The feature suite verifies full streaming, tenant/owner isolation, unavailable/missing file rejection, checksum and size mismatch rejection, native range capability enforcement, range boundaries, pre-read size-limit enforcement, admission-slot release, immutable range snapshots, and stream cleanup. The package database matrix validates service bindings and repository scoping on SQLite, MySQL 8.4, and PostgreSQL 17.
