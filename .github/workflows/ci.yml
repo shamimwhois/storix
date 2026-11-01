@@ -4,14 +4,14 @@ on:
   push:
     branches: [main, "feature/**"]
   pull_request:
-    branches: [main]
+    branches: [main, "feature/**"]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: storix-ci-${{ github.ref }}
+  group: storix-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -73,3 +73,22 @@ jobs:
         run: vendor/bin/pint --test -v
       - name: Run tests
         run: vendor/bin/phpunit
+
+  security:
+    name: Dependency security audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.5"
+          coverage: none
+          tools: composer:v2
+      - name: Resolve dependency graph for library package
+        run: composer update --no-install --prefer-dist --no-interaction --no-progress
+      - name: Validate resolved dependencies and audit
+        run: |
+          composer validate --strict
+          composer audit --locked

@@ -217,6 +217,10 @@ npm run build
 
 The build writes `docs/assets/app.css` and `docs/assets/app.js`. The GitHub Pages workflow publishes the compiled site artifact; generated dependencies are not included in the published website.
 
+## Autonomous Engineering and CI
+
+The repository includes a PHP 8.5 / Laravel 13 CI matrix for SQLite, MySQL 8.4, and PostgreSQL 17, plus a Composer dependency audit. Stacked feature-branch pull requests are included in the PR validation trigger. An opt-in `ai-task` issue label prepares a versioned task-context artifact for a future external agent runner; it does not execute an AI agent or grant repository write, merge, or deployment permissions. See [Autonomous Engineering & CI Control Plane](docs/22-autonomous-engineering.md).
+
 ## Documentation
 
 The documentation portal is available at **[docs/index.html](docs/index.html)**.
