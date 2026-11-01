@@ -70,7 +70,7 @@ final class DownloadManager
         }
 
         if ($request->isRangeRequest() && (int) $request->offset >= $metadata->sizeBytes) {
-            throw new StorageOperationFailedException('download_range');
+            throw new StorageOperationFailedException('download_range_bounds');
         }
 
         $verified = $this->stageAndVerify(
@@ -91,14 +91,12 @@ final class DownloadManager
         $range = null;
 
         try {
-            $range = $this->stageStream($driver->readStream(new ReadStreamRequest(
+            $range = $this->verifyRangeStream($driver->readStream(new ReadStreamRequest(
                 key: (string) $file->storage_key,
                 offset: $offset,
                 length: $length,
-            )), $length);
-            $expected = $this->extractRange($verified['stream'], $offset, $length);
-
-            if ($range['size'] !== $length || hash_equals($expected['sha256'], $range['sha256']) === false) {
+            )), $length, $this->extractRange($verified['stream'], $offset, $length)['sha256']);
+            if ($range['size'] !== $length) {
                 throw new UploadIntegrityException;
             }
 
@@ -139,6 +137,67 @@ final class DownloadManager
 
             throw $exception;
         }
+    }
+
+    /** @param resource $source
+     * @return array{stream: resource, size: int, sha256: string}
+     */
+    private function verifyRangeStream(mixed $source, int $expectedSize, string $expectedSha256): array
+    {
+        if (is_resource($source) === false || get_resource_type($source) !== 'stream') {
+            throw new StorageOperationFailedException('read');
+        }
+
+        $metadata = stream_get_meta_data($source);
+
+        if (($metadata['seekable'] ?? false) === false) {
+            $staged = $this->stageStream($source, $expectedSize);
+        } else {
+            $hash = hash_init('sha256');
+            $size = 0;
+
+            try {
+                while (feof($source) === false) {
+                    $chunk = @fread($source, self::IO_CHUNK_BYTES);
+
+                    if ($chunk === false || ($chunk === '' && feof($source) === false)) {
+                        throw new StorageOperationFailedException('read');
+                    }
+
+                    if ($chunk === '') {
+                        break;
+                    }
+
+                    $size += strlen($chunk);
+
+                    if ($size > $expectedSize) {
+                        throw new UploadIntegrityException;
+                    }
+
+                    hash_update($hash, $chunk);
+                }
+
+                if (rewind($source) === false) {
+                    throw new StorageOperationFailedException('download_stage');
+                }
+
+                $staged = ['stream' => $source, 'size' => $size, 'sha256' => hash_final($hash)];
+            } catch (Throwable $exception) {
+                fclose($source);
+
+                throw $exception;
+            }
+        }
+
+        if ($staged['size'] !== $expectedSize || hash_equals($expectedSha256, $staged['sha256']) === false) {
+            fclose($staged['stream']);
+
+            throw new UploadIntegrityException;
+        }
+
+        rewind($staged['stream']);
+
+        return $staged;
     }
 
     /** @param resource $source
