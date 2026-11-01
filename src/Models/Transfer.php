@@ -42,6 +42,9 @@ final class Transfer extends Model
         'multipart_started_at',
         'resume_lease_token',
         'resume_lease_expires_at',
+        'next_retry_at',
+        'last_heartbeat_at',
+        'cleanup_pending',
         'attempts',
         'max_attempts',
         'last_error_code',
@@ -73,6 +76,9 @@ final class Transfer extends Model
             'finished_at' => 'immutable_datetime',
             'multipart_started_at' => 'immutable_datetime',
             'resume_lease_expires_at' => 'immutable_datetime',
+            'next_retry_at' => 'immutable_datetime',
+            'last_heartbeat_at' => 'immutable_datetime',
+            'cleanup_pending' => 'boolean',
             'expires_at' => 'immutable_datetime',
         ];
     }

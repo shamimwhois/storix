@@ -17,11 +17,19 @@ return [
         'spool_memory_bytes' => 8 * 1024 * 1024,
     ],
 
-    // Reserved defaults; chunking and automatic retries are implemented in later epics.
+    // Transfer resource and recovery limits.
     'transfers' => [
         'chunk_size' => 8 * 1024 * 1024,
         'max_parallel_chunks' => 3,
         'max_attempts' => 5,
         'resume_lease_seconds' => 300,
+        'resume_lease_grace_seconds' => 60,
+        'recovery_lease_seconds' => 300,
+        'recovery_stale_seconds' => 300,
+        'heartbeat_interval_seconds' => 15,
+        'session_ttl_hours' => 24,
+        'retry_base_seconds' => 2,
+        'retry_max_seconds' => 300,
+        'retry_jitter_percent' => 20,
     ],
 ];

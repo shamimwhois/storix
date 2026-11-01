@@ -46,13 +46,17 @@ use ShamimStack\Storix\Models\StoredFile;
 use ShamimStack\Storix\Models\Transfer;
 use ShamimStack\Storix\Services\ChunkPlanner;
 use ShamimStack\Storix\Services\ChunkReconciler;
+use ShamimStack\Storix\Services\ErrorClassifier;
 use ShamimStack\Storix\Services\MultipartSessionReconciler;
+use ShamimStack\Storix\Services\RetryPolicy;
 use ShamimStack\Storix\Services\TransferStateMachine;
 use Throwable;
 
 final class UploadManager
 {
     private const int STAGING_CHUNK_BYTES = 1_048_576;
+
+    private readonly RetryPolicy $retryPolicy;
 
     public function __construct(
         private readonly DriverManager $drivers,
@@ -63,7 +67,10 @@ final class UploadManager
         private readonly ChunkPlanner $chunkPlanner,
         private readonly TransferStateMachine $states,
         private readonly ConfigRepository $config,
-    ) {}
+        ?RetryPolicy $retryPolicy = null,
+    ) {
+        $this->retryPolicy = $retryPolicy ?? new RetryPolicy(new ErrorClassifier);
+    }
 
     public function upload(UploadRequest $request): UploadResult
     {
@@ -133,58 +140,139 @@ final class UploadManager
                     return $this->resolveExisting($transfer, $fingerprint);
                 }
 
-                if ($transfer->state->isTerminal()) {
-                    throw new IdempotencyConflictException;
-                }
-
                 if (
-                    $multipartDriver === null
-                    || in_array($transfer->state, [
-                        TransferState::PREPARING,
-                        TransferState::TRANSFERRING,
-                        TransferState::PAUSED,
-                        TransferState::RETRY_WAIT,
-                    ], true) === false
-                    || is_string($transfer->multipart_upload_id) === false
-                    || $transfer->multipart_upload_id === ''
-                    || $transfer->file_id === null
+                    $transfer->state === TransferState::RETRY_WAIT
+                    && $transfer->next_retry_at !== null
+                    && $transfer->next_retry_at->isFuture()
                 ) {
                     throw new UploadInProgressException;
                 }
 
-                $file = $this->files->findScoped(
-                    (string) $transfer->file_id,
-                    $request->tenantId,
-                    $request->ownerId,
-                );
-
-                if (
-                    $file === null
-                    || $file->driver !== $driverName
-                    || in_array($file->status, ['pending', 'processing'], true) === false
-                    || is_string($file->storage_key) === false
-                    || $file->storage_key === ''
-                ) {
+                if ($transfer->state->isTerminal()) {
                     throw new IdempotencyConflictException;
                 }
 
-                $storageKey = $file->storage_key;
-                $isResume = true;
+                if ($transfer->cleanup_pending || $this->isExpiredTransfer($transfer)) {
+                    throw new UploadInProgressException;
+                }
+
+                $isFreshRetry = $transfer->state === TransferState::RETRY_WAIT
+                    && $transfer->multipart_upload_id === null;
+
+                if ($isFreshRetry) {
+                    if ($transfer->file_id !== null) {
+                        $file = $this->files->findScoped(
+                            (string) $transfer->file_id,
+                            $request->tenantId,
+                            $request->ownerId,
+                        );
+
+                        if (
+                            $file === null
+                            || $file->driver !== $driverName
+                            || in_array($file->status, ['pending', 'processing', 'failed'], true) === false
+                            || is_string($file->storage_key) === false
+                            || $file->storage_key === ''
+                        ) {
+                            throw new IdempotencyConflictException;
+                        }
+
+                        $storageKey = $file->storage_key;
+                    }
+                } else {
+                    if (
+                        $multipartDriver === null
+                        || in_array($transfer->state, [
+                            TransferState::PREPARING,
+                            TransferState::TRANSFERRING,
+                            TransferState::PAUSED,
+                            TransferState::RETRY_WAIT,
+                        ], true) === false
+                        || is_string($transfer->multipart_upload_id) === false
+                        || $transfer->multipart_upload_id === ''
+                        || $transfer->file_id === null
+                    ) {
+                        throw new UploadInProgressException;
+                    }
+
+                    $file = $this->files->findScoped(
+                        (string) $transfer->file_id,
+                        $request->tenantId,
+                        $request->ownerId,
+                    );
+
+                    if (
+                        $file === null
+                        || $file->driver !== $driverName
+                        || in_array($file->status, ['pending', 'processing'], true) === false
+                        || is_string($file->storage_key) === false
+                        || $file->storage_key === ''
+                    ) {
+                        throw new IdempotencyConflictException;
+                    }
+
+                    $storageKey = $file->storage_key;
+                    $isResume = true;
+                }
             }
 
             $resumeLeaseToken = Str::random(64);
             $leaseSeconds = max(30, (int) $this->config->get('storix.transfers.resume_lease_seconds', 300));
+            $claimNow = now();
+            $claimExpiredBefore = $claimNow->copy()->subSeconds(
+                max(30, (int) $this->config->get('storix.transfers.resume_lease_grace_seconds', 60)),
+            );
 
             if ($this->transfers->claimResumeLease(
                 (string) $transfer->id,
                 $resumeLeaseToken,
-                now(),
-                now()->addSeconds($leaseSeconds),
+                $claimNow,
+                $claimNow->copy()->addSeconds($leaseSeconds),
+                $claimExpiredBefore,
             ) === false) {
                 throw new UploadInProgressException;
             }
 
+            // A lease claim can race with recovery or another writer. Reload under the
+            // newly claimed token before accepting the stale pre-claim snapshot.
+            $claimedTransfer = $this->transfers->findScoped(
+                (string) $transfer->id,
+                $request->tenantId,
+                $request->ownerId,
+            );
+
+            $admissibleStates = [
+                TransferState::PENDING,
+                TransferState::PREPARING,
+                TransferState::TRANSFERRING,
+                TransferState::PAUSED,
+                TransferState::RETRY_WAIT,
+            ];
+
+            if (
+                $claimedTransfer === null
+                || in_array($claimedTransfer->state, $admissibleStates, true) === false
+                || $claimedTransfer->cleanup_pending
+                || $this->isExpiredTransfer($claimedTransfer)
+                || ($claimedTransfer->next_retry_at !== null && $claimedTransfer->next_retry_at->isFuture())
+                || ($isResume && (
+                    $claimedTransfer->multipart_upload_id !== $transfer->multipart_upload_id
+                    || $claimedTransfer->file_id !== $transfer->file_id
+                ))
+                || ($isResume === false && $claimedTransfer->multipart_upload_id !== null)
+            ) {
+                $this->transfers->releaseResumeLease((string) $transfer->id, $resumeLeaseToken);
+                throw new UploadInProgressException;
+            }
+
+            $transfer = $claimedTransfer;
             $ownsTransfer = true;
+
+            if ($transfer->next_retry_at !== null) {
+                $transfer->next_retry_at = null;
+                $transfer = $this->transfers->save($transfer);
+            }
+
             $renewLease = function () use ($transfer, $resumeLeaseToken, $leaseSeconds): void {
                 $this->renewResumeLease($transfer, $resumeLeaseToken, $leaseSeconds);
             };
@@ -206,9 +294,14 @@ final class UploadManager
 
             if ($isResume === false) {
                 $transfer->total_chunks = count($chunkPlan);
+                $transfer->transferred_bytes = 0;
+                $transfer->completed_chunks = 0;
+                $transfer->multipart_upload_id = null;
+                $transfer->multipart_started_at = null;
                 $transfer = $this->transfers->save($transfer);
 
                 [$file, $transfer] = DB::transaction(function () use (
+                    $file,
                     $request,
                     $directory,
                     $driverName,
@@ -218,22 +311,39 @@ final class UploadManager
                     $transfer,
                     $chunkPlan,
                 ): array {
-                    $file = $this->files->create([
-                        'tenant_id' => $request->tenantId,
-                        'owner_id' => $request->ownerId,
-                        'directory_id' => $directory?->id,
-                        'driver' => $driverName,
-                        'name' => $request->originalName,
-                        'original_name' => $request->originalName,
-                        'extension' => $extension,
-                        'mime_type' => $request->mimeType,
-                        'size_bytes' => $staged['size'],
-                        'sha256' => $staged['sha256'],
-                        'storage_key' => $storageKey,
-                        'status' => 'pending',
-                        'visibility' => $request->visibility,
-                        'metadata' => $request->metadata,
-                    ]);
+                    $this->chunks->deleteForTransfer((string) $transfer->id);
+
+                    if ($file === null) {
+                        $file = $this->files->create([
+                            'tenant_id' => $request->tenantId,
+                            'owner_id' => $request->ownerId,
+                            'directory_id' => $directory?->id,
+                            'driver' => $driverName,
+                            'name' => $request->originalName,
+                            'original_name' => $request->originalName,
+                            'extension' => $extension,
+                            'mime_type' => $request->mimeType,
+                            'size_bytes' => $staged['size'],
+                            'sha256' => $staged['sha256'],
+                            'storage_key' => $storageKey,
+                            'status' => 'pending',
+                            'visibility' => $request->visibility,
+                            'metadata' => $request->metadata,
+                        ]);
+                    } else {
+                        $file->directory_id = $directory?->id;
+                        $file->name = $request->originalName;
+                        $file->original_name = $request->originalName;
+                        $file->extension = $extension;
+                        $file->mime_type = $request->mimeType;
+                        $file->size_bytes = $staged['size'];
+                        $file->sha256 = $staged['sha256'];
+                        $file->storage_key = $storageKey;
+                        $file->status = 'pending';
+                        $file->visibility = $request->visibility;
+                        $file->metadata = $request->metadata;
+                        $file = $this->files->save($file);
+                    }
 
                     $transfer->file_id = $file->id;
                     $transfer = $this->transfers->save($transfer);
@@ -323,7 +433,7 @@ final class UploadManager
             }
 
             try {
-                $verified = $this->hashStream($readBack);
+                $verified = $this->hashStream($readBack, $renewLease);
             } finally {
                 if (is_resource($readBack)) {
                     fclose($readBack);
@@ -341,13 +451,24 @@ final class UploadManager
                 $transfer,
                 $writeResult,
                 $staged,
+                $resumeLeaseToken,
             ): array {
+                if ($this->transfers->ownsResumeLease(
+                    (string) $transfer->id,
+                    $resumeLeaseToken,
+                    now(),
+                ) === false) {
+                    throw new UploadInProgressException;
+                }
+
                 $file->size_bytes = $staged['size'];
                 $file->sha256 = $staged['sha256'];
                 $file->mime_type = $writeResult->object->mimeType ?? $file->mime_type;
                 $file->status = 'available';
                 $file = $this->files->save($file);
 
+                $transfer->cleanup_pending = false;
+                $transfer = $this->transfers->save($transfer);
                 $transfer = $this->states->transition($transfer->id, TransferState::COMPLETED);
 
                 return [$file, $transfer];
@@ -371,24 +492,87 @@ final class UploadManager
                 }
 
                 if ($leaseStillOwned === false) {
+                    if ($objectMayExist && $transfer !== null) {
+                        try {
+                            $this->transfers->markCleanupPending((string) $transfer->id, now());
+                        } catch (Throwable $cleanupMarkerException) {
+                            Log::error('Storix could not mark a possible late provider publication for cleanup.', [
+                                'transfer_id' => $transfer->id,
+                                'error_code' => $cleanupMarkerException instanceof StorixException
+                                    ? $cleanupMarkerException->errorCode->value
+                                    : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                            ]);
+                        }
+                    }
+
                     throw $exception;
                 }
 
                 if ($isResume && $transfer->multipart_upload_id !== null) {
-                    try {
-                        $transfer = $this->states->transition($transfer->id, TransferState::RETRY_WAIT);
-                        $transfer->last_error_code = $exception instanceof StorixException
-                            ? $exception->errorCode->value
-                            : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
-                        $transfer->last_error_message = 'Multipart upload paused after an interrupted resume attempt.';
-                        $this->transfers->save($transfer);
-                    } catch (Throwable $persistenceException) {
-                        Log::error('Storix could not persist resumable upload state.', [
-                            'transfer_id' => $transfer?->id,
-                            'error_code' => $persistenceException instanceof StorixException
-                                ? $persistenceException->errorCode->value
-                                : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
-                        ]);
+                    if ($this->retryPolicy->shouldRetry(
+                        $exception,
+                        max(1, (int) $transfer->attempts),
+                        max(1, (int) $transfer->max_attempts),
+                    )) {
+                        try {
+                            $transfer = $this->states->transition($transfer->id, TransferState::RETRY_WAIT);
+                            $transfer->last_error_code = $this->retryPolicy->errorCode($exception);
+                            $transfer->last_error_message = 'Multipart upload paused after an interrupted resume attempt.';
+                            $transfer->next_retry_at = now()->addMilliseconds(
+                                $this->retryPolicy->delayMilliseconds(
+                                    max(1, (int) $transfer->attempts),
+                                    (int) $this->config->get('storix.transfers.retry_base_seconds', 2),
+                                    (int) $this->config->get('storix.transfers.retry_max_seconds', 300),
+                                    (int) $this->config->get('storix.transfers.retry_jitter_percent', 20),
+                                ),
+                            );
+                            $transfer->last_heartbeat_at = now();
+                            $this->transfers->save($transfer);
+                        } catch (Throwable $persistenceException) {
+                            Log::error('Storix could not persist resumable upload state.', [
+                                'transfer_id' => $transfer?->id,
+                                'error_code' => $persistenceException instanceof StorixException
+                                    ? $persistenceException->errorCode->value
+                                    : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                            ]);
+                        }
+                    } else {
+                        $cleanupFailed = false;
+                        $uploadId = (string) $transfer->multipart_upload_id;
+
+                        try {
+                            if ($multipartDriver !== null) {
+                                $multipartDriver->abortMultipartWrite($uploadId);
+                                $transfer->multipart_upload_id = null;
+                                $transfer = $this->transfers->save($transfer);
+                            }
+                        } catch (Throwable $abortException) {
+                            $cleanupFailed = true;
+                            Log::warning('Storix permanent resume failure left a multipart session for recovery.', [
+                                'transfer_id' => $transfer->id,
+                                'driver' => $driverName,
+                                'error_code' => $abortException instanceof StorixException
+                                    ? $abortException->errorCode->value
+                                    : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                            ]);
+                        }
+
+                        if ($objectMayExist && $storageKey !== null) {
+                            try {
+                                $driver->delete(new DeleteObjectRequest($storageKey));
+                            } catch (Throwable $cleanupException) {
+                                $cleanupFailed = true;
+                                Log::warning('Storix permanent resume failure object cleanup failed.', [
+                                    'transfer_id' => $transfer->id,
+                                    'driver' => $driverName,
+                                    'error_code' => $cleanupException instanceof StorixException
+                                        ? $cleanupException->errorCode->value
+                                        : StorixErrorCode::STORAGE_OPERATION_FAILED->value,
+                                ]);
+                            }
+                        }
+
+                        $this->markFailed($transfer, $file, $request, $exception, $cleanupFailed, $resumeLeaseToken);
                     }
                 } else {
                     $cleanupFailed = false;
@@ -408,7 +592,7 @@ final class UploadManager
                         }
                     }
 
-                    $this->markFailed($transfer, $file, $request, $exception, $cleanupFailed);
+                    $this->markFailed($transfer, $file, $request, $exception, $cleanupFailed, $resumeLeaseToken);
                 }
             }
 
@@ -462,6 +646,18 @@ final class UploadManager
         }
 
         return $plan;
+    }
+
+    private function isExpiredTransfer(Transfer $transfer): bool
+    {
+        if ($transfer->expires_at !== null && $transfer->expires_at->isPast()) {
+            return true;
+        }
+
+        $startedAt = $transfer->multipart_started_at ?? $transfer->started_at ?? $transfer->created_at;
+        $ttlHours = max(1, (int) $this->config->get('storix.transfers.session_ttl_hours', 24));
+
+        return $startedAt !== null && $startedAt->lte(now()->subHours($ttlHours));
     }
 
     private function renewResumeLease(Transfer $transfer, string $token, int $leaseSeconds): void
@@ -629,9 +825,7 @@ final class UploadManager
             return $result;
         } catch (Throwable $exception) {
             try {
-                $errorCode = $exception instanceof StorixException
-                    ? $exception->errorCode->value
-                    : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
+                $errorCode = $this->retryPolicy->errorCode($exception);
 
                 try {
                     if ($resume === false) {
@@ -828,10 +1022,12 @@ final class UploadManager
      * @param  resource  $stream
      * @return array{size: int, sha256: string}
      */
-    private function hashStream(mixed $stream): array
+    private function hashStream(mixed $stream, ?callable $heartbeat = null): array
     {
         $hash = hash_init('sha256');
         $size = 0;
+        $lastHeartbeatAt = time();
+        $heartbeatInterval = max(1, (int) $this->config->get('storix.transfers.heartbeat_interval_seconds', 15));
 
         while (feof($stream) === false) {
             $buffer = @fread($stream, self::STAGING_CHUNK_BYTES);
@@ -850,6 +1046,11 @@ final class UploadManager
 
             hash_update($hash, $buffer);
             $size += strlen($buffer);
+
+            if ($heartbeat !== null && time() - $lastHeartbeatAt >= $heartbeatInterval) {
+                $heartbeat();
+                $lastHeartbeatAt = time();
+            }
         }
 
         return ['size' => $size, 'sha256' => hash_final($hash)];
@@ -883,7 +1084,8 @@ final class UploadManager
         ?Directory $directory,
         array $staged,
     ): string {
-        $metadata = $this->canonicalizeMetadata($request->metadata);
+        $metadata = $request->metadata;
+        ksort($metadata);
 
         return hash('sha256', json_encode([
             'sha256' => $staged['sha256'],
@@ -897,27 +1099,6 @@ final class UploadManager
             'visibility' => $request->visibility->value,
             'metadata' => $metadata,
         ], JSON_THROW_ON_ERROR));
-    }
-
-    /**
-     * Sort associative metadata keys recursively while preserving list order.
-     *
-     * @param  array<array-key, mixed>  $metadata
-     * @return array<array-key, mixed>
-     */
-    private function canonicalizeMetadata(array $metadata): array
-    {
-        foreach ($metadata as $key => $value) {
-            if (is_array($value)) {
-                $metadata[$key] = $this->canonicalizeMetadata($value);
-            }
-        }
-
-        if (array_is_list($metadata) === false) {
-            ksort($metadata, SORT_STRING);
-        }
-
-        return $metadata;
     }
 
     private function extension(string $originalName): ?string
@@ -972,16 +1153,20 @@ final class UploadManager
         UploadRequest $request,
         Throwable $exception,
         bool $cleanupFailed,
+        string $resumeLeaseToken,
     ): void {
         if ($transfer === null) {
             return;
         }
 
         try {
-            DB::transaction(function () use ($transfer, $file, $request, $exception, $cleanupFailed): void {
-                if ($file !== null) {
-                    $file->status = 'failed';
-                    $this->files->save($file);
+            DB::transaction(function () use ($transfer, $file, $request, $exception, $cleanupFailed, $resumeLeaseToken): void {
+                if ($this->transfers->ownsResumeLease(
+                    (string) $transfer->id,
+                    $resumeLeaseToken,
+                    now(),
+                ) === false) {
+                    return;
                 }
 
                 $current = $this->transfers->findScoped(
@@ -994,10 +1179,15 @@ final class UploadManager
                     return;
                 }
 
+                if ($file !== null) {
+                    $file->status = 'failed';
+                    $this->files->save($file);
+                }
+
                 $current = $this->states->transition($current->id, TransferState::FAILED);
-                $current->last_error_code = $exception instanceof StorixException
-                    ? $exception->errorCode->value
-                    : StorixErrorCode::STORAGE_OPERATION_FAILED->value;
+                $current->last_error_code = $this->retryPolicy->errorCode($exception);
+                $current->cleanup_pending = $current->cleanup_pending || $cleanupFailed;
+                $current->next_retry_at = null;
                 $current->last_error_message = $cleanupFailed
                     ? 'Upload failed and storage cleanup also failed.'
                     : 'Upload failed during storage or integrity verification.';

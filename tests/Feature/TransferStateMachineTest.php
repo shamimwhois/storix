@@ -71,6 +71,7 @@ final class TransferStateMachineTest extends TestCase
             [TransferState::TRANSFERRING, TransferState::PAUSED],
             [TransferState::TRANSFERRING, TransferState::FAILED],
             [TransferState::TRANSFERRING, TransferState::CANCELLED],
+            [TransferState::TRANSFERRING, TransferState::EXPIRED],
             [TransferState::RETRY_WAIT, TransferState::PREPARING],
             [TransferState::RETRY_WAIT, TransferState::TRANSFERRING],
             [TransferState::RETRY_WAIT, TransferState::FAILED],
@@ -78,11 +79,13 @@ final class TransferStateMachineTest extends TestCase
             [TransferState::RETRY_WAIT, TransferState::EXPIRED],
             [TransferState::PAUSED, TransferState::PREPARING],
             [TransferState::PAUSED, TransferState::TRANSFERRING],
+            [TransferState::PAUSED, TransferState::FAILED],
             [TransferState::PAUSED, TransferState::CANCELLED],
             [TransferState::PAUSED, TransferState::EXPIRED],
             [TransferState::VERIFYING, TransferState::COMPLETED],
             [TransferState::VERIFYING, TransferState::RETRY_WAIT],
             [TransferState::VERIFYING, TransferState::FAILED],
+            [TransferState::VERIFYING, TransferState::EXPIRED],
         ];
 
         $machine = $this->app->make(TransferStateMachine::class);

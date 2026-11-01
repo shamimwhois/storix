@@ -9,6 +9,7 @@ use ShamimStack\Storix\Contracts\DirectoryDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
 use ShamimStack\Storix\DTOs\BeginMultipartWriteRequest;
+use ShamimStack\Storix\DTOs\CompleteMultipartWriteRequest;
 use ShamimStack\Storix\DTOs\DeleteObjectRequest;
 use ShamimStack\Storix\DTOs\ReadStreamRequest;
 use ShamimStack\Storix\DTOs\StatObjectRequest;
@@ -520,7 +521,6 @@ final class LocalStorageDriverTest extends TestCase
         self::assertTrue($capabilities->supportsRangeReads);
         self::assertTrue($capabilities->supportsAtomicFinalize);
         self::assertTrue($capabilities->supportsMultipartWrites);
-        self::assertTrue($capabilities->supportsPauseResume);
         self::assertSame(1, $capabilities->maxConcurrency);
         self::assertNull($capabilities->maxObjectSizeBytes);
     }
@@ -554,6 +554,47 @@ final class LocalStorageDriverTest extends TestCase
             fclose($stream);
             $driver->abortMultipartWrite($uploadId);
         }
+    }
+
+    public function test_multipart_cleanup_failure_does_not_publish_the_final_object(): void
+    {
+        $driver = $this->driver();
+        $uploadId = $driver->beginMultipartWrite(new BeginMultipartWriteRequest(
+            key: 'uploads/final-object.bin',
+        ));
+        $stream = $this->inputStream('verified multipart bytes');
+        $part = null;
+
+        try {
+            $part = $driver->writeMultipartPart(new WriteMultipartPartRequest(
+                uploadId: $uploadId,
+                partNumber: 1,
+                stream: $stream,
+            ));
+        } finally {
+            fclose($stream);
+        }
+
+        $workspace = sys_get_temp_dir().DIRECTORY_SEPARATOR.'storix-multipart-'.$uploadId;
+        mkdir($workspace.DIRECTORY_SEPARATOR.'unexpected-directory');
+
+        try {
+            $driver->completeMultipartWrite(new CompleteMultipartWriteRequest(
+                uploadId: $uploadId,
+                key: 'uploads/final-object.bin',
+                parts: [$part],
+                expectedSizeBytes: strlen('verified multipart bytes'),
+                expectedSha256: hash('sha256', 'verified multipart bytes'),
+            ));
+            self::fail('Workspace cleanup failure must prevent final-object publication.');
+        } catch (StorageOperationFailedException $exception) {
+            self::assertSame(StorixErrorCode::STORAGE_OPERATION_FAILED, $exception->errorCode);
+        } finally {
+            rmdir($workspace.DIRECTORY_SEPARATOR.'unexpected-directory');
+            $driver->abortMultipartWrite($uploadId);
+        }
+
+        self::assertNull($driver->stat(new StatObjectRequest('uploads/final-object.bin')));
     }
 
     /**

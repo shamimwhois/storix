@@ -68,6 +68,8 @@ final class EloquentTransferRepository implements TransferRepository
         string $token,
         DateTimeInterface $now,
         DateTimeInterface $expiresAt,
+        ?DateTimeInterface $claimExpiredBefore = null,
+        bool $allowTerminalCleanup = false,
     ): bool {
         if ($token === '' || strlen($token) > 64) {
             throw new InvalidArgumentException('Resume lease token must contain between 1 and 64 bytes.');
@@ -77,22 +79,66 @@ final class EloquentTransferRepository implements TransferRepository
             throw new InvalidArgumentException('Resume lease expiry must be later than its acquisition time.');
         }
 
+        $claimExpiredBefore ??= $now;
+
         return Transfer::query()
             ->whereKey($transferId)
-            ->whereIn('state', [
-                TransferState::PENDING->value,
-                TransferState::PREPARING->value,
-                TransferState::TRANSFERRING->value,
-                TransferState::PAUSED->value,
-                TransferState::RETRY_WAIT->value,
-            ])
-            ->where(function (Builder $query) use ($now): void {
+            ->where(function (Builder $query) use ($allowTerminalCleanup): void {
+                $query->whereIn('state', [
+                    TransferState::PENDING->value,
+                    TransferState::PREPARING->value,
+                    TransferState::TRANSFERRING->value,
+                    TransferState::PAUSED->value,
+                    TransferState::RETRY_WAIT->value,
+                    TransferState::VERIFYING->value,
+                ]);
+
+                if ($allowTerminalCleanup) {
+                    $query->orWhere(function (Builder $terminal): void {
+                        $terminal->whereIn('state', [
+                            TransferState::COMPLETED->value,
+                            TransferState::FAILED->value,
+                            TransferState::CANCELLED->value,
+                            TransferState::EXPIRED->value,
+                        ])->where(function (Builder $cleanup): void {
+                            $cleanup->whereNotNull('multipart_upload_id')
+                                ->orWhere('cleanup_pending', true);
+                        });
+                    });
+                }
+            })
+            ->when($allowTerminalCleanup === false, fn (Builder $query) => $query->where('cleanup_pending', false))
+            ->where(function (Builder $query) use ($claimExpiredBefore): void {
                 $query->whereNull('resume_lease_expires_at')
-                    ->orWhere('resume_lease_expires_at', '<=', $now);
+                    ->orWhere('resume_lease_expires_at', '<=', $claimExpiredBefore);
             })
             ->update([
                 'resume_lease_token' => $token,
                 'resume_lease_expires_at' => $expiresAt,
+                'last_heartbeat_at' => $now,
+                'updated_at' => $now,
+            ]) === 1;
+    }
+
+    public function ownsResumeLease(
+        string $transferId,
+        string $token,
+        DateTimeInterface $now,
+    ): bool {
+        return Transfer::query()
+            ->whereKey($transferId)
+            ->where('resume_lease_token', $token)
+            ->where('resume_lease_expires_at', '>', $now)
+            ->lockForUpdate()
+            ->first() !== null;
+    }
+
+    public function markCleanupPending(string $transferId, DateTimeInterface $now): bool
+    {
+        return Transfer::query()
+            ->whereKey($transferId)
+            ->update([
+                'cleanup_pending' => true,
                 'updated_at' => $now,
             ]) === 1;
     }
@@ -117,6 +163,7 @@ final class EloquentTransferRepository implements TransferRepository
             ->where('resume_lease_expires_at', '>', $now)
             ->update([
                 'resume_lease_expires_at' => $expiresAt,
+                'last_heartbeat_at' => $now,
                 'updated_at' => $now,
             ]);
 
