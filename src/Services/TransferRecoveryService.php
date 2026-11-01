@@ -119,6 +119,8 @@ final class TransferRecoveryService
 
             $cleanupOnly = false;
 
+            $terminalCleanupPending = false;
+
             try {
                 $transfer = Transfer::query()->findOrFail($candidate->id);
                 $cleanupOnly = $this->isExpired($transfer)
@@ -130,8 +132,11 @@ final class TransferRecoveryService
                     ) === false;
 
                 if ($transfer->state->isTerminal()) {
-                    $this->cleanupTerminalSession($transfer, $token);
-                    $summary['cleaned']++;
+                    if ($this->cleanupTerminalSession($transfer, $token)) {
+                        $summary['cleaned']++;
+                    } else {
+                        $summary['cleanup_pending']++;
+                    }
 
                     continue;
                 }
@@ -196,6 +201,7 @@ final class TransferRecoveryService
                             // Terminal state cannot transition back to an active upload.
                             // Preserve cleanup work even if the provider call outlived our lease.
                             $this->transfers->markCleanupPending((string) $current->id, now());
+                            $terminalCleanupPending = true;
                         } else {
                             $retryScheduled = $this->recordRecoveryFailure($current, $token, $exception, $cleanupOnly);
                         }
@@ -207,7 +213,9 @@ final class TransferRecoveryService
                     ]);
                 }
 
-                if ($retryScheduled && $cleanupOnly) {
+                if ($terminalCleanupPending) {
+                    $summary['cleanup_pending']++;
+                } elseif ($retryScheduled && $cleanupOnly) {
                     $summary['cleanup_pending']++;
                 } elseif ($retryScheduled) {
                     $summary['waiting']++;
@@ -380,38 +388,41 @@ final class TransferRecoveryService
                 throw new RuntimeException('Transfer recovery ownership changed before cleanup.');
             }
 
-            // Clear the previous marker before external cleanup starts. Do not clear it
-            // again after provider calls: a stale worker may mark a late publication.
-            $current->cleanup_pending = false;
+            // Keep cleanup_pending durable while provider I/O is in flight. If this
+            // worker exits during stat/delete, the next sweep must still find the row.
+            // A missing-object stat is not proof that an accepted write cannot publish late.
             $current->save();
         });
     }
 
-    private function cleanupTerminalSession(Transfer $transfer, string $token): void
+    private function cleanupTerminalSession(Transfer $transfer, string $token): bool
     {
         $this->beginCleanup($transfer, $token);
-        $this->cleanupUnpublishedTransfer($transfer, $token);
+        $cleanupSafe = $this->cleanupUnpublishedTransfer($transfer, $token);
 
-        DB::transaction(function () use ($transfer, $token): void {
+        return DB::transaction(function () use ($transfer, $token, $cleanupSafe): bool {
             $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
 
             if ($current->state->isTerminal() === false || $this->ownsRecoveryLease($current, $token) === false) {
-                return;
+                return false;
             }
 
             $current->multipart_upload_id = null;
+            $current->cleanup_pending = $cleanupSafe === false;
             $current->next_retry_at = null;
             $current->last_heartbeat_at = now();
             $this->transfers->save($current);
+
+            return $cleanupSafe;
         });
     }
 
     private function expireTransfer(Transfer $transfer, string $token): void
     {
         $this->beginCleanup($transfer, $token);
-        $this->cleanupUnpublishedTransfer($transfer, $token);
+        $cleanupSafe = $this->cleanupUnpublishedTransfer($transfer, $token);
 
-        DB::transaction(function () use ($transfer, $token): void {
+        DB::transaction(function () use ($transfer, $token, $cleanupSafe): void {
             $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
 
             if ($current->state->isTerminal() || $this->ownsRecoveryLease($current, $token) === false) {
@@ -427,6 +438,7 @@ final class TransferRecoveryService
 
             $current = $this->states->transition($current->id, TransferState::EXPIRED);
             $current->multipart_upload_id = null;
+            $current->cleanup_pending = $cleanupSafe === false;
             $current->next_retry_at = null;
             $current->last_error_code = 'TRANSFER_EXPIRED';
             $current->last_error_message = 'Transfer expired before a verified object could be recovered.';
@@ -441,9 +453,9 @@ final class TransferRecoveryService
         string $failureCode = 'MAX_RETRIES_EXCEEDED',
     ): void {
         $this->beginCleanup($transfer, $token);
-        $this->cleanupUnpublishedTransfer($transfer, $token);
+        $cleanupSafe = $this->cleanupUnpublishedTransfer($transfer, $token);
 
-        DB::transaction(function () use ($transfer, $token, $failureCode): void {
+        DB::transaction(function () use ($transfer, $token, $failureCode, $cleanupSafe): void {
             $current = Transfer::query()->lockForUpdate()->findOrFail($transfer->id);
 
             if ($current->state->isTerminal() || $this->ownsRecoveryLease($current, $token) === false) {
@@ -459,6 +471,7 @@ final class TransferRecoveryService
 
             $current = $this->states->transition($current->id, TransferState::FAILED);
             $current->multipart_upload_id = null;
+            $current->cleanup_pending = $cleanupSafe === false;
             $current->next_retry_at = null;
             $current->last_error_code = $failureCode;
             $current->last_error_message = $failureCode === 'MAX_RETRIES_EXCEEDED'
@@ -570,7 +583,7 @@ final class TransferRecoveryService
         });
     }
 
-    private function cleanupUnpublishedTransfer(Transfer $transfer, string $token): void
+    private function cleanupUnpublishedTransfer(Transfer $transfer, string $token): bool
     {
         $driver = $this->drivers->driver($transfer->driver);
 
@@ -584,18 +597,34 @@ final class TransferRecoveryService
             $this->renewRecoveryLease((string) $transfer->id, $token);
         }
 
+        if ($transfer->file_id === null) {
+            return true;
+        }
+
         $file = $this->scopedFile($transfer, lock: false);
 
-        if ($file !== null && $file->storage_key !== '' && $file->status !== 'available') {
-            $this->renewRecoveryLease((string) $transfer->id, $token);
-            $exists = $driver->stat(new StatObjectRequest($file->storage_key)) !== null;
-            $this->renewRecoveryLease((string) $transfer->id, $token);
-
-            if ($exists) {
-                $driver->delete(new DeleteObjectRequest($file->storage_key));
-                $this->renewRecoveryLease((string) $transfer->id, $token);
-            }
+        if ($file === null || is_string($file->storage_key) === false || $file->storage_key === '') {
+            return false;
         }
+
+        if ($file->status === 'available') {
+            return true;
+        }
+
+        $this->renewRecoveryLease((string) $transfer->id, $token);
+        $exists = $driver->stat(new StatObjectRequest($file->storage_key)) !== null;
+        $this->renewRecoveryLease((string) $transfer->id, $token);
+
+        if ($exists === false) {
+            // A prior provider request may still publish after this point-in-time stat.
+            // Retain the marker so a later sweep can discover and remove a late object.
+            return false;
+        }
+
+        $driver->delete(new DeleteObjectRequest($file->storage_key));
+        $this->renewRecoveryLease((string) $transfer->id, $token);
+
+        return true;
     }
 
     private function isExpired(Transfer $transfer): bool
