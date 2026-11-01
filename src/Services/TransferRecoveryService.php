@@ -53,8 +53,6 @@ final class TransferRecoveryService
         // the batch for active transfers prevents a terminal cleanup backlog from
         // starving transfers that need verification or a source-retry deadline.
         $activeLimit = max(1, intdiv($limit + 1, 2));
-        $terminalLimit = $limit - $activeLimit;
-
         $eligible = static function (Builder $query) use ($cutoff, $claimExpiredBefore, $now): Builder {
             return $query
                 ->where('updated_at', '<=', $cutoff)
@@ -77,6 +75,10 @@ final class TransferRecoveryService
             TransferState::RETRY_WAIT->value,
             TransferState::VERIFYING->value,
         ]))->limit($activeLimit)->get();
+
+        // Reuse capacity the active query did not need. This keeps --limit=1
+        // useful for terminal cleanup while preserving active-transfer priority.
+        $terminalLimit = $limit - $activeCandidates->count();
 
         $terminalCandidates = $terminalLimit > 0
             ? $eligible(Transfer::query()
