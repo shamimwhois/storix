@@ -61,7 +61,7 @@ final class RetryPolicy
         int $jitterPercent = 20,
     ): int {
         $safeBaseSeconds = min(86_400, max(1, $baseSeconds));
-        $safeMaximumSeconds = min(86_400, max($safeBaseSeconds, $maximumSeconds));
+        $safeMaximumSeconds = min(86_400, max(1, $maximumSeconds));
         $baseMilliseconds = $safeBaseSeconds * 1000;
         $maximumMilliseconds = $safeMaximumSeconds * 1000;
         $exponent = min(20, max(0, $attempt - 1));
