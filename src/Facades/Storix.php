@@ -12,6 +12,7 @@ use ShamimStack\Storix\StorixManager;
  * @method static \ShamimStack\Storix\DTOs\DriverCapabilities capabilities(?string $name = null)
  * @method static \ShamimStack\Storix\Uploads\UploadManager uploads()
  * @method static \ShamimStack\Storix\Downloads\DownloadManager downloads()
+ * @method static \ShamimStack\Storix\Progress\ProgressManager progress()
  * @method static list<string> drivers()
  *
  * @see StorixManager
