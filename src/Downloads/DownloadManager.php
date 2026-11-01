@@ -284,6 +284,56 @@ final class DownloadManager
         }
     }
 
+    /**
+     * Windows PHP does not expose a portable directory-handle-relative open
+     * primitive here. Require an explicit operator trust assertion for the
+     * entire path/ACL boundary, then reject detectable reparse-point ancestors.
+     */
+    private function assertTrustedWindowsLockDirectory(string $directory): void
+    {
+        if ($this->config->get('storix.downloads.windows_lock_directory_trusted', false) !== true) {
+            throw new StorageOperationFailedException('download_capacity_lock');
+        }
+
+        $resolved = realpath($directory);
+
+        // Keep this implementation local-volume only. UNC paths and paths that
+        // cannot be canonicalized fail closed rather than relying on weak checks.
+        if ($resolved === false || preg_match('/^[A-Za-z]:\\\\/', $resolved) !== 1) {
+            throw new StorageOperationFailedException('download_capacity_lock');
+        }
+
+        $normalized = rtrim(str_replace('/', '\\\\', $resolved), '\\\\');
+        $drive = substr($normalized, 0, 2);
+        $segments = array_values(array_filter(
+            explode('\\\\', substr($normalized, 3)),
+            static fn (string $segment): bool => $segment !== '' && $segment !== '.' && $segment !== '..',
+        ));
+        $current = $drive.'\\\\';
+
+        foreach ($segments as $segment) {
+            $current = rtrim($current, '\\\\').'\\\\'.$segment;
+            clearstatcache(true, $current);
+            $linkStat = @lstat($current);
+            $targetStat = @stat($current);
+
+            if (
+                $linkStat === false
+                || $targetStat === false
+                || is_link($current)
+                || ($linkStat['mode'] & 0170000) !== 0040000
+                || ($targetStat['mode'] & 0170000) !== 0040000
+                || ! isset($linkStat['ino'], $targetStat['ino'])
+                || $linkStat['ino'] === 0
+                || $targetStat['ino'] === 0
+                || $linkStat['dev'] !== $targetStat['dev']
+                || $linkStat['ino'] !== $targetStat['ino']
+            ) {
+                throw new StorageOperationFailedException('download_capacity_lock');
+            }
+        }
+    }
+
     /** @param resource $lockHandle */
     private function lockReleaseCallback(mixed $lockHandle): Closure
     {
