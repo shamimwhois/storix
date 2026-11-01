@@ -204,6 +204,53 @@ final class UploadManagerTest extends TestCase
         self::assertTrue($transfer->cleanup_pending);
     }
 
+    public function test_finalization_transaction_rejects_a_worker_after_lease_replacement(): void
+    {
+        $repository = $this->app->make(TransferRepository::class);
+        $fencedRepository = \\Mockery::mock($repository)->makePartial();
+        $fencedRepository->shouldReceive('ownsResumeLease')
+            ->once()
+            ->andReturnUsing(function (string $transferId, string $token, \\DateTimeInterface $now) use ($repository): bool {
+                DB::table('storix_transfers')->where('id', $transferId)->update([
+                    'resume_lease_expires_at' => $now->copy()->subSeconds(61),
+                ]);
+
+                self::assertTrue($repository->claimResumeLease(
+                    $transferId,
+                    'replacement-finalization-token',
+                    $now,
+                    $now->copy()->addMinutes(5),
+                    $now->copy()->subSeconds(60),
+                ));
+
+                return $repository->ownsResumeLease($transferId, $token, $now);
+            });
+        $this->app->instance(TransferRepository::class, $fencedRepository);
+
+        $stream = $this->stream('finalization-fence-payload');
+
+        try {
+            $this->assertUploadException(
+                UploadInProgressException::class,
+                fn () => Storix::uploads()->upload(new UploadRequest(
+                    stream: $stream,
+                    originalName: 'finalization-fence.txt',
+                    idempotencyKey: 'finalization-fence',
+                )),
+            );
+        } finally {
+            fclose($stream);
+        }
+
+        $transfer = Transfer::query()->where('idempotency_key', 'finalization-fence')->firstOrFail();
+        $file = StoredFile::query()->findOrFail($transfer->file_id);
+
+        self::assertSame('replacement-finalization-token', $transfer->resume_lease_token);
+        self::assertTrue($transfer->cleanup_pending);
+        self::assertSame(TransferState::VERIFYING, $transfer->state);
+        self::assertSame('processing', $file->status);
+    }
+
     public function test_it_uploads_a_binary_stream_and_verifies_the_persisted_object(): void
     {
         $contents = "\0Storix\x01\x02binary\ncontent";
