@@ -82,6 +82,7 @@ final class StorixServiceProvider extends ServiceProvider
                 $app->make(DriverManager::class),
                 $app->make(UploadManager::class),
                 $app->make(DownloadManager::class),
+                $app->make(ProgressManager::class),
             );
         });
     }
