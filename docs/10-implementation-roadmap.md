@@ -140,9 +140,10 @@ Verified GitHub state on 2026-11-01:
 | E01–E04 | Merged into `main` | #1–#4 closed/merged | Complete |
 | E05 Basic Upload | Merged into `main` | #5 closed/merged | Complete |
 | E06 Chunk Engine | `feature/e06-chunk-engine` | #6 open, non-draft, base `main` | Implemented for review; not merged |
-| E07 Resume & Idempotency | `feature/e07-resume-idempotency` | #7 open draft, base E06 | Not merged; stacked dependency |
-| E08 Recovery & Retry | `feature/e08-recovery-retry` | #8 open draft, base E07 | Implementation and final-head database CI green; integration/release gates pending |
-| E09 Download Engine | `feature/e09-download-engine` | New stacked PR pending | Implementation in progress; CI and review pending |
+| E07 Resume & Idempotency | `feature/e07-resume-idempotency` | #7 open draft, base E06 | Implemented for review; not merged |
+| E08 Recovery & Retry | `feature/e08-recovery-retry` | #8 open, non-draft, base E07 | Final-head CI and review gates verified; not merged |
+| E09 Download Engine | `feature/e09-download-engine` | #13 open, non-draft, base E08 | Implementation, 4-way CI, and code/security review verified; not merged |
+| E10 Progress & Events | Not started | — | Next milestone; depends on E05–E09 implementation contracts |
 
 Do not merge E07 or E08 directly into `main` ahead of their base dependencies. E06 must merge first, then E07 must be rebased/validated against `main`, followed by E08. Keep each PR's implementation evidence distinct; a green run on an earlier head does not verify later commits.
 
@@ -159,4 +160,6 @@ Do not call E01/E02 a production engine. A first usable local-storage release re
 
 E08 final-head validation on commit c788d86d25f489512f4977f3a4589dd86873f76a passed the PHP 8.5 / Laravel 13 SQLite, MySQL 8.4, and PostgreSQL 17 jobs. No unresolved inline review threads remained at the verification check. E08 is still stacked on E07 and is not merged. Database lease ownership is not provider-level fencing: an accepted in-flight write/abort/delete may finish after lease expiry. The fail-closed cleanup_pending behaviour remains intentional; strict no-overlap storage fencing is tracked separately in issue #11 and must not be represented as an E08 guarantee.
 
-E09 implementation is on feature/e09-download-engine, based on the verified E08 head. The new DownloadManager scopes file access, rejects non-available files, checks driver capabilities, verifies full-object size and SHA-256 before exposing bytes, and validates native ranges against a verified snapshot. E09 remains incomplete until the new feature suite and all database CI jobs pass and review findings are resolved.
+E09 implementation is on `feature/e09-download-engine`, based on `feature/e08-recovery-retry`. PR #13 is open, non-draft, and unmerged. Current head `cffa2f89087511eea9901e338aec595a71c0a9bf` passed the four-job PHP 8.5 / Laravel 13 CI matrix: SQLite, MySQL 8.4, PostgreSQL 17, and Windows SQLite. Linux Pint passed across 94 PHP files. The 159-test suite passed in every job (689 assertions on the three database jobs; 683 on Windows). Nine PHPUnit notices remain per job, with 1 skipped test on each database job and 4 on Windows. All four inline review threads are resolved; a dedicated Codex security review and general code review on the current head reported no major issues. The Windows lock-directory trust opt-in remains an explicit operator ACL/reparse-point trust boundary, documented in `docs/24-e09-download-engine.md`. E09 is implementation-verified and review-ready but remains unmerged because E06–E08 are stacked dependencies.
+
+E10 is the next planned epic. Do not implement it as a frontend-specific feature: progress snapshots, event contracts, notification hooks, persistence throttling, and queue/worker-safe dispatch must remain framework/package-level contracts. Begin E10 planning against the E05–E09 APIs without changing or merging the stacked E06–E09 branches until their dependency sequence is explicitly handled.
