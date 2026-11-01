@@ -2,7 +2,7 @@
 
 ## Status
 
-Ported to `integration/e09-on-e08` from the verified E08 mainline. The current integration head `2d0f9efd849d59f8ddbc259f10fb5660246c2bb7` passes the PHP 8.5 / Laravel 13 CI matrix on SQLite, MySQL 8.4, and PostgreSQL 17 (165 tests / 712 assertions per database). Nine PHPUnit notices and one skipped test were reported per job. Security review, notice/skip triage, and final acceptance remain pending; E09 is not yet merged or release-ready.
+Ported to `integration/e09-on-e08` from the verified E08 mainline. Implementation commit `2d0f9efd849d59f8ddbc259f10fb5660246c2bb7` passed the PHP 8.5 / Laravel 13 CI matrix on SQLite, MySQL 8.4, and PostgreSQL 17 (165 tests / 712 assertions per database). Nine PHPUnit notices and one skipped test were reported per job. Security review, notice/skip triage, and final acceptance remain pending; E09 is not yet merged or release-ready.
 
 ## Scope
 
