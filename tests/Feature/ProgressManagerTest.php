@@ -72,6 +72,35 @@ final class ProgressManagerTest extends TestCase
         self::assertSame(0, $snapshot->etaSeconds);
     }
 
+    public function test_completed_zero_byte_transfer_keeps_percentage_unknown(): void
+    {
+        $transfer = $this->createTransfer([
+            'state' => TransferState::COMPLETED->value,
+            'total_bytes' => 0,
+            'transferred_bytes' => 0,
+            'finished_at' => now(),
+        ]);
+
+        $snapshot = Storix::progress()->forTransfer((string) $transfer->id, 'tenant-a', 'owner-a');
+
+        self::assertNull($snapshot->percent);
+        self::assertSame(0, $snapshot->etaSeconds);
+    }
+
+    public function test_snapshot_updated_at_is_an_immutable_copy(): void
+    {
+        $transfer = $this->createTransfer();
+
+        $snapshot = Storix::progress()->forTransfer((string) $transfer->id, 'tenant-a', 'owner-a');
+
+        self::assertInstanceOf(\\DateTimeImmutable::class, $snapshot->updatedAt);
+
+        $before = $snapshot->updatedAt?->format('U.u');
+        $snapshot->updatedAt?->modify('+1 second');
+
+        self::assertSame($before, $snapshot->updatedAt?->format('U.u'));
+    }
+
     public function test_progress_lookup_does_not_disclose_missing_or_out_of_scope_transfers(): void
     {
         $transfer = $this->createTransfer();
