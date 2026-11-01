@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementation and PRD reconciliation are in progress on `feature/e08-recovery-retry`, stacked on E07. The current branch head is `8d582854ab0e64fdbfe9fa1b4ad7c505602e0d49`; latest CI run `41255415256` is running the PHP 8.5 / Laravel 13 matrix (SQLite, MySQL 8.4, PostgreSQL 17). An earlier run on commit `5186e88` failed before PHPUnit because Pint reported two style issues; both were corrected in subsequent commits. Do not treat that earlier run as a test failure or a passing test result. Fresh CI validation and the latest CodeRabbit full review are still pending.
+Implementation and PRD reconciliation are in progress on `feature/e08-recovery-retry`, stacked on E07. The current branch head is `6d7e981a9e84eda64dfea1c1ded656ec098d4d41`; latest CI run `41255477453` is running the PHP 8.5 / Laravel 13 matrix (SQLite, MySQL 8.4, PostgreSQL 17). An earlier run on commit `5186e88` failed before PHPUnit because Pint reported two style issues; both were corrected in subsequent commits. Do not treat that earlier run as a test failure or a passing test result. Fresh CI validation and a full review of the latest final head are still pending.
 
 The E08 migration rollback/reapply and preservation tests are included in the suite, but final-head execution must pass before they are verified. PR #8 remains draft and is not merged or release-complete. Do not merge this branch directly into `main`; E07 remains stacked on E06.
 
@@ -114,7 +114,7 @@ The package configuration under `storix.transfers` includes:
 | `resume_lease_grace_seconds` | 60 | Additional time after lease expiry before another worker may take over |
 | `recovery_lease_seconds` | 300 | Recovery lease duration |
 | `recovery_stale_seconds` | 300 | Minimum stale age used by the command |
-| `heartbeat_interval_seconds` | 15 | Minimum interval between streamed recovery heartbeat updates |
+| `heartbeat_interval_seconds` | 15 | Minimum interval between streamed recovery and upload read-back heartbeat updates |
 | `session_ttl_hours` | 24 | Default age after which an unfinished transfer expires |
 | `retry_base_seconds` | 2 | First retry delay before jitter |
 | `retry_max_seconds` | 300 | Hard maximum for the final jittered retry delay |
