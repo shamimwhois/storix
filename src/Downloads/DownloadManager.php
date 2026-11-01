@@ -197,7 +197,15 @@ final class DownloadManager
                 throw new StorageOperationFailedException('download_capacity_lock');
             }
 
-            $handle = @fopen($path, 'c+b');
+            $previousUmask = DIRECTORY_SEPARATOR !== '\\' ? umask(0077) : null;
+
+            try {
+                $handle = @fopen($path, 'c+b');
+            } finally {
+                if ($previousUmask !== null) {
+                    umask($previousUmask);
+                }
+            }
 
             if ($handle === false) {
                 throw new StorageOperationFailedException('download_capacity_lock');
@@ -214,31 +222,11 @@ final class DownloadManager
                 || $handleStat['ino'] !== $pathStat['ino']
                 || ($handleStat['mode'] & 0170000) !== 0100000
                 || ($effectiveUser !== null && $handleStat['uid'] !== $effectiveUser)
+                || (DIRECTORY_SEPARATOR !== '\\' && ($handleStat['mode'] & 0077) !== 0)
             ) {
                 @fclose($handle);
 
                 throw new StorageOperationFailedException('download_capacity_lock');
-            }
-
-            // The parent directory is verified as private and owned by this worker
-            // before any path-based permission change is allowed.
-            if (DIRECTORY_SEPARATOR !== '\\') {
-                $chmodSucceeded = @chmod($path, 0600);
-                $handleStat = @fstat($handle);
-                $pathStat = @lstat($path);
-
-                if (
-                    $chmodSucceeded === false
-                    || $handleStat === false
-                    || $pathStat === false
-                    || $handleStat['dev'] !== $pathStat['dev']
-                    || $handleStat['ino'] !== $pathStat['ino']
-                    || ($handleStat['mode'] & 0077) !== 0
-                ) {
-                    @fclose($handle);
-
-                    throw new StorageOperationFailedException('download_capacity_lock');
-                }
             }
 
             if (@flock($handle, LOCK_EX | LOCK_NB)) {
