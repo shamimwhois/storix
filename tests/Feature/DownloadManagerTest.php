@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace ShamimStack\Storix\Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
@@ -209,9 +208,8 @@ final class DownloadManagerTest extends TestCase
     {
         config([
             'storix.downloads.max_concurrent_downloads' => 1,
-            'storix.downloads.cache_store' => 'array',
+            'storix.downloads.lock_directory' => $this->root.DIRECTORY_SEPARATOR.'download-locks',
         ]);
-        Cache::store('array')->flush();
 
         $contents = 'verified payload';
         $file = $this->storeFile($contents);
@@ -239,8 +237,7 @@ final class DownloadManagerTest extends TestCase
     {
         config([
             'storix.downloads.max_concurrent_downloads' => 1,
-            'storix.downloads.lock_ttl_seconds' => 3600,
-            'storix.downloads.cache_store' => 'array',
+            'storix.downloads.lock_directory' => $this->root.DIRECTORY_SEPARATOR.'download-locks',
         ]);
         Cache::store('array')->flush();
 
