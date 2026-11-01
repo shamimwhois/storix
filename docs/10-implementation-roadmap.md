@@ -90,10 +90,15 @@ Implement sequentially; do not start provider-specific work before core contract
 - Follow [E08 Recovery & Retry specification](21-e08-recovery-and-retry.md).
 
 ### E09 Download Engine
-- Stream content.
-- Implement range support where driver advertises it.
-- Verify chunks and final checksum.
-- Clean temp resources on all exits.
+- Add typed `DownloadRequest` / `DownloadResult` and expose `DownloadManager` through the service container, manager and facade.
+- Resolve files only through tenant/owner-scoped repository lookup; allow only `available` records and derive driver/storage key from persisted metadata.
+- Require streaming capability and native range capability for range requests.
+- Verify provider stat size and persisted SHA-256; stage and verify the complete object before exposing bytes.
+- For ranges, verify the provider range against the corresponding verified full-object slice, then return an immutable staged snapshot.
+- Enforce per-object size and concurrent-download limits with bounded-memory temporary streams and OS-level admission locks.
+- Fail closed on untrusted lock paths; document POSIX ownership/permissions and Windows operator trust requirements.
+- Close source/intermediate streams on every exit and release admission slots when the result closes or is destroyed.
+- Test scope isolation, capability enforcement, corruption, bounds, lock contention/release, and cleanup.
 
 ### E10 Progress & Events
 - Expose bytes, percent, speed, ETA and chunk counts.
@@ -136,13 +141,14 @@ Verified GitHub state on 2026-11-01:
 | E05 Basic Upload | Merged into `main` | #5 closed/merged | Complete |
 | E06 Chunk Engine | Merged into `main` | #6 merged | Complete |
 | E07 Resume & Idempotency | Merged into `main` | #7 integrated through #15 | Complete |
-| E08 Recovery & Retry | `integration/e08-on-main` | New integration PR pending | Implementation transplanted onto current `main`; final CI and review pending |
+| E08 Recovery & Retry | Merged into `main` | #16 merged | Complete; merge commit `9275ff5...` |
+| E09 Download Engine | `integration/e09-on-e08` | #17 draft | Current head `2d0f9ef...` passes SQLite/MySQL 8.4/PostgreSQL 17 CI; security review and acceptance pending |
 
-E06 and E07 are already integrated into `main`. E08 is being validated from a clean branch based on the E07 merge commit. Keep each PR's implementation evidence distinct; a green run on an earlier head does not verify later commits.
+E06, E07, and E08 are integrated into `main`. E09 is being validated on a clean branch based on the E08 merge commit. Keep each PR's implementation evidence distinct; a green run on an earlier head does not verify later commits.
 
-E08 includes failure classification, persisted backoff deadlines, retry-deadline enforcement, token-owned recovery leases and heartbeats, provider-published object recovery after independent size/SHA-256 verification, stale-session expiry, and terminal multipart cleanup. The Artisan command supports bounded candidate counts and aggregate-only dry-run. A recovery pass cannot recreate missing source bytes; callers must resubmit the original source stream after the persisted retry deadline. E08 is not complete until the final PR head passes the full database CI matrix, code review, security review, and migration rollback/reapply checks.
+E08 includes failure classification, persisted backoff deadlines, retry-deadline enforcement, token-owned recovery leases and heartbeats, provider-published object recovery after independent size/SHA-256 verification, stale-session expiry, and terminal multipart cleanup. The Artisan command supports bounded candidate counts and aggregate-only dry-run. A recovery pass cannot recreate missing source bytes; callers must resubmit the original source stream after the persisted retry deadline. E08 was merged after its full database CI matrix, code review, security review, and migration rollback/reapply checks passed.
 
-The E07 CI run recorded 102 tests / 424 assertions on SQLite, MySQL 8.4, and PostgreSQL 17. The original stacked E08 branch passed its then-current SQLite, MySQL 8.4 and PostgreSQL 17 matrix, but that evidence does not certify the clean integration branch. The integration PR must pass its own current-head CI matrix and review gates. Driver-call heartbeat during a single blocking provider operation, queue-based source re-submission, and remote-provider recovery semantics remain follow-up work.
+The E07 CI run recorded 102 tests / 424 assertions on SQLite, MySQL 8.4, and PostgreSQL 17. E08 was validated on its final pre-merge head with the same three-database matrix and then merged. E09's current PR #17 head `2d0f9efd849d59f8ddbc259f10fb5660246c2bb7` passed 165 tests / 712 assertions on each of SQLite, MySQL 8.4, and PostgreSQL 17, including Pint. Nine PHPUnit notices and one skipped test were reported in each job and remain to be reviewed. E09 still requires security review, notice/skip triage, documentation acceptance, and final PR approval before merge. Driver-call heartbeat during a single blocking provider operation, queue-based source re-submission, and remote-provider recovery semantics remain follow-up work.
 
 
 Do not call E01/E02 a production engine. A first usable local-storage release requires at least E01–E05. A resumable/recoverable release requires E01–E10. Production readiness requires all applicable release gates and real deployment validation. E04 is complete only after the current CI workflow passes, all required code and security review findings are addressed, all review threads are resolved, and the work is merged into `main`.
