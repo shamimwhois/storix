@@ -15,7 +15,7 @@ final class DriverManagerTest extends TestCase
     public function test_it_registers_and_resolves_drivers(): void
     {
         $manager = new DriverManager('memory');
-        $driver = $this->createMock(StorageDriver::class);
+        $driver = $this->createStub(StorageDriver::class);
         $driver->method('name')->willReturn('memory');
         $driver->method('capabilities')->willReturn(new DriverCapabilities);
 
@@ -28,7 +28,7 @@ final class DriverManagerTest extends TestCase
     public function test_numeric_driver_names_are_returned_as_strings(): void
     {
         $manager = new DriverManager('0');
-        $driver = $this->createMock(StorageDriver::class);
+        $driver = $this->createStub(StorageDriver::class);
         $driver->method('name')->willReturn('0');
         $driver->method('capabilities')->willReturn(new DriverCapabilities);
 

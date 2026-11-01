@@ -72,4 +72,4 @@ jobs:
       - name: Check code style
         run: vendor/bin/pint --test -v
       - name: Run tests
-        run: vendor/bin/phpunit
+        run: vendor/bin/phpunit --display-phpunit-notices

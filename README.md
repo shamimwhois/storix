@@ -16,7 +16,7 @@ Storix is an **API-first, backend-only Laravel package** designed to give applic
 
 Instead of coupling application code to a single provider, Storix places a stable PHP API over a capability-aware driver system. Its engineering design covers streaming I/O, large-file chunking, resumable transfers, retries, integrity verification, transfer observability, and tenant-aware access control.
 
-> **Project status:** E01–E07 are merged into `main`. E08 Recovery & Retry is under integration review in PR #16 from `integration/e08-on-main`; its full CI matrix and review gates are pending. Storix is not yet a production release.
+> **Project status:** E01–E08 are merged into `main`. E09 Download Engine is under review in [PR #17](https://github.com/shamimwhois/storix/pull/17) from `integration/e09-on-e08`. Current PR head `8e88a4cde4b90980b12fa005d5f1169de3e4b77a` passed [CI run #41343576739](https://github.com/shamimwhois/storix/actions/runs/41343576739) on PHP 8.5 / Laravel 13 with SQLite, MySQL 8.4, and PostgreSQL 17. Earlier implementation validation recorded 166 tests / 713 assertions per database, Pint clean, and zero PHPUnit notices; those counts do not describe the current head. One Windows-specific test is skipped on Linux by design. Independent security review and final acceptance remain pending. Storix is not yet a production release.
 
 ## At a glance
 
@@ -244,6 +244,7 @@ The documentation portal is available at **[docs/index.html](docs/index.html)**.
 | [E06 Chunk Engine](docs/19-e06-chunk-engine.md) | Deterministic chunk planning, optional multipart driver contract and verified chunk assembly |
 | [E07 Resume & Idempotency](docs/20-e07-resume-idempotency.md) | Request fingerprints, transfer leases, provider-part reconciliation and safe resume |
 | [E08 Recovery & Retry](docs/21-e08-recovery-and-retry.md) | Failure classification, persisted backoff, stale-session recovery and cleanup |
+| [E09 Download Engine](docs/24-e09-download-engine.md) | Scoped streaming downloads, range verification, bounded staging and admission control |
 
 ## Implementation roadmap
 

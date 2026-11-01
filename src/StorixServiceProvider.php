@@ -11,6 +11,7 @@ use ShamimStack\Storix\Contracts\Repositories\ChunkRepository;
 use ShamimStack\Storix\Contracts\Repositories\DirectoryRepository;
 use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
 use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
+use ShamimStack\Storix\Downloads\DownloadManager;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentChunkRepository;
@@ -60,6 +61,14 @@ final class StorixServiceProvider extends ServiceProvider
             return $manager;
         });
 
+        $this->app->singleton(DownloadManager::class, function ($app): DownloadManager {
+            return new DownloadManager(
+                $app->make(DriverManager::class),
+                $app->make(StoredFileRepository::class),
+                $app->make(ConfigRepository::class),
+            );
+        });
+
         $this->app->bind(DirectoryRepository::class, EloquentDirectoryRepository::class);
         $this->app->bind(StoredFileRepository::class, EloquentStoredFileRepository::class);
         $this->app->bind(TransferRepository::class, EloquentTransferRepository::class);
@@ -69,6 +78,7 @@ final class StorixServiceProvider extends ServiceProvider
             return new StorixManager(
                 $app->make(DriverManager::class),
                 $app->make(UploadManager::class),
+                $app->make(DownloadManager::class),
             );
         });
     }
