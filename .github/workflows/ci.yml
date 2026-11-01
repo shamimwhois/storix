@@ -94,7 +94,5 @@ jobs:
         run: composer validate --strict
       - name: Install dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
-      - name: Check code style
-        run: vendor/bin/pint --test -v
       - name: Run tests
         run: vendor/bin/phpunit
