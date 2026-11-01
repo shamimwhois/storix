@@ -305,16 +305,16 @@ final class DownloadManager
             throw new StorageOperationFailedException('download_capacity_lock');
         }
 
-        $normalized = rtrim(str_replace('/', '\\\\', $resolved), '\\\\');
+        $normalized = rtrim(str_replace('/', '\\', $resolved), '\\');
         $drive = substr($normalized, 0, 2);
         $segments = array_values(array_filter(
-            explode('\\\\', substr($normalized, 3)),
+            explode('\\', substr($normalized, 3)),
             static fn (string $segment): bool => $segment !== '' && $segment !== '.' && $segment !== '..',
         ));
-        $current = $drive.'\\\\';
+        $current = $drive.'\\';
 
         foreach ($segments as $segment) {
-            $current = rtrim($current, '\\\\').'\\\\'.$segment;
+            $current = rtrim($current, '\\').'\\'.$segment;
             clearstatcache(true, $current);
             $linkStat = @lstat($current);
             $targetStat = @stat($current);
