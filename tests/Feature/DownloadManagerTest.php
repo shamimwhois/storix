@@ -7,6 +7,7 @@ namespace ShamimStack\Storix\Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use ShamimStack\Storix\Contracts\Repositories\StoredFileRepository;
 use ShamimStack\Storix\Contracts\StorageDriver;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\DTOs\DownloadRequest;
@@ -120,7 +121,7 @@ final class DownloadManagerTest extends TestCase
 
     public function test_it_rejects_ranges_for_drivers_without_range_capability(): void
     {
-        $driver = $this->createMock(\ShamimStack\Storix\Contracts\StorageDriver::class);
+        $driver = $this->createMock(StorageDriver::class);
         $driver->method('name')->willReturn('no-range');
         $driver->method('capabilities')->willReturn(new DriverCapabilities(supportsRangeReads: false));
         $driver->method('writeStream')->willReturnCallback(static function (WriteStreamRequest $request): WriteResult {
@@ -160,7 +161,7 @@ final class DownloadManagerTest extends TestCase
         $driver->expects($this->never())->method('readStream');
         $this->app->make(DriverManager::class)->register('range-guard', $driver);
 
-        $file = $this->app->make(\ShamimStack\Storix\Contracts\Repositories\StoredFileRepository::class)->create([
+        $file = $this->app->make(StoredFileRepository::class)->create([
             'tenant_id' => 'tenant-a',
             'owner_id' => 'owner-a',
             'directory_id' => null,
