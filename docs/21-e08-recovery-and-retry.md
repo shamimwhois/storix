@@ -4,7 +4,7 @@
 
 Implementation and PRD reconciliation are complete on `feature/e08-recovery-retry`, stacked on E07. The final verified head is `c788d86d25f489512f4977f3a4589dd86873f76a`. GitHub Actions run 41262461959 passed all three PHP 8.5 / Laravel 13 jobs: SQLite, MySQL 8.4, and PostgreSQL 17. Composer validation, Pint, PHPUnit, and the migration rollback/reapply coverage passed on that head. The PR has no unresolved inline review threads at the verification check.
 
-PR #8 remains draft/open and is not merged or release-complete because it is stacked on E07, which is stacked on E06. Integrate in dependency order (E06, E07, then E08), retarget/revalidate each dependent PR, and retain the full database matrix as a required gate. Do not merge E08 directly into `main` ahead of its base dependencies.
+PR #8 is open and ready for review (since 2026-11-01), but is not merged or release-complete because it is stacked on E07, which is stacked on E06. Integrate in dependency order (E06, E07, then E08), retarget/revalidate each dependent PR, and retain the full database matrix as a required gate. Do not merge E08 directly into `main` ahead of its base dependencies.
 
 ## Goals
 
