@@ -243,7 +243,8 @@ The documentation portal is available at **[docs/index.html](docs/index.html)**.
 | [E05 Basic Upload](docs/18-e05-basic-upload.md) | Stream-first single-object uploads, validation, idempotency and SHA-256 verification |
 | [E06 Chunk Engine](docs/19-e06-chunk-engine.md) | Deterministic chunk planning, optional multipart driver contract and verified chunk assembly |
 | [E07 Resume & Idempotency](docs/20-e07-resume-idempotency.md) | Request fingerprints, transfer leases, provider-part reconciliation and safe resume |
-| [E08 Recovery & Retry](docs/21-e08-recovery-and-retry.md) | Failure classification, persisted backoff, stale-session recovery and cleanup |\n| [E09 Download Engine](docs/24-e09-download-engine.md) | Scoped full downloads, native byte ranges, SHA-256 verification and stream cleanup |
+| [E08 Recovery & Retry](docs/21-e08-recovery-and-retry.md) | Failure classification, persisted backoff, stale-session recovery and cleanup |
+| [E09 Download Engine](docs/24-e09-download-engine.md) | Scoped full downloads, native byte ranges, SHA-256 verification and stream cleanup |
 
 ## Implementation roadmap
 
