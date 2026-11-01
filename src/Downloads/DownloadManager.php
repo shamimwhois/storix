@@ -408,7 +408,7 @@ final class DownloadManager
 
         $resolved = realpath($directory);
 
-        if ($resolved === false || strcasecmp(rtrim($resolved, '\\'), $normalized) !== 0) {
+        if ($resolved === false) {
             throw new StorageOperationFailedException('download_capacity_lock');
         }
     }
