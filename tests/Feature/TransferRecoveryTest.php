@@ -92,6 +92,27 @@ final class TransferRecoveryTest extends TestCase
         self::assertNull($transfer->resume_lease_token);
     }
 
+    public function test_limit_one_still_processes_terminal_cleanup_when_no_active_transfer_exists(): void
+    {
+        $terminal = $this->makeTransfer(
+            null,
+            TransferState::FAILED,
+            attempts: 5,
+            cleanupPending: true,
+        );
+
+        $summary = $this->app->make(TransferRecoveryService::class)->recover(
+            limit: 1,
+            staleSeconds: 60,
+        );
+
+        $terminal->refresh();
+
+        self::assertSame(1, $summary['examined']);
+        self::assertSame(1, $summary['cleaned']);
+        self::assertFalse($terminal->cleanup_pending);
+    }
+
     public function test_terminal_cleanup_backlog_cannot_starve_active_recovery(): void
     {
         $this->makeTransfer(null, TransferState::FAILED, attempts: 5, cleanupPending: true);
