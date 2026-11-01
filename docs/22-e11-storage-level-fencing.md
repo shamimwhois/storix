@@ -1,4 +1,4 @@
-# E11 — Strict Storage-Level Fencing
+# Hardening — Strict Storage-Level Fencing (Issue #11)
 
 ## Status
 
