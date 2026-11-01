@@ -2,7 +2,7 @@
 
 ## Status
 
-Ported to `integration/e09-on-e08` from the verified E08 mainline. The implementation head `f6eb75c4ceb7ceca990204608bae0db09a2695c5` passed the PHP 8.5 / Laravel 13 CI matrix on SQLite, MySQL 8.4, and PostgreSQL 17 (166 tests / 713 assertions per database), with Pint clean and zero PHPUnit notices. One Windows-specific test is skipped on Linux by design. Subsequent review-feedback changes require a fresh CI run. Independent security review and final acceptance remain pending; E09 is not yet merged or release-ready.
+Ported to `integration/e09-on-e08` from the verified E08 mainline. Current PR head `4bb141aa0d689df0388d650b08991195d5c2a122` passed CI run [#41341502288](https://github.com/shamimwhois/storix/actions/runs/41341502288) on PHP 8.5 / Laravel 13 with SQLite, MySQL 8.4, and PostgreSQL 17. The implementation validation on the preceding code head `f6eb75c4ceb7ceca990204608bae0db09a2695c5` recorded 166 tests / 713 assertions per database, Pint clean, and zero PHPUnit notices; one Windows-specific test is skipped on Linux by design. The current head contains documentation and review-feedback follow-ups and its own CI run is green. Independent security review and final acceptance remain pending; E09 is not yet merged or release-ready.
 
 ## Scope
 
