@@ -15,6 +15,7 @@ use ShamimStack\Storix\DTOs\DriverCapabilities;
 use ShamimStack\Storix\DTOs\StorageObjectMetadata;
 use ShamimStack\Storix\DTOs\WriteResult;
 use ShamimStack\Storix\DTOs\WriteStreamRequest;
+use ShamimStack\Storix\Exceptions\DownloadTooLargeException;
 use ShamimStack\Storix\Exceptions\StorageOperationFailedException;
 use ShamimStack\Storix\Exceptions\UnsupportedCapabilityException;
 use ShamimStack\Storix\Exceptions\UploadIntegrityException;
@@ -146,6 +147,42 @@ final class DownloadManagerTest extends TestCase
 
         $this->expectException(StorageOperationFailedException::class);
         Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a', 5, 1));
+    }
+
+    public function test_download_size_limit_is_checked_before_reading_the_provider(): void
+    {
+        config(['storix.downloads.max_size_bytes' => 4]);
+
+        $driver = $this->createMock(StorageDriver::class);
+        $driver->method('name')->willReturn('size-guard');
+        $driver->method('capabilities')->willReturn(new DriverCapabilities);
+        $driver->method('stat')->willReturn(new StorageObjectMetadata(
+            key: 'guarded/large.bin',
+            sizeBytes: 5,
+            checksumSha256: hash('sha256', '12345'),
+        ));
+        $driver->expects($this->never())->method('readStream');
+        $this->app->make(DriverManager::class)->register('size-guard', $driver);
+
+        $file = $this->app->make(StoredFileRepository::class)->create([
+            'tenant_id' => 'tenant-a',
+            'owner_id' => 'owner-a',
+            'directory_id' => null,
+            'driver' => 'size-guard',
+            'name' => 'large.bin',
+            'original_name' => 'large.bin',
+            'extension' => 'bin',
+            'mime_type' => 'application/octet-stream',
+            'size_bytes' => 5,
+            'sha256' => hash('sha256', '12345'),
+            'storage_key' => 'guarded/large.bin',
+            'status' => 'available',
+            'visibility' => 'private',
+            'metadata' => [],
+        ]);
+
+        $this->expectException(DownloadTooLargeException::class);
+        Storix::downloads()->download(new DownloadRequest((string) $file->id, 'tenant-a', 'owner-a'));
     }
 
     public function test_out_of_bounds_range_is_rejected_before_reading_the_object(): void
