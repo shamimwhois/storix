@@ -146,6 +146,7 @@ final class ErrorClassifier
             StorixErrorCode::INVALID_REQUEST->value,
             StorixErrorCode::UNSUPPORTED_CAPABILITY->value,
             StorixErrorCode::UPLOAD_TOO_LARGE->value,
+            StorixErrorCode::DOWNLOAD_TOO_LARGE->value,
             StorixErrorCode::IDEMPOTENCY_CONFLICT->value,
             StorixErrorCode::UPLOAD_INTEGRITY_FAILED->value,
             StorixErrorCode::TRANSFER_EXPIRED->value,
