@@ -16,7 +16,7 @@ Storix is an **API-first, backend-only Laravel package** designed to give applic
 
 Instead of coupling application code to a single provider, Storix places a stable PHP API over a capability-aware driver system. Its engineering design covers streaming I/O, large-file chunking, resumable transfers, retries, integrity verification, transfer observability, and tenant-aware access control.
 
-> **Project status:** E01–E05 are merged into `main`. E06 PR #6 is open; E07 PR #7 is a draft stacked on E06; E08 recovery/retry is in progress on `feature/e08-recovery-retry`, stacked on E07. E06 provides sequential verified multipart writes, E07 adds resumable/idempotent uploads, and E08 adds bounded recovery, retry deadlines, and stale-session cleanup. Storix is not yet a production release.
+> **Project status:** E01–E07 are merged into `main`. E08 Recovery & Retry is under integration review in PR #16 from `integration/e08-on-main`; its full CI matrix and review gates are pending. Storix is not yet a production release.
 
 ## At a glance
 
