@@ -41,6 +41,7 @@ Build output:
 - [E07 Resume & Idempotency](20-e07-resume-idempotency.md)
 - [E08 Recovery & Retry](21-e08-recovery-and-retry.md)
 - [E09 Download Engine](24-e09-download-engine.md)
+- [E10 Progress & Events](25-e10-progress-events.md)
 - [Architecture Decisions](DECISIONS.md)
 
 > Documentation describes the intended engineering design. Feature availability must be confirmed from implementation, tests, and release notes.
