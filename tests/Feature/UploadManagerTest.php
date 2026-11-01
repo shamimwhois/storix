@@ -207,24 +207,93 @@ final class UploadManagerTest extends TestCase
     public function test_finalization_transaction_rejects_a_worker_after_lease_replacement(): void
     {
         $repository = $this->app->make(TransferRepository::class);
-        $fencedRepository = \\Mockery::mock($repository)->makePartial();
-        $fencedRepository->shouldReceive('ownsResumeLease')
-            ->once()
-            ->andReturnUsing(function (string $transferId, string $token, \\DateTimeInterface $now) use ($repository): bool {
+        $fencedRepository = new class($repository) implements TransferRepository {
+            public function __construct(private readonly TransferRepository $inner) {}
+
+            public function create(array $attributes): Transfer
+            {
+                return $this->inner->create($attributes);
+            }
+
+            public function findScoped(string $id, ?string $tenantId, ?string $ownerId): ?Transfer
+            {
+                return $this->inner->findScoped($id, $tenantId, $ownerId);
+            }
+
+            public function findByIdempotencyKey(string $key, ?string $tenantId, ?string $ownerId): ?Transfer
+            {
+                return $this->inner->findByIdempotencyKey($key, $tenantId, $ownerId);
+            }
+
+            public function firstOrCreateIdempotent(array $attributes): Transfer
+            {
+                return $this->inner->firstOrCreateIdempotent($attributes);
+            }
+
+            public function save(Transfer $transfer): Transfer
+            {
+                return $this->inner->save($transfer);
+            }
+
+            public function claimResumeLease(
+                string $transferId,
+                string $token,
+                \\DateTimeInterface $now,
+                \\DateTimeInterface $expiresAt,
+                ?\\DateTimeInterface $claimExpiredBefore = null,
+                bool $allowTerminalCleanup = false,
+            ): bool {
+                return $this->inner->claimResumeLease(
+                    $transferId,
+                    $token,
+                    $now,
+                    $expiresAt,
+                    $claimExpiredBefore,
+                    $allowTerminalCleanup,
+                );
+            }
+
+            public function ownsResumeLease(string $transferId, string $token, \\DateTimeInterface $now): bool
+            {
                 DB::table('storix_transfers')->where('id', $transferId)->update([
-                    'resume_lease_expires_at' => $now->copy()->subSeconds(61),
+                    'resume_lease_expires_at' => now()->subSeconds(61),
                 ]);
 
-                self::assertTrue($repository->claimResumeLease(
+                self::assertTrue($this->inner->claimResumeLease(
                     $transferId,
                     'replacement-finalization-token',
                     $now,
-                    $now->copy()->addMinutes(5),
-                    $now->copy()->subSeconds(60),
+                    now()->addMinutes(5),
+                    now()->subSeconds(60),
                 ));
 
-                return $repository->ownsResumeLease($transferId, $token, $now);
-            });
+                return $this->inner->ownsResumeLease($transferId, $token, $now);
+            }
+
+            public function markCleanupPending(string $transferId, \\DateTimeInterface $now): bool
+            {
+                return $this->inner->markCleanupPending($transferId, $now);
+            }
+
+            public function renewResumeLease(
+                string $transferId,
+                string $token,
+                \\DateTimeInterface $now,
+                \\DateTimeInterface $expiresAt,
+            ): bool {
+                return $this->inner->renewResumeLease($transferId, $token, $now, $expiresAt);
+            }
+
+            public function releaseResumeLease(string $transferId, string $token): bool
+            {
+                return $this->inner->releaseResumeLease($transferId, $token);
+            }
+
+            public function expiredBefore(\\DateTimeInterface $cutoff, int $limit = 100): \\Illuminate\\Support\\Collection
+            {
+                return $this->inner->expiredBefore($cutoff, $limit);
+            }
+        };
         $this->app->instance(TransferRepository::class, $fencedRepository);
 
         $stream = $this->stream('finalization-fence-payload');
