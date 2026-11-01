@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace ShamimStack\Storix\Tests\Feature;
 
 use ShamimStack\Storix\Contracts\StorageDriver;
-use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Downloads\DownloadManager;
+use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\DTOs\DriverCapabilities;
 use ShamimStack\Storix\Facades\Storix;
 use ShamimStack\Storix\StorixManager;

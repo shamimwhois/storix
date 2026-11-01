@@ -6,8 +6,8 @@ namespace ShamimStack\Storix;
 
 use LogicException;
 use ShamimStack\Storix\Contracts\StorageDriver;
-use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Downloads\DownloadManager;
+use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\DTOs\DriverCapabilities;
 use ShamimStack\Storix\Uploads\UploadManager;
 
@@ -17,7 +17,8 @@ final readonly class StorixManager
         private DriverManager $drivers,
         private ?UploadManager $uploads = null,
         private ?DownloadManager $downloads = null,
-    ) {}
+    ) {
+    }
 
     public function driver(?string $name = null): StorageDriver
     {
