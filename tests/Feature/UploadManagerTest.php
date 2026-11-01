@@ -238,9 +238,9 @@ final class UploadManagerTest extends TestCase
             public function claimResumeLease(
                 string $transferId,
                 string $token,
-                \\DateTimeInterface $now,
-                \\DateTimeInterface $expiresAt,
-                ?\\DateTimeInterface $claimExpiredBefore = null,
+                \DateTimeInterface $now,
+                \DateTimeInterface $expiresAt,
+                ?\DateTimeInterface $claimExpiredBefore = null,
                 bool $allowTerminalCleanup = false,
             ): bool {
                 return $this->inner->claimResumeLease(
@@ -253,7 +253,7 @@ final class UploadManagerTest extends TestCase
                 );
             }
 
-            public function ownsResumeLease(string $transferId, string $token, \\DateTimeInterface $now): bool
+            public function ownsResumeLease(string $transferId, string $token, \DateTimeInterface $now): bool
             {
                 DB::table('storix_transfers')->where('id', $transferId)->update([
                     'resume_lease_expires_at' => now()->subSeconds(61),
@@ -270,7 +270,7 @@ final class UploadManagerTest extends TestCase
                 return $this->inner->ownsResumeLease($transferId, $token, $now);
             }
 
-            public function markCleanupPending(string $transferId, \\DateTimeInterface $now): bool
+            public function markCleanupPending(string $transferId, \DateTimeInterface $now): bool
             {
                 return $this->inner->markCleanupPending($transferId, $now);
             }
@@ -278,8 +278,8 @@ final class UploadManagerTest extends TestCase
             public function renewResumeLease(
                 string $transferId,
                 string $token,
-                \\DateTimeInterface $now,
-                \\DateTimeInterface $expiresAt,
+                \DateTimeInterface $now,
+                \DateTimeInterface $expiresAt,
             ): bool {
                 return $this->inner->renewResumeLease($transferId, $token, $now, $expiresAt);
             }
@@ -289,7 +289,7 @@ final class UploadManagerTest extends TestCase
                 return $this->inner->releaseResumeLease($transferId, $token);
             }
 
-            public function expiredBefore(\\DateTimeInterface $cutoff, int $limit = 100): \\Illuminate\\Support\\Collection
+            public function expiredBefore(\DateTimeInterface $cutoff, int $limit = 100): \Illuminate\Support\Collection
             {
                 return $this->inner->expiredBefore($cutoff, $limit);
             }
