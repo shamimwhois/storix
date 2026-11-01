@@ -172,7 +172,7 @@ Implemented on `feature/e10-progress-events`:
 - Add the `TransferProgressSnapshot` immutable DTO.
 - Add `ProgressManager::forTransfer()` using the existing tenant/owner-scoped repository lookup.
 - Expose `Storix::progress()` through the manager, service provider, and facade.
-- Add feature tests for scope enforcement, percentage, remaining bytes, ETA, completion semantics, and nonterminal totals.
+- Add feature tests for scope enforcement, percentage, remaining bytes, ETA, completion semantics, nonterminal totals, completed zero-byte transfers, and immutable timestamp snapshots.
 
 M01 intentionally provides read-only snapshots. Atomic revision increments, progress writes, rate sampling, throttling, lifecycle events, and upload/recovery instrumentation are later implementation steps. A snapshot's revision remains zero until the atomic progress writer is implemented.
 
