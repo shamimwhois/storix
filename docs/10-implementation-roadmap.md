@@ -128,9 +128,19 @@ Implement sequentially; do not start provider-specific work before core contract
 
 ## Milestone policy
 
-E05 Basic Upload is merged into `main`. E06 is implemented on `feature/e06-chunk-engine` as a synchronous sequential multipart workflow; PR #6 remains open and unmerged. E07 implementation and verification are recorded on `feature/e07-resume-idempotency`, stacked on E06; PR #7 remains a draft until E06 merges and its CI is rerun against `main`.
+Verified GitHub state on 2026-11-01:
 
-E08 implementation is in progress on `feature/e08-recovery-retry`, stacked on E07. The branch adds failure classification, persisted backoff deadlines, retry-deadline enforcement, token-owned recovery leases and heartbeats, recovery of a provider-published final object after independent size/SHA-256 verification, stale-session expiry, and cleanup of terminal multipart sessions. The Artisan command supports bounded candidate counts and a dry-run mode. A recovery pass cannot recreate missing source bytes; callers must resubmit the original source stream after the persisted retry deadline. E08 is not complete until the full database CI matrix, code review, security review, and migration rollback/reapply checks pass on the final PR head.
+| Epic | Repository state | PR | Completion interpretation |
+|---|---|---|---|
+| E01–E04 | Merged into `main` | #1–#4 closed/merged | Complete |
+| E05 Basic Upload | Merged into `main` | #5 closed/merged | Complete |
+| E06 Chunk Engine | `feature/e06-chunk-engine` | #6 open, non-draft, base `main` | Implemented for review; not merged |
+| E07 Resume & Idempotency | `feature/e07-resume-idempotency` | #7 open draft, base E06 | Not merged; stacked dependency |
+| E08 Recovery & Retry | `feature/e08-recovery-retry` | #8 open draft, base E07 | Not complete; final CI/review gates pending |
+
+Do not merge E07 or E08 directly into `main` ahead of their base dependencies. E06 must merge first, then E07 must be rebased/validated against `main`, followed by E08. Keep each PR's implementation evidence distinct; a green run on an earlier head does not verify later commits.
+
+E08 includes failure classification, persisted backoff deadlines, retry-deadline enforcement, token-owned recovery leases and heartbeats, provider-published object recovery after independent size/SHA-256 verification, stale-session expiry, and terminal multipart cleanup. The Artisan command supports bounded candidate counts and aggregate-only dry-run. A recovery pass cannot recreate missing source bytes; callers must resubmit the original source stream after the persisted retry deadline. E08 is not complete until the final PR head passes the full database CI matrix, code review, security review, and migration rollback/reapply checks.
 
 The E07 CI run recorded 102 tests / 424 assertions on SQLite, MySQL 8.4, and PostgreSQL 17. E08 verification results must be recorded separately; E07's green run is not evidence that E08 is green. Driver-call heartbeat during a single blocking provider operation, queue-based source re-submission, and remote-provider recovery semantics remain follow-up work.
 
