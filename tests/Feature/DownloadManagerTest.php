@@ -37,7 +37,7 @@ final class DownloadManagerTest extends TestCase
         $this->root = sys_get_temp_dir().'/storix-e09-'.Str::uuid();
         config(['storix.drivers.local.root' => $this->root]);
 
-        if (DIRECTORY_SEPARATOR === '\\\\') {
+        if (DIRECTORY_SEPARATOR === '\\') {
             $lockDirectory = $this->root.DIRECTORY_SEPARATOR.'locks';
             File::ensureDirectoryExists($lockDirectory, 0700, true);
             config([
@@ -317,7 +317,7 @@ final class DownloadManagerTest extends TestCase
 
     public function test_download_rejects_a_lock_directory_below_a_writable_non_sticky_ancestor(): void
     {
-        if (DIRECTORY_SEPARATOR === '\\\\') {
+        if (DIRECTORY_SEPARATOR === '\\') {
             self::markTestSkipped('POSIX directory permission checks are not available on Windows.');
         }
 
@@ -342,7 +342,7 @@ final class DownloadManagerTest extends TestCase
 
     public function test_download_rejects_a_lock_directory_with_a_symlinked_ancestor(): void
     {
-        if (DIRECTORY_SEPARATOR === '\\\\') {
+        if (DIRECTORY_SEPARATOR === '\\') {
             self::markTestSkipped('POSIX path-component checks are not available on Windows.');
         }
 
@@ -461,7 +461,7 @@ final class DownloadManagerTest extends TestCase
 
     public function test_windows_downloads_fail_closed_without_a_trusted_lock_path_opt_in(): void
     {
-        if (DIRECTORY_SEPARATOR !== '\\\\') {
+        if (DIRECTORY_SEPARATOR !== '\\') {
             self::markTestSkipped('Windows lock-path policy is Windows-specific.');
         }
 
