@@ -14,6 +14,7 @@ use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
 use ShamimStack\Storix\Downloads\DownloadManager;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
+use ShamimStack\Storix\Progress\ProgressManager;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentChunkRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentDirectoryRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentStoredFileRepository;
@@ -21,7 +22,6 @@ use ShamimStack\Storix\Repositories\Eloquent\EloquentTransferRepository;
 use ShamimStack\Storix\Services\ChunkPlanner;
 use ShamimStack\Storix\Services\RetryPolicy;
 use ShamimStack\Storix\Services\TransferStateMachine;
-use ShamimStack\Storix\Progress\ProgressManager;
 use ShamimStack\Storix\Uploads\UploadManager;
 
 final class StorixServiceProvider extends ServiceProvider
