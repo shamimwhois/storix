@@ -143,7 +143,7 @@ Verified GitHub state on 2026-11-01:
 | E07 Resume & Idempotency | `feature/e07-resume-idempotency` | #7 open draft, base E06 | Implemented for review; not merged |
 | E08 Recovery & Retry | `feature/e08-recovery-retry` | #8 open, non-draft, base E07 | Final-head CI and review gates verified; not merged |
 | E09 Download Engine | `feature/e09-download-engine` | #13 open, non-draft, base E08 | Implementation, 4-way CI, and code/security review verified; not merged |
-| E10 Progress & Events | Not started | — | Next milestone; depends on E05–E09 implementation contracts |
+| E10 Progress & Events | `feature/e10-progress-events` | #14 open draft, base E09 | M01 scoped progress snapshot API implemented; latest-head CI pending |
 
 Do not merge E07 or E08 directly into `main` ahead of their base dependencies. E06 must merge first, then E07 must be rebased/validated against `main`, followed by E08. Keep each PR's implementation evidence distinct; a green run on an earlier head does not verify later commits.
 

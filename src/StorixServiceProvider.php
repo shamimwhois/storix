@@ -14,6 +14,7 @@ use ShamimStack\Storix\Contracts\Repositories\TransferRepository;
 use ShamimStack\Storix\Downloads\DownloadManager;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\Drivers\Local\LocalStorageDriver;
+use ShamimStack\Storix\Progress\ProgressManager;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentChunkRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentDirectoryRepository;
 use ShamimStack\Storix\Repositories\Eloquent\EloquentStoredFileRepository;
@@ -59,6 +60,10 @@ final class StorixServiceProvider extends ServiceProvider
             );
         });
 
+        $this->app->singleton(ProgressManager::class, function ($app): ProgressManager {
+            return new ProgressManager($app->make(TransferRepository::class));
+        });
+
         $this->app->singleton(DownloadManager::class, function ($app): DownloadManager {
             return new DownloadManager(
                 $app->make(DriverManager::class),
@@ -77,6 +82,7 @@ final class StorixServiceProvider extends ServiceProvider
                 $app->make(DriverManager::class),
                 $app->make(UploadManager::class),
                 $app->make(DownloadManager::class),
+                $app->make(ProgressManager::class),
             );
         });
     }

@@ -9,6 +9,7 @@ use ShamimStack\Storix\Contracts\StorageDriver;
 use ShamimStack\Storix\Downloads\DownloadManager;
 use ShamimStack\Storix\Drivers\DriverManager;
 use ShamimStack\Storix\DTOs\DriverCapabilities;
+use ShamimStack\Storix\Progress\ProgressManager;
 use ShamimStack\Storix\Uploads\UploadManager;
 
 final readonly class StorixManager
@@ -17,6 +18,7 @@ final readonly class StorixManager
         private DriverManager $drivers,
         private ?UploadManager $uploads = null,
         private ?DownloadManager $downloads = null,
+        private ?ProgressManager $progress = null,
     ) {}
 
     public function driver(?string $name = null): StorageDriver
@@ -37,6 +39,11 @@ final readonly class StorixManager
     public function downloads(): DownloadManager
     {
         return $this->downloads ?? throw new LogicException('Storix download services are not bound in the container.');
+    }
+
+    public function progress(): ProgressManager
+    {
+        return $this->progress ?? throw new LogicException('Storix progress services are not bound in the container.');
     }
 
     /** @return list<string> */
